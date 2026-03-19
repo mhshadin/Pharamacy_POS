@@ -1,3 +1,4 @@
+// Added OCR functionality for pharmacy inventory tracking
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
