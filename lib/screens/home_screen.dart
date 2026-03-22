@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -39,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen>
   // Scanner variables
   late MobileScannerController _cameraController;
   bool _isProcessingScan = false;
-  bool _isCameraActive = true;
+  late bool _isCameraActive;
 
   // Voice search state
   bool _isVoiceSearchActive = false;
@@ -50,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    _isCameraActive = !Platform.isWindows;
+
     _cameraController = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
@@ -73,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_isCameraActive) return;
+    if (Platform.isWindows || !_isCameraActive) return;
 
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
@@ -184,158 +187,84 @@ class _HomeScreenState extends State<HomeScreen>
       barrierDismissible: false,
       builder: (ctx) {
         final isSuccess = type == 'success';
-        return Dialog(
-          backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.secondaryAccent, width: 4),
+        final theme = Theme.of(ctx);
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final isNarrow = screenWidth < 380;
+        final iconSize = isNarrow ? 60.0 : 72.0;
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: AppColors.white,
+          surfaceTintColor: AppColors.white,
+          icon: Icon(
+            isSuccess ? LucideIcons.checkCircle2 : LucideIcons.trash2,
+            size: iconSize,
+            color: isSuccess ? AppColors.success : AppColors.error,
           ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isSuccess ? LucideIcons.checkCircle2 : LucideIcons.trash2,
-                      size: 80,
-                      color: isSuccess ? AppColors.success : AppColors.error,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      isSuccess ? 'Sale Complete' : 'Clear Cart?',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      message,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    if (type == 'clear')
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                  color: AppColors.primaryDark,
-                                  width: 2,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
+          title: Text(
+            isSuccess ? 'Sale Complete' : 'Clear Cart?',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          content: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          actions: [
+            if (type == 'clear') ...[
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  context.read<POSProvider>().clearCart();
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppColors.white,
+                ),
+                child: const Text('Yes, Clear'),
+              ),
+            ] else
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final pos = context.read<POSProvider>();
+                    final admin = context.read<AdminProvider>();
+                    final invoiceNumber = await pos.completeSale();
+                    await admin.refreshSales();
+                    await admin.loadData();
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Sale Complete! Invoice: $invoiceNumber'),
+                            backgroundColor: AppColors.success,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                context.read<POSProvider>().clearCart();
-                                Navigator.pop(ctx);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.error,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Yes, Clear',
-                                style: TextStyle(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final pos = context.read<POSProvider>();
-                            final admin = context.read<AdminProvider>();
-                            final invoiceNumber = await pos.completeSale();
-                            await admin.refreshSales();
-                            await admin.loadData();
-                            if (ctx.mounted) {
-                              Navigator.pop(ctx);
-                              // Show success dialog with invoice number
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Sale Complete! Invoice: $invoiceNumber',
-                                    ),
-                                    backgroundColor: AppColors.success,
-                                    duration: const Duration(seconds: 4),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryDark,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'New Sale',
-                            style: TextStyle(
-                              color: AppColors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('New Sale'),
                 ),
               ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  icon: const Icon(LucideIcons.x, color: AppColors.primaryDark),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ),
-            ],
-          ),
+          ],
         );
       },
     );
@@ -391,9 +320,9 @@ class _HomeScreenState extends State<HomeScreen>
     if (!context.mounted) return;
     Navigator.pop(context); // close drawer
     final bool wasOn = _isCameraActive;
-    if (wasOn) _cameraController.stop();
+    if (wasOn && !Platform.isWindows) _cameraController.stop();
     await navigate();
-    if (wasOn && mounted) _cameraController.start();
+    if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
   }
 
   Future<void> _handleOcrScan() async {
@@ -489,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
-      if (wasOn && mounted) _cameraController.start();
+      if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
     }
   }
 
@@ -498,139 +427,177 @@ class _HomeScreenState extends State<HomeScreen>
     final posProvider = context.watch<POSProvider>();
     final cart = posProvider.cart;
     final filteredCart = posProvider.filteredCart;
-    final isTablet = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
       key: _scaffoldKey,
       resizeToAvoidBottomInset: false,
       drawer: PosDrawer(onNavigate: _navigateFromDrawer),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // BASE LAYER: main content Column
-            Column(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: const Text('PHARMA POS'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isCameraActive ? LucideIcons.camera : LucideIcons.cameraOff,
+              color: AppColors.white,
+            ),
+            onPressed: () {
+              if (Platform.isWindows) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Camera scanner is restricted on Windows desktop.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+              setState(() {
+                _isCameraActive = !_isCameraActive;
+                if (_isCameraActive) {
+                  _cameraController.start();
+                } else {
+                  _cameraController.stop();
+                }
+              });
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLarge = constraints.maxWidth > 900;
+
+          Widget scannerSection = PosScannerSection(
+            cameraController: _cameraController,
+            scanAnimation: _scanAnimation,
+            isTablet: isLarge,
+            isCameraActive: _isCameraActive,
+            isProcessingScan: _isProcessingScan,
+            onBarcodeScanned: (code) => _handleBarcodeScan(code, posProvider),
+            onToggleCamera: () {
+              if (Platform.isWindows) return;
+              setState(() {
+                _isCameraActive = !_isCameraActive;
+                if (_isCameraActive) {
+                  _cameraController.start();
+                } else {
+                  _cameraController.stop();
+                }
+              });
+            },
+            onManualAdd: () async {
+              final bool wasOn = _isCameraActive;
+              if (wasOn && !Platform.isWindows) _cameraController.stop();
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManualAddScreen()),
+              );
+              if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
+            },
+            onOcrScan: _handleOcrScan,
+            isVoiceActive: _isVoiceSearchActive,
+            onVoiceSearch: () {
+              if (_isVoiceSearchActive) {
+                _stopHomeVoiceSearch();
+              } else {
+                _startHomeVoiceSearch(posProvider);
+              }
+            },
+          );
+
+          Widget voiceSearchBar = _VoiceSearchBar(
+            isVisible: _isVoiceSearchActive,
+            isListening: _isListeningVoice,
+            controller: _voiceSearchController,
+            focusNode: _voiceSearchFocus,
+            onDiscard: _stopHomeVoiceSearch,
+            onConfirm: () => _handleHomeFinalSpeech(posProvider, _voiceSearchController.text),
+          );
+
+          Widget cartList = PosCartList(
+            cart: cart,
+            filteredCart: filteredCart,
+            provider: posProvider,
+          );
+
+          Widget checkoutFooter = PosCheckoutFooter(
+            cart: cart,
+            total: posProvider.calculateTotal,
+            onClear: () => _showModal(
+              type: 'clear',
+              message: 'Are you sure you want to clear the cart?',
+            ),
+            onCheckout: () {
+              if (_isAnyItemOutOfStock(cart)) {
+                _showStockWarning(
+                  context,
+                  () {
+                    _showModal(
+                      type: 'success',
+                      message: 'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+                    );
+                  },
+                );
+              } else {
+                _showModal(
+                  type: 'success',
+                  message: 'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+                );
+              }
+            },
+          );
+
+          if (isLarge) {
+            return Column(
               children: [
-                // 1. HEADER
-                Container(
-                  color: AppColors.primaryDark,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 5),
-                  child: Column(
+                voiceSearchBar,
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              LucideIcons.menu,
-                              color: AppColors.white,
-                            ),
-                            onPressed: () =>
-                                _scaffoldKey.currentState?.openDrawer(),
-                          ),
-                        ],
+                      // Fixed width scanner for tablet/desktop
+                      SizedBox(
+                        width: 400,
+                        child: Column(
+                          children: [
+                            scannerSection,
+                            const Spacer(),
+                          ],
+                        ),
+                      ),
+                      const VerticalDivider(width: 1, color: AppColors.divider),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            cartList,
+                            checkoutFooter,
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
+              ],
+            );
+          }
 
-                // 2. SCANNER SECTION
-                PosScannerSection(
-                  cameraController: _cameraController,
-                  scanAnimation: _scanAnimation,
-                  isTablet: isTablet,
-                  isCameraActive: _isCameraActive,
-                  isProcessingScan: _isProcessingScan,
-                  onBarcodeScanned: (code) =>
-                      _handleBarcodeScan(code, posProvider),
-                  onToggleCamera: () {
-                    setState(() {
-                      _isCameraActive = !_isCameraActive;
-                      if (_isCameraActive) {
-                        _cameraController.start();
-                      } else {
-                        _cameraController.stop();
-                      }
-                    });
-                  },
-                  onManualAdd: () async {
-                    final bool wasOn = _isCameraActive;
-                    if (wasOn) _cameraController.stop();
-
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ManualAddScreen(),
-                      ),
-                    );
-
-                    if (wasOn && mounted) {
-                      _cameraController.start();
-                    }
-                  },
-                  onOcrScan: _handleOcrScan,
-                  isVoiceActive: _isVoiceSearchActive,
-                  onVoiceSearch: () {
-                    if (_isVoiceSearchActive) {
-                      _stopHomeVoiceSearch();
-                    } else {
-                      _startHomeVoiceSearch(posProvider);
-                    }
-                  },
-                ),
-
-                // 2b. VOICE SEARCH BAR (slides in when active)
-                _VoiceSearchBar(
-                  isVisible: _isVoiceSearchActive,
-                  isListening: _isListeningVoice,
-                  controller: _voiceSearchController,
-                  focusNode: _voiceSearchFocus,
-                  onDiscard: _stopHomeVoiceSearch,
-                  onConfirm: () =>
-                      _handleHomeFinalSpeech(posProvider, _voiceSearchController.text),
-                ),
-
-                // 3. CART LIST
-                PosCartList(
-                  cart: cart,
-                  filteredCart: filteredCart,
-                  provider: posProvider,
-                ),
-
-                // 4. CHECKOUT FOOTER
-                PosCheckoutFooter(
-                  cart: cart,
-                  total: posProvider.calculateTotal,
-                  onClear: () => _showModal(
-                    type: 'clear',
-                    message: 'Are you sure you want to clear the cart?',
-                  ),
-                  onCheckout: () {
-                    if (_isAnyItemOutOfStock(cart)) {
-                      _showStockWarning(
-                        context,
-                        () {
-                          _showModal(
-                            type: 'success',
-                            message:
-                                'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
-                          );
-                        },
-                      );
-                    } else {
-                      _showModal(
-                        type: 'success',
-                        message:
-                            'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
-                      );
-                    }
-                  },
-                ),
-              ], // end inner Column children
-            ), // end inner Column
-          ], // end Stack children
-        ), // end Stack
-      ), // end SafeArea
-    ); // end Scaffold
+          // Single column stack for phone
+          return Column(
+            children: [
+              scannerSection,
+              voiceSearchBar,
+              cartList,
+              checkoutFooter,
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -717,45 +684,60 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      height: widget.isVisible ? 72.0 : 0.0,
-      color: AppColors.primaryDark,
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.highlightActive, width: 2),
-            ),
-            child: TextField(
-              controller: widget.controller,
-              focusNode: widget.focusNode,
-              style: const TextStyle(
-                color: AppColors.primaryDark,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                hintText: widget.isListening
-                    ? 'Listening...'
-                    : 'Edit and tap search...',
-                hintStyle: TextStyle(
-                  color: AppColors.secondaryAccent.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.w500,
+    if (!widget.isVisible) return const SizedBox.shrink();
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          height: 72.0,
+          color: AppColors.primaryDark.withValues(alpha: 0.8),
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.highlightActive.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                prefixIcon: const Icon(
-                  LucideIcons.mic,
-                  color: AppColors.primaryDark,
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: widget.focusNode,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: widget.isListening ? 'Listening...' : 'Edit and tap search...',
+                    hintStyle: TextStyle(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    prefixIcon: const Icon(
+                      LucideIcons.mic,
+                      color: AppColors.primaryDark,
+                    ),
+                    suffixIcon: _buildSuffixIcon(),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onSubmitted: (_) => widget.onConfirm(),
                 ),
-                suffixIcon: _buildSuffixIcon(),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              onSubmitted: (_) => widget.onConfirm(),
             ),
           ),
         ),

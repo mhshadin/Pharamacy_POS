@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -33,6 +34,12 @@ class PosScannerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final screenWidth = size.width;
+    final isNarrow = screenWidth < 380;
+    final cameraHeight = isTablet ? 320.0 : (isNarrow ? 180.0 : 220.0);
+    final btnSpacing = isTablet ? 12.0 : (isNarrow ? 6.0 : 8.0);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       decoration: const BoxDecoration(
@@ -52,7 +59,7 @@ class PosScannerSection extends StatelessWidget {
               Expanded(
                 flex: 8,
                 child: Container(
-                  height: isTablet ? 140 : 140,
+                  height: cameraHeight,
                   decoration: BoxDecoration(
                     color: const Color(0xFF111827),
                     borderRadius: BorderRadius.circular(8),
@@ -65,16 +72,17 @@ class PosScannerSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     child: Stack(
                       children: [
-                        MobileScanner(
-                          controller: cameraController,
-                          onDetect: (capture) {
-                            final barcodes = capture.barcodes;
-                            if (barcodes.isNotEmpty &&
-                                barcodes.first.rawValue != null) {
-                              onBarcodeScanned(barcodes.first.rawValue!);
-                            }
-                          },
-                        ),
+                        if (!Platform.isWindows)
+                          MobileScanner(
+                            controller: cameraController,
+                            onDetect: (capture) {
+                              final barcodes = capture.barcodes;
+                              if (barcodes.isNotEmpty &&
+                                  barcodes.first.rawValue != null) {
+                                onBarcodeScanned(barcodes.first.rawValue!);
+                              }
+                            },
+                          ),
                         if (!isCameraActive)
                           Positioned.fill(
                             child: Container(
@@ -82,14 +90,14 @@ class PosScannerSection extends StatelessWidget {
                               child: Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
+                                  children: [
                                     Icon(
                                       LucideIcons.cameraOff,
                                       color: Colors.white54,
-                                      size: 40,
+                                      size: isNarrow ? 32.0 : 40.0,
                                     ),
-                                    SizedBox(height: 8),
-                                    Text(
+                                    const SizedBox(height: 8),
+                                    const Text(
                                       'Camera Paused',
                                       style: TextStyle(
                                         color: Colors.white54,
@@ -106,8 +114,7 @@ class PosScannerSection extends StatelessWidget {
                             animation: scanAnimation,
                             builder: (context, child) {
                               return Positioned(
-                                top: scanAnimation.value *
-                                    (isTablet ? 240 : 200),
+                                top: scanAnimation.value * cameraHeight,
                                 left: 0,
                                 right: 0,
                                 child: Container(
@@ -161,96 +168,42 @@ class PosScannerSection extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: isNarrow ? 10.0 : 16.0),
               Expanded(
                 flex: 2,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(
+                    _ScannerButton(
                       onPressed: onToggleCamera,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isCameraActive
-                            ? AppColors.background
-                            : AppColors.error.withValues(alpha: 0.1),
-                        foregroundColor: isCameraActive
-                            ? AppColors.primaryDark
-                            : AppColors.error,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                            color: isCameraActive
-                                ? AppColors.secondaryAccent
-                                : AppColors.error,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Icon(
-                        isCameraActive
-                            ? LucideIcons.camera
-                            : LucideIcons.cameraOff,
-                        size: 28,
-                      ),
+                      icon: isCameraActive ? LucideIcons.camera : LucideIcons.cameraOff,
+                      label: 'Camera',
+                      isActive: isCameraActive,
+                      activeColor: AppColors.highlightActive,
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
+                    SizedBox(height: btnSpacing),
+                    _ScannerButton(
                       onPressed: onManualAdd,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.highlightActive,
-                        foregroundColor: AppColors.primaryDark,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Icon(
-                        LucideIcons.plusSquare,
-                        size: 28,
-                      ),
+                      icon: LucideIcons.plusSquare,
+                      label: 'Manual',
+                      isActive: true,
+                      activeColor: AppColors.secondaryAccent,
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
+                    SizedBox(height: btnSpacing),
+                    _ScannerButton(
                       onPressed: onOcrScan,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.secondaryAccent,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Icon(
-                        LucideIcons.scanLine,
-                        size: 28,
-                      ),
+                      icon: LucideIcons.scanLine,
+                      label: 'OCR',
+                      isActive: true,
+                      activeColor: AppColors.secondaryAccent,
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
+                    SizedBox(height: btnSpacing),
+                    _ScannerButton(
                       onPressed: onVoiceSearch,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isVoiceActive
-                            ? AppColors.highlightActive
-                            : AppColors.background,
-                        foregroundColor: isVoiceActive
-                            ? AppColors.primaryDark
-                            : AppColors.primaryDark,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                            color: isVoiceActive
-                                ? AppColors.highlightActive
-                                : AppColors.secondaryAccent,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Icon(
-                        isVoiceActive ? LucideIcons.micOff : LucideIcons.mic,
-                        size: 28,
-                      ),
+                      icon: isVoiceActive ? LucideIcons.micOff : LucideIcons.mic,
+                      label: 'Voice',
+                      isActive: isVoiceActive,
+                      activeColor: AppColors.highlightActive,
                     ),
                   ],
                 ),
@@ -258,6 +211,61 @@ class PosScannerSection extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final Color activeColor;
+
+  const _ScannerButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54, // Consistent touch target
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isActive ? activeColor : AppColors.primaryDark.withValues(alpha: 0.5),
+          foregroundColor: isActive ? AppColors.primaryDark : AppColors.white.withValues(alpha: 0.7),
+          elevation: isActive ? 2 : 0,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isActive ? activeColor : AppColors.secondaryAccent.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isActive ? AppColors.primaryDark : AppColors.white.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

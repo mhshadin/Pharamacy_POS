@@ -5,6 +5,7 @@ import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
 import '../../utils/phone_launcher.dart';
+import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
@@ -21,7 +22,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   String _searchQuery = '';
   String _filter = 'All'; // 'All' | 'Critical' | 'Warning'
   String _sortBy = 'Soonest First';
-  Set<String> _selectedCompanies = {};
+  final Set<String> _selectedCompanies = {};
 
   static const _sortOptions = [
     'Soonest First',
@@ -501,497 +502,502 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     final hasCompanies = allCompanies.isNotEmpty;
 
     if (allExpiring.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
-            SizedBox(height: 16),
-            Text(
-              'No products expiring soon!',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: AppColors.primaryDark,
+      return const Material(
+        color: AppColors.background,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
+              SizedBox(height: 16),
+              Text(
+                'No products expiring soon!',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: AppColors.primaryDark,
+                ),
               ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'All products have more than 90 days until expiry.',
-              style: TextStyle(
-                color: AppColors.secondaryAccent,
-                fontWeight: FontWeight.w500,
+              SizedBox(height: 4),
+              Text(
+                'All products have more than 90 days until expiry.',
+                style: TextStyle(
+                  color: AppColors.secondaryAccent,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
-    return Column(
-      children: [
-        // ── Filter controls ──────────────────────────────────
-        Container(
-          color: AppColors.white,
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search + Sort
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: TextField(
-                        controller: _searchCtrl,
-                        onChanged: (v) =>
-                            setState(() => _searchQuery = v.trim()),
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Search name, generic, company…',
-                          hintStyle: TextStyle(
-                            color: AppColors.secondaryAccent.withValues(
-                              alpha: 0.7,
-                            ),
-                            fontSize: 13,
-                          ),
-                          prefixIcon: const Icon(
-                            LucideIcons.search,
-                            color: AppColors.secondaryAccent,
-                            size: 18,
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    LucideIcons.x,
-                                    size: 16,
-                                    color: AppColors.secondaryAccent,
-                                  ),
-                                  onPressed: () {
-                                    _searchCtrl.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    tooltip: 'Sort',
-                    icon: SizedBox(
-                      height: 44,
-                      width: 44,
-                      child: DecoratedBox(
+    return Material(
+      color: AppColors.background,
+      child: Column(
+        children: [
+          // ── Filter controls ──────────────────────────────────
+          Container(
+            color: AppColors.white,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search + Sort
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 44,
                         decoration: BoxDecoration(
                           color: AppColors.surfaceLight,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.divider),
                         ),
-                        child: const Center(
-                          child: Icon(
-                            LucideIcons.arrowUpDown,
+                        child: TextField(
+                          controller: _searchCtrl,
+                          onChanged: (v) =>
+                              setState(() => _searchQuery = v.trim()),
+                          style: const TextStyle(
                             color: AppColors.primaryDark,
-                            size: 20,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search name, generic, company…',
+                            hintStyle: TextStyle(
+                              color: AppColors.secondaryAccent.withValues(
+                                alpha: 0.7,
+                              ),
+                              fontSize: 13,
+                            ),
+                            prefixIcon: const Icon(
+                              LucideIcons.search,
+                              color: AppColors.secondaryAccent,
+                              size: 18,
+                            ),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      LucideIcons.x,
+                                      size: 16,
+                                      color: AppColors.secondaryAccent,
+                                    ),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    onSelected: (v) => setState(() => _sortBy = v),
-                    itemBuilder: (_) => _sortOptions
-                        .map(
-                          (o) => PopupMenuItem(
-                            value: o,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _sortBy == o
-                                      ? LucideIcons.checkCircle2
-                                      : LucideIcons.circle,
-                                  size: 16,
-                                  color: _sortBy == o
-                                      ? AppColors.primaryDark
-                                      : AppColors.secondaryAccent,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(o),
-                              ],
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      tooltip: 'Sort',
+                      icon: SizedBox(
+                        height: 44,
+                        width: 44,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              LucideIcons.arrowUpDown,
+                              color: AppColors.primaryDark,
+                              size: 20,
                             ),
                           ),
-                        )
-                        .toList(),
+                        ),
+                      ),
+                      onSelected: (v) => setState(() => _sortBy = v),
+                      itemBuilder: (_) => _sortOptions
+                          .map(
+                            (o) => PopupMenuItem(
+                              value: o,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _sortBy == o
+                                        ? LucideIcons.checkCircle2
+                                        : LucideIcons.circle,
+                                    size: 16,
+                                    color: _sortBy == o
+                                        ? AppColors.primaryDark
+                                        : AppColors.secondaryAccent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(o),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Urgency chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final label in ['All', 'Critical', 'Warning'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(label),
+                            selected: _filter == label,
+                            onSelected: (_) =>
+                                setState(() => _filter = label),
+                            selectedColor:
+                                AppColors.primaryDark.withValues(alpha: 0.15),
+                            labelStyle: TextStyle(
+                              color: _filter == label
+                                  ? AppColors.primaryDark
+                                  : AppColors.secondaryAccent,
+                              fontWeight: _filter == label
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                            side: BorderSide(
+                              color: _filter == label
+                                  ? AppColors.primaryDark
+                                  : AppColors.divider,
+                            ),
+                            backgroundColor: AppColors.surfaceLight,
+                            showCheckmark: false,
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Urgency chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final label in ['All', 'Critical', 'Warning'])
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(label),
-                          selected: _filter == label,
-                          onSelected: (_) =>
-                              setState(() => _filter = label),
-                          selectedColor:
-                              AppColors.primaryDark.withValues(alpha: 0.15),
-                          labelStyle: TextStyle(
-                            color: _filter == label
+                ),
+                // Company chip (only if products have company names)
+                if (hasCompanies) ...[
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () => _showCompanySheet(allCompanies),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedCompanies.isNotEmpty
+                            ? AppColors.primaryDark.withValues(alpha: 0.12)
+                            : AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _selectedCompanies.isNotEmpty
+                              ? AppColors.primaryDark
+                              : AppColors.divider,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.building2,
+                            size: 14,
+                            color: _selectedCompanies.isNotEmpty
                                 ? AppColors.primaryDark
                                 : AppColors.secondaryAccent,
-                            fontWeight: _filter == label
-                                ? FontWeight.bold
-                                : FontWeight.w500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _selectedCompanies.isEmpty
+                                ? 'All Companies'
+                                : _selectedCompanies.length == 1
+                                ? _selectedCompanies.first
+                                : '${_selectedCompanies.length} Companies',
+                            style: TextStyle(
+                              color: _selectedCompanies.isNotEmpty
+                                  ? AppColors.primaryDark
+                                  : AppColors.secondaryAccent,
+                              fontWeight: _selectedCompanies.isNotEmpty
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            LucideIcons.chevronDown,
+                            size: 14,
+                            color: _selectedCompanies.isNotEmpty
+                                ? AppColors.primaryDark
+                                : AppColors.secondaryAccent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // Result count + Export
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${filtered.length} product${filtered.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryAccent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (filtered.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => _showOrderQtyModal(filtered),
+                        icon: const Icon(
+                          LucideIcons.download,
+                          size: 15,
+                          color: AppColors.primaryDark,
+                        ),
+                        label: const Text(
+                          'Export',
+                          style: TextStyle(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.bold,
                             fontSize: 13,
                           ),
-                          side: BorderSide(
-                            color: _filter == label
-                                ? AppColors.primaryDark
-                                : AppColors.divider,
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          backgroundColor: AppColors.surfaceLight,
-                          showCheckmark: false,
+                          backgroundColor: AppColors.primaryDark.withValues(
+                            alpha: 0.08,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                       ),
                   ],
                 ),
-              ),
-              // Company chip (only if products have company names)
-              if (hasCompanies) ...[
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () => _showCompanySheet(allCompanies),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _selectedCompanies.isNotEmpty
-                          ? AppColors.primaryDark.withValues(alpha: 0.12)
-                          : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _selectedCompanies.isNotEmpty
-                            ? AppColors.primaryDark
-                            : AppColors.divider,
-                      ),
-                    ),
-                    child: Row(
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.divider),
+
+          // ── List ─────────────────────────────────────────────
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          LucideIcons.building2,
-                          size: 14,
-                          color: _selectedCompanies.isNotEmpty
-                              ? AppColors.primaryDark
-                              : AppColors.secondaryAccent,
+                        const Icon(
+                          LucideIcons.searchX,
+                          size: 48,
+                          color: AppColors.secondaryAccent,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _selectedCompanies.isEmpty
-                              ? 'All Companies'
-                              : _selectedCompanies.length == 1
-                              ? _selectedCompanies.first
-                              : '${_selectedCompanies.length} Companies',
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No products match your filters.',
                           style: TextStyle(
-                            color: _selectedCompanies.isNotEmpty
-                                ? AppColors.primaryDark
-                                : AppColors.secondaryAccent,
-                            fontWeight: _selectedCompanies.isNotEmpty
-                                ? FontWeight.bold
-                                : FontWeight.w500,
-                            fontSize: 13,
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          LucideIcons.chevronDown,
-                          size: 14,
-                          color: _selectedCompanies.isNotEmpty
-                              ? AppColors.primaryDark
-                              : AppColors.secondaryAccent,
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _searchQuery = '';
+                              _filter = 'All';
+                              _selectedCompanies.clear();
+                            });
+                          },
+                          child: const Text(
+                            'Clear Filters',
+                            style: TextStyle(color: AppColors.primaryDark),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              // Result count + Export
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${filtered.length} product${filtered.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                      color: AppColors.secondaryAccent,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                  if (filtered.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => _showOrderQtyModal(filtered),
-                      icon: const Icon(
-                        LucideIcons.download,
-                        size: 15,
-                        color: AppColors.primaryDark,
-                      ),
-                      label: const Text(
-                        'Export',
-                        style: TextStyle(
-                          color: AppColors.primaryDark,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        backgroundColor: AppColors.primaryDark.withValues(
-                          alpha: 0.08,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, color: AppColors.divider),
+                  )
+                : ListView.builder(
+                    padding: ResponsiveHelper.screenPadding(context),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, idx) {
+                      final product = filtered[idx];
+                      final days = product.daysUntilExpiry;
+                      final isCritical = days <= 30;
+                      final supplierPhone =
+                          showSupplierInfo ? product.supplierPhone?.trim() : null;
+                      final hasSupplierPhone =
+                          supplierPhone != null && supplierPhone.isNotEmpty;
 
-        // ── List ─────────────────────────────────────────────
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        LucideIcons.searchX,
-                        size: 48,
-                        color: AppColors.secondaryAccent,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'No products match your filters.',
-                        style: TextStyle(
-                          color: AppColors.secondaryAccent,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() {
-                            _searchQuery = '';
-                            _filter = 'All';
-                            _selectedCompanies.clear();
-                          });
-                        },
-                        child: const Text(
-                          'Clear Filters',
-                          style: TextStyle(color: AppColors.primaryDark),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (_, idx) {
-                    final product = filtered[idx];
-                    final days = product.daysUntilExpiry;
-                    final isCritical = days <= 30;
-                    final supplierPhone =
-                        showSupplierInfo ? product.supplierPhone?.trim() : null;
-                    final hasSupplierPhone =
-                        supplierPhone != null && supplierPhone.isNotEmpty;
-
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isCritical
-                              ? AppColors.error.withValues(alpha: 0.4)
-                              : AppColors.warningOrange.withValues(alpha: 0.4),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryDark.withValues(alpha: 0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isCritical
+                                ? AppColors.error.withValues(alpha: 0.4)
+                                : AppColors.warningOrange.withValues(alpha: 0.4),
+                            width: 2,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: isCritical
-                                  ? AppColors.error.withValues(alpha: 0.1)
-                                  : AppColors.warningOrange.withValues(
-                                      alpha: 0.1,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryDark.withValues(alpha: 0.04),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isCritical
+                                    ? AppColors.error.withValues(alpha: 0.1)
+                                    : AppColors.warningOrange.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                isCritical
+                                    ? LucideIcons.alertOctagon
+                                    : LucideIcons.clock,
+                                color: isCritical
+                                    ? AppColors.error
+                                    : AppColors.warningOrange,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColors.primaryDark,
                                     ),
-                              borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    product.companyName != null &&
+                                            product.companyName!.isNotEmpty
+                                        ? '${product.generic} • ${product.companyName}'
+                                        : product.generic,
+                                    style: const TextStyle(
+                                      color: AppColors.secondaryAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Stock: ${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs',
+                                    style: const TextStyle(
+                                      color: AppColors.secondaryAccent,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Expires: ${product.expiryDate!.day}/${product.expiryDate!.month}/${product.expiryDate!.year}',
+                                    style: TextStyle(
+                                      color: isCritical
+                                          ? AppColors.error
+                                          : AppColors.warningOrange,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Icon(
-                              isCritical
-                                  ? LucideIcons.alertOctagon
-                                  : LucideIcons.clock,
-                              color: isCritical
-                                  ? AppColors.error
-                                  : AppColors.warningOrange,
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  product.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: AppColors.primaryDark,
+                                if (hasSupplierPhone)
+                                  IconButton(
+                                    tooltip: 'Call supplier',
+                                    onPressed: () =>
+                                        tryDialPhone(context, supplierPhone),
+                                    icon: const Icon(
+                                      LucideIcons.phoneCall,
+                                      color: AppColors.primaryDark,
+                                      size: 20,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  product.companyName != null &&
-                                          product.companyName!.isNotEmpty
-                                      ? '${product.generic} • ${product.companyName}'
-                                      : product.generic,
-                                  style: const TextStyle(
-                                    color: AppColors.secondaryAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
                                   ),
-                                ),
-                                Text(
-                                  'Stock: ${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs',
-                                  style: const TextStyle(
-                                    color: AppColors.secondaryAccent,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Expires: ${product.expiryDate!.day}/${product.expiryDate!.month}/${product.expiryDate!.year}',
-                                  style: TextStyle(
+                                  decoration: BoxDecoration(
                                     color: isCritical
-                                        ? AppColors.error
-                                        : AppColors.warningOrange,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
+                                        ? AppColors.error.withValues(alpha: 0.1)
+                                        : AppColors.warningOrange.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isCritical
+                                          ? AppColors.error.withValues(alpha: 0.3)
+                                          : AppColors.warningOrange.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        '$days',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                          color: isCritical
+                                              ? AppColors.error
+                                              : AppColors.warningOrange,
+                                        ),
+                                      ),
+                                      Text(
+                                        'days',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 10,
+                                          color: isCritical
+                                              ? AppColors.error
+                                              : AppColors.warningOrange,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (hasSupplierPhone)
-                                IconButton(
-                                  tooltip: 'Call supplier',
-                                  onPressed: () =>
-                                      tryDialPhone(context, supplierPhone),
-                                  icon: const Icon(
-                                    LucideIcons.phoneCall,
-                                    color: AppColors.primaryDark,
-                                    size: 20,
-                                  ),
-                                ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isCritical
-                                      ? AppColors.error.withValues(alpha: 0.1)
-                                      : AppColors.warningOrange.withValues(
-                                          alpha: 0.1,
-                                        ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: isCritical
-                                        ? AppColors.error.withValues(alpha: 0.3)
-                                        : AppColors.warningOrange.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      '$days',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 18,
-                                        color: isCritical
-                                            ? AppColors.error
-                                            : AppColors.warningOrange,
-                                      ),
-                                    ),
-                                    Text(
-                                      'days',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 10,
-                                        color: isCritical
-                                            ? AppColors.error
-                                            : AppColors.warningOrange,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

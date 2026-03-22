@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:open_file/open_file.dart';
 import '../../utils/colors.dart';
+import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/sale_record.dart';
 import '../../services/export_service.dart';
@@ -235,7 +236,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     final periodTotal = _getPeriodTotal(barData);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: ResponsiveHelper.screenPadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -297,7 +298,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             title: '$_summaryLabel Sales Overview',
             icon: LucideIcons.barChart3,
             child: SizedBox(
-              height: 220,
+              height: (MediaQuery.of(context).size.width * 0.55).clamp(160.0, 260.0),
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
@@ -991,9 +992,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       return _ChartCard(
         title: 'Top Products',
         icon: LucideIcons.pieChart,
-        child: const SizedBox(
-          height: 200,
-          child: Center(
+        child: SizedBox(
+          height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
+          child: const Center(
             child: Text(
               'No sales data',
               style: TextStyle(
@@ -1046,7 +1047,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       title: 'Sales by Category',
       icon: LucideIcons.pieChart,
       child: SizedBox(
-        height: 200,
+        height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
         child: Row(
           children: [
             Expanded(
@@ -1123,7 +1124,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       title: 'Revenue Trend ($_summaryLabel)',
       icon: LucideIcons.trendingUp,
       child: SizedBox(
-        height: 200,
+        height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
         child: LineChart(
           LineChartData(
             minY: 0,

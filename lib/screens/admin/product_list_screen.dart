@@ -8,6 +8,8 @@ import '../../models/product.dart';
 import '../../widgets/drawer/pos_drawer.dart';
 import 'edit_product_screen.dart';
 import '../../widgets/taka_symbol.dart';
+import '../../utils/responsive_helper.dart';
+import '../../widgets/shared/empty_state_widget.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -21,8 +23,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _searchQuery = '';
   String _sortBy = 'Urgency (Recommended)';
-  Set<String> _selectedCompanies = {};
-  Set<String> _selectedGenericNames = {};
+  final Set<String> _selectedCompanies = {};
+  final Set<String> _selectedGenericNames = {};
   bool _isSelectionMode = false;
   Set<String> _selectedIds = {};
 
@@ -628,130 +630,156 @@ class _ProductListScreenState extends State<ProductListScreen> {
       children: [
         // Search + controls bar
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.secondaryAccent,
-                      width: 2,
-                    ),
-                  ),
-                  child: TextField(
-                    onChanged: (v) => setState(() => _searchQuery = v),
-                    decoration: InputDecoration(
-                      hintText: 'Search products...',
-                      hintStyle: TextStyle(
-                        color: AppColors.secondaryAccent.withValues(alpha: 0.6),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: const Icon(
-                        LucideIcons.search,
-                        color: AppColors.primaryDark,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Sort button
-              PopupMenuButton<String>(
-                tooltip: 'Sort',
-                icon: SizedBox(
-                  height: 44,
-                  width: 44,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        LucideIcons.arrowUpDown,
-                        color: AppColors.primaryDark,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                onSelected: (v) => setState(() => _sortBy = v),
-                itemBuilder: (_) => _sortOptions
-                    .map(
-                      (o) => PopupMenuItem(
-                        value: o,
-                        child: Row(
-                          children: [
-                            Icon(
-                              _sortBy == o
-                                  ? LucideIcons.checkCircle2
-                                  : LucideIcons.circle,
-                              size: 16,
-                              color: _sortBy == o
-                                  ? AppColors.primaryDark
-                                  : AppColors.secondaryAccent,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(o),
-                          ],
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final filterButtons = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Sort button
+                  PopupMenuButton<String>(
+                    tooltip: 'Sort',
+                    icon: SizedBox(
+                      height: 44,
+                      width: 44,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            LucideIcons.arrowUpDown,
+                            color: AppColors.primaryDark,
+                            size: 20,
+                          ),
                         ),
                       ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(width: 8),
-
-              // Company filter button
-              _filterButton(
-                icon: LucideIcons.building2,
-                tooltip: 'Filter by Company',
-                activeCount: _selectedCompanies.length,
-                onPressed: () => _showCompanySheet(allCompanies),
-              ),
-              const SizedBox(width: 8),
-
-              // Generic filter button
-              _filterButton(
-                icon: LucideIcons.flaskConical,
-                tooltip: 'Filter by Generic',
-                activeCount: _selectedGenericNames.length,
-                onPressed: () => _showGenericSheet(allGenerics),
-              ),
-
-              if (widget.isAdmin) ...[
-                const SizedBox(width: 8),
-                if (_isSelectionMode)
-                  IconButton(
-                    onPressed: _selectedIds.isNotEmpty ? _deleteSelected : null,
-                    icon: Icon(
-                      LucideIcons.trash2,
-                      color: _selectedIds.isNotEmpty
-                          ? AppColors.error
-                          : AppColors.secondaryAccent.withValues(alpha: 0.5),
                     ),
-                    tooltip: 'Delete Selected',
+                    onSelected: (v) => setState(() => _sortBy = v),
+                    itemBuilder: (_) => _sortOptions
+                        .map(
+                          (o) => PopupMenuItem(
+                            value: o,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _sortBy == o
+                                      ? LucideIcons.checkCircle2
+                                      : LucideIcons.circle,
+                                  size: 16,
+                                  color: _sortBy == o
+                                      ? AppColors.primaryDark
+                                      : AppColors.secondaryAccent,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(o),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
-                IconButton(
-                  onPressed: _toggleSelectionMode,
-                  icon: Icon(
-                    _isSelectionMode
-                        ? LucideIcons.xSquare
-                        : LucideIcons.checkSquare,
-                    color: AppColors.primaryDark,
+                  const SizedBox(width: 8),
+                  // Company filter button
+                  _filterButton(
+                    icon: LucideIcons.building2,
+                    tooltip: 'Filter by Company',
+                    activeCount: _selectedCompanies.length,
+                    onPressed: () => _showCompanySheet(allCompanies),
                   ),
-                  tooltip: _isSelectionMode
-                      ? 'Cancel Selection'
-                      : 'Select Items',
+                  const SizedBox(width: 8),
+                  // Generic filter button
+                  _filterButton(
+                    icon: LucideIcons.flaskConical,
+                    tooltip: 'Filter by Generic',
+                    activeCount: _selectedGenericNames.length,
+                    onPressed: () => _showGenericSheet(allGenerics),
+                  ),
+                  if (widget.isAdmin) ...[
+                    const SizedBox(width: 8),
+                    if (_isSelectionMode)
+                      IconButton(
+                        onPressed: _selectedIds.isNotEmpty
+                            ? _deleteSelected
+                            : null,
+                        icon: Icon(
+                          LucideIcons.trash2,
+                          color: _selectedIds.isNotEmpty
+                              ? AppColors.error
+                              : AppColors.secondaryAccent
+                                  .withValues(alpha: 0.5),
+                        ),
+                        tooltip: 'Delete Selected',
+                      ),
+                    IconButton(
+                      onPressed: _toggleSelectionMode,
+                      icon: Icon(
+                        _isSelectionMode
+                            ? LucideIcons.xSquare
+                            : LucideIcons.checkSquare,
+                        color: AppColors.primaryDark,
+                      ),
+                      tooltip: _isSelectionMode
+                          ? 'Cancel Selection'
+                          : 'Select Items',
+                    ),
+                  ],
+                ],
+              );
+
+              final searchField = Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.secondaryAccent,
+                    width: 2,
+                  ),
                 ),
-              ],
-            ],
+                child: TextField(
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  decoration: InputDecoration(
+                    hintText: 'Search products...',
+                    hintStyle: TextStyle(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    prefixIcon: const Icon(
+                      LucideIcons.search,
+                      color: AppColors.primaryDark,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              );
+
+              if (constraints.maxWidth < 400) {
+                // Stack search bar on top, buttons on second row
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    searchField,
+                    const SizedBox(height: 8),
+                    filterButtons,
+                  ],
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(
+                  children: [
+                    Expanded(child: searchField),
+                    const SizedBox(width: 8),
+                    filterButtons,
+                  ],
+                ),
+              );
+            },
           ),
         ),
         if (_isSelectionMode && filtered.isNotEmpty)
@@ -786,36 +814,30 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ),
           ),
 
-        // Product list
         Expanded(
           child: filtered.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.packageX,
-                        size: 48,
-                        color: AppColors.secondaryAccent,
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No products found',
-                        style: TextStyle(
-                          color: AppColors.secondaryAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
+              ? EmptyStateWidget(
+                  title: 'No Products Found',
+                  message: _searchQuery.isEmpty
+                      ? 'Your product list is currently empty.'
+                      : 'No products match your search/filter criteria.',
+                  icon: LucideIcons.searchX,
+                  onAction: _searchQuery.isNotEmpty
+                      ? () {
+                          setState(() {
+                            _searchQuery = '';
+                            _selectedCompanies.clear();
+                            _selectedGenericNames.clear();
+                          });
+                        }
+                      : null,
+                  actionLabel: 'Clear All Filters',
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+              : ListView.builder(
+                  padding: ResponsiveHelper.screenPadding(context),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (_, idx) {
-                    final product = filtered[idx];
+                  itemBuilder: (ctx, index) {
+                    final product = filtered[index];
                     final isSelected = _selectedIds.contains(product.id);
                     return GestureDetector(
                       onLongPress: widget.isAdmin && !_isSelectionMode

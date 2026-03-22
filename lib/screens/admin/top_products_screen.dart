@@ -183,6 +183,8 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
             color: AppColors.primaryDark,
             fontSize: 16,
           ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 2,
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4.0),
@@ -194,12 +196,15 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
                 color: AppColors.secondaryAccent,
               ),
               const SizedBox(width: 4),
-              Text(
-                '${p.boxesSold.toStringAsFixed(1)} boxes sold',
-                style: const TextStyle(
-                  color: AppColors.secondaryAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              Flexible(
+                child: Text(
+                  '${p.boxesSold.toStringAsFixed(1)} boxes sold',
+                  style: const TextStyle(
+                    color: AppColors.secondaryAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

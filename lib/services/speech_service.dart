@@ -107,8 +107,10 @@ class SpeechService {
         },
         listenFor: listenFor,
         localeId: preferredLocaleId,
-        partialResults: true,
-        listenOptions: SpeechListenOptions(cancelOnError: true),
+        listenOptions: SpeechListenOptions(
+          cancelOnError: true,
+          partialResults: true,
+        ),
       );
     } catch (e) {
       _isListening = false;

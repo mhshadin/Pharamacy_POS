@@ -5,8 +5,9 @@ import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
 import '../../services/database_helper.dart';
 import '../../models/sale_record.dart';
-import '../../providers/admin_provider.dart';
 import '../../providers/pos_provider.dart';
+import '../../utils/responsive_helper.dart';
+import '../../providers/admin_provider.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../widgets/drawer/pos_drawer.dart';
 
@@ -784,7 +785,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
 
         // Sort Options Row
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: ResponsiveHelper.screenPadding(context),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compactControls = constraints.maxWidth < 420;

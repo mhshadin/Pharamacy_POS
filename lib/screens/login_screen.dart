@@ -36,6 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _regObscurePassword = true;
 
+  bool _isGoogleSignInInitialized = false;
+
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -66,9 +69,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result);
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     } on AuthException catch (e) {
       _showErrorSnackBar(e.message);
     } catch (e) {
@@ -102,9 +105,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result);
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     } on AuthException catch (e) {
       _showErrorSnackBar(e.message);
     } catch (e) {
@@ -127,14 +130,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       print('[LoginScreen] Starting Google sign-in');
-      final googleSignIn = GoogleSignIn();
-      final account = await googleSignIn.signIn();
-      if (account == null) {
-        print('[LoginScreen] Google sign-in cancelled by user');
-        return;
+      if (!_isGoogleSignInInitialized) {
+        await GoogleSignIn.instance.initialize(
+          serverClientId: 'YOUR_WEB_CLIENT_ID_HERE', // TODO: Replace with WEB_CLIENT_ID from config.php
+        );
+        _isGoogleSignInInitialized = true;
       }
+      final account = await GoogleSignIn.instance.authenticate();
 
-      final auth = await account.authentication;
+      final auth = account.authentication;
       final idToken = auth.idToken;
 
       if (idToken == null || idToken.isEmpty) {
@@ -161,6 +165,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       print('[LoginScreen] AuthException during Google sign-in: $e');
       _showErrorSnackBar(e.message);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        print('[LoginScreen] Google sign-in cancelled by user');
+        return;
+      }
+      print('[LoginScreen] GoogleSignInException during Google sign-in: $e');
+      _showErrorSnackBar('Google sign-in failed. Please try again.');
     } catch (e) {
       print('[LoginScreen] Unexpected error during Google sign-in: $e');
       _showErrorSnackBar('Google sign-in failed. Please try again.');
@@ -175,10 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
@@ -189,7 +197,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryDark) : null,
+      prefixIcon: icon != null
+          ? Icon(icon, color: AppColors.primaryDark)
+          : null,
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: AppColors.surfaceLight,
@@ -326,8 +336,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                           strokeWidth: 2,
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                            AppColors.white,
-                                          ),
+                                                AppColors.white,
+                                              ),
                                         ),
                                       )
                                     : const Text(
@@ -344,8 +354,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: OutlinedButton.icon(
-                                onPressed:
-                                    _isGoogleLoading ? null : _handleGoogleLogin,
+                                onPressed: _isGoogleLoading
+                                    ? null
+                                    : _handleGoogleLogin,
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
@@ -358,10 +369,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   foregroundColor: AppColors.primaryDark,
                                 ),
-                                icon: const Icon(
-                                  Icons.g_mobiledata,
-                                  size: 28,
-                                ),
+                                icon: const Icon(Icons.g_mobiledata, size: 28),
                                 label: _isGoogleLoading
                                     ? const SizedBox(
                                         height: 20,
@@ -370,8 +378,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                           strokeWidth: 2,
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                            AppColors.primaryDark,
-                                          ),
+                                                AppColors.primaryDark,
+                                              ),
                                         ),
                                       )
                                     : const Text(
@@ -580,7 +588,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? null
                                   : () async {
                                       await _handleRegister();
-                                      if (mounted &&
+                                      if (dialogContext.mounted &&
                                           Navigator.of(dialogContext).canPop() &&
                                           !_isRegistering) {
                                         Navigator.of(dialogContext).pop();
@@ -597,8 +605,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                         strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                          AppColors.white,
-                                        ),
+                                              AppColors.white,
+                                            ),
                                       ),
                                     )
                                   : const Text(
@@ -623,4 +631,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

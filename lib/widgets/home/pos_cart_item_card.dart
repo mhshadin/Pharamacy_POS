@@ -17,6 +17,12 @@ class PosCartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 380;
+    final nameFontSize = isNarrow ? 15.0 : 18.0;
+    final stripPriceFontSize = isNarrow ? 15.0 : 18.0;
+    final pcPriceFontSize = isNarrow ? 13.0 : 16.0;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -51,8 +57,8 @@ class PosCartItemCard extends StatelessWidget {
                   children: [
                     Text(
                       item.product.name,
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: TextStyle(
+                        fontSize: nameFontSize,
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
                         height: 1.1,
@@ -76,12 +82,15 @@ class PosCartItemCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const TakaSymbol(size: 14, color: AppColors.primaryDark),
+                      TakaSymbol(
+                        size: isNarrow ? 12.0 : 14.0,
+                        color: AppColors.primaryDark,
+                      ),
                       const SizedBox(width: 2),
                       Text(
                         item.product.priceStrip.toStringAsFixed(2),
-                        style: const TextStyle(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: stripPriceFontSize,
                           color: AppColors.primaryDark,
                           fontWeight: FontWeight.w900,
                         ),
@@ -101,15 +110,15 @@ class PosCartItemCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const TakaSymbol(
-                        size: 12,
+                      TakaSymbol(
+                        size: isNarrow ? 10.0 : 12.0,
                         color: AppColors.secondaryAccent,
                       ),
                       const SizedBox(width: 2),
                       Text(
                         item.product.pricePc.toStringAsFixed(2),
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontSize: pcPriceFontSize,
                           color: AppColors.secondaryAccent,
                           fontWeight: FontWeight.bold,
                         ),
@@ -200,6 +209,12 @@ class _QuantityBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 380;
+    final btnW = isNarrow ? 28.0 : 32.0;
+    final numW = isNarrow ? 30.0 : 36.0;
+    final boxH = isNarrow ? 32.0 : 36.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -214,7 +229,7 @@ class _QuantityBox extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Container(
-          height: 36,
+          height: boxH,
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.secondaryAccent, width: 2),
             borderRadius: BorderRadius.circular(8),
@@ -225,7 +240,7 @@ class _QuantityBox extends StatelessWidget {
               InkWell(
                 onTap: onDecrement,
                 child: Container(
-                  width: 32,
+                  width: btnW,
                   alignment: Alignment.center,
                   color: AppColors.background,
                   child: const Icon(
@@ -236,7 +251,7 @@ class _QuantityBox extends StatelessWidget {
                 ),
               ),
               Container(
-                width: 36,
+                width: numW,
                 alignment: Alignment.center,
                 decoration: const BoxDecoration(
                   color: AppColors.white,
@@ -249,8 +264,8 @@ class _QuantityBox extends StatelessWidget {
                 ),
                 child: Text(
                   '$quantity',
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: isNarrow ? 12.0 : 14.0,
                     color: AppColors.primaryDark,
                     fontWeight: FontWeight.w900,
                   ),
@@ -259,7 +274,7 @@ class _QuantityBox extends StatelessWidget {
               InkWell(
                 onTap: onIncrement,
                 child: Container(
-                  width: 32,
+                  width: btnW,
                   alignment: Alignment.center,
                   color: AppColors.background,
                   child: const Icon(

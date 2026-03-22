@@ -9,9 +9,13 @@ import 'providers/pos_provider.dart';
 import 'providers/admin_provider.dart';
 import 'services/database_helper.dart';
 import 'services/speech_service.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize notifications
+  await NotificationService().init();
 
   // Initialize FFI for desktop platforms (Windows, Linux, macOS)
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -47,30 +51,88 @@ class PharmacyPOSApp extends StatelessWidget {
         title: 'Pharmacy POS',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          useMaterial3: false,
+          useMaterial3: true,
           scaffoldBackgroundColor: AppColors.background,
           primaryColor: AppColors.primaryDark,
-          colorScheme: const ColorScheme.light(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.primaryDark,
             primary: AppColors.primaryDark,
             secondary: AppColors.secondaryAccent,
             surface: AppColors.white,
             error: AppColors.error,
+            onPrimary: AppColors.white,
           ),
-          textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme)
-              .apply(
-                bodyColor: AppColors.textPrimary,
-                displayColor: AppColors.textPrimary,
-              ),
-          appBarTheme: const AppBarTheme(
+          textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme).copyWith(
+            displayLarge: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            displayMedium: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            displaySmall: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            headlineLarge: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            headlineMedium: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            headlineSmall: GoogleFonts.lexend(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+            titleLarge: GoogleFonts.lexend(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryDark,
+            ),
+            titleMedium: GoogleFonts.lexend(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryDark,
+            ),
+            titleSmall: GoogleFonts.lexend(
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryDark,
+            ),
+          ).apply(
+            bodyColor: AppColors.textPrimary,
+            displayColor: AppColors.primaryDark,
+          ),
+          appBarTheme: AppBarTheme(
             backgroundColor: AppColors.primaryDark,
-            elevation: 4,
+            foregroundColor: AppColors.white,
+            elevation: 0,
             centerTitle: true,
-            iconTheme: IconThemeData(color: AppColors.white),
-            titleTextStyle: TextStyle(
+            iconTheme: const IconThemeData(color: AppColors.white),
+            titleTextStyle: GoogleFonts.lexend(
               color: AppColors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              letterSpacing: 0.5,
+            ),
+          ),
+          cardTheme: CardThemeData(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.divider, width: 1),
+            ),
+            color: AppColors.white,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              foregroundColor: AppColors.white,
+              minimumSize: const Size(88, 48), // Good touch targets
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
             ),
           ),
         ),

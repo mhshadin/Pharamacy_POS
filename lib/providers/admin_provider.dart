@@ -3,6 +3,7 @@ import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/stock_batch.dart';
 import '../services/database_helper.dart';
+import '../services/notification_service.dart';
 import 'dart:developer' as developer;
 
 /// Any UI that mutates product or batch data (including returns)
@@ -38,6 +39,10 @@ class AdminProvider extends ChangeNotifier {
   bool _showSupplierInfo = false;
   int _defaultOrderBoxes = 100;
 
+  // Track notified products to avoid redundant alerts
+  final Set<String> _notifiedLowStockIds = {};
+  final Set<String> _notifiedExpiringIds = {};
+
   bool get isAdminLoggedIn => _isAdminLoggedIn;
   List<Product> get allProducts => _products;
 
@@ -71,9 +76,40 @@ class AdminProvider extends ChangeNotifier {
         loadSales(notify: false),
       ]);
       notifyListeners();
+      await checkForNotifications();
     } catch (e) {
       developer.log("Error loading initial data", error: e);
     }
+  }
+
+  /// Check for low stock and expiring products and show notifications.
+  /// Only notifies once per threshold crossing.
+  Future<void> checkForNotifications() async {
+    final lowStock = lowStockProducts;
+    final expiringSoon = expiringSoonProducts;
+
+    final service = NotificationService();
+
+    // 1. Handle Low Stock Alerts
+    for (final p in lowStock) {
+      if (!_notifiedLowStockIds.contains(p.id)) {
+        await service.showLowStockAlert(p.name, p.stockStrips);
+        _notifiedLowStockIds.add(p.id);
+      }
+    }
+    // Clear tracking for products that are no longer low stock
+    _notifiedLowStockIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductLowStock(p)));
+
+    // 2. Handle Expiry Alerts
+    for (final p in expiringSoon) {
+      if (!_notifiedExpiringIds.contains(p.id)) {
+        final expiryStr = p.expiryDate?.toLocal().toString().split(' ')[0] ?? 'Unknown';
+        await service.showExpiryAlert(p.name, expiryStr);
+        _notifiedExpiringIds.add(p.id);
+      }
+    }
+    // Clear tracking for products that are no longer expiring soon
+    _notifiedExpiringIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)));
   }
 
   Future<void> loadSettings({bool notify = true}) async {
@@ -141,6 +177,7 @@ class AdminProvider extends ChangeNotifier {
     try {
       await _db.insertBatch(batch);
       await loadProducts(); // Only reload products, not sales/settings
+      await checkForNotifications();
     } catch (e) {
       developer.log("Failed to add batch", error: e);
       rethrow;
@@ -161,6 +198,7 @@ class AdminProvider extends ChangeNotifier {
     try {
       await _db.updateProduct(product);
       await loadProducts();
+      await checkForNotifications();
     } catch (e) {
       developer.log("Failed to update product", error: e);
       rethrow;
@@ -189,6 +227,7 @@ class AdminProvider extends ChangeNotifier {
         await _db.insertBatch(batch);
       }
       await loadProducts();
+      await checkForNotifications();
     } catch (e) {
       developer.log("Failed to add product", error: e);
       rethrow;
@@ -274,6 +313,7 @@ class AdminProvider extends ChangeNotifier {
     try {
       await _db.insertProductsBulk(newProducts, batches);
       await loadProducts();
+      await checkForNotifications();
     } catch (e) {
       developer.log("Failed to bulk insert products", error: e);
       rethrow;

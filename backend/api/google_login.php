@@ -9,6 +9,15 @@ use \Firebase\JWT\JWT;
 // Import config (This gives us $pdo, the constants, and generate_uuid_v4)
 require_once __DIR__ . '/config.php';
 
+// Debug logging helper
+function debug_log($message) {
+    $log_file = __DIR__ . '/debug_google.log';
+    $timestamp = date('Y-m-d H:i:s');
+    file_put_contents($log_file, "[$timestamp] $message\n", FILE_APPEND);
+}
+
+debug_log("--- NEW LOGIN ATTEMPT ---");
+
 $inputData = json_decode(file_get_contents('php://input'), true);
 
 if (!isset($inputData['idToken']) || empty($inputData['idToken'])) {
@@ -21,11 +30,17 @@ $idToken = $inputData['idToken'];
 $hardwareUid = isset($inputData['hardware_uid']) ? $inputData['hardware_uid'] : 'unknown_device';
 
 // Verify Token with Google
+debug_log("Verifying ID Token with Client ID: " . (defined('WEB_CLIENT_ID') ? WEB_CLIENT_ID : 'UNDEFINED'));
 $client = new Google_Client(['client_id' => WEB_CLIENT_ID]);
 try {
     $payload = $client->verifyIdToken($idToken);
-    if (!$payload) throw new Exception("Verification failed.");
+    if (!$payload) {
+        debug_log("Verification failed: verifyIdToken returned false");
+        throw new Exception("Verification failed.");
+    }
+    debug_log("Verification successful for email: " . $payload['email']);
 } catch (Exception $e) {
+    debug_log("Verification Error: " . $e->getMessage());
     http_response_code(401);
     echo json_encode(['error' => 'Invalid Google Token.']);
     exit;

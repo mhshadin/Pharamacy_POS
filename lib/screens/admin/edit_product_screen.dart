@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/responsive_helper.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
@@ -269,65 +270,76 @@ class _EditProductScreenState extends State<EditProductScreen> {
                         ),
                       ],
                       const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 6,
-                            child: _buildField(
-                              controller: _barcodeCtrl,
-                              label: 'Barcode (optional)',
-                              icon: LucideIcons.scanLine,
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 4,
-                            child: SizedBox(
-                              height: 58,
-                              child: ElevatedButton.icon(
-                                onPressed: () async {
-                                  final scannedCode =
-                                      await Navigator.push<String>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const ScannerScreen(),
-                                        ),
-                                      );
-                                  if (!mounted) return;
-                                  if (scannedCode != null &&
-                                      scannedCode.isNotEmpty) {
-                                    setState(() {
-                                      _barcodeCtrl.text = scannedCode;
-                                    });
-                                  }
-                                },
-                                icon: const Icon(
-                                  LucideIcons.scan,
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final scanButton = SizedBox(
+                            height: 58,
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                final scannedCode =
+                                    await Navigator.push<String>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ScannerScreen(),
+                                      ),
+                                    );
+                                if (!mounted) return;
+                                if (scannedCode != null &&
+                                    scannedCode.isNotEmpty) {
+                                  setState(() {
+                                    _barcodeCtrl.text = scannedCode;
+                                  });
+                                }
+                              },
+                              icon: const Icon(
+                                LucideIcons.scan,
+                                color: AppColors.white,
+                                size: 20,
+                              ),
+                              label: const Text(
+                                'Scan',
+                                style: TextStyle(
                                   color: AppColors.white,
-                                  size: 20,
-                                ),
-                                label: const Text(
-                                  'Scan',
-                                  style: TextStyle(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryDark,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding: EdgeInsets.zero,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryDark,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                padding: EdgeInsets.zero,
+                              ),
                             ),
-                          ),
-                        ],
+                          );
+                          final barcodeField = _buildField(
+                            controller: _barcodeCtrl,
+                            label: 'Barcode (optional)',
+                            icon: LucideIcons.scanLine,
+                            keyboardType: TextInputType.number,
+                          );
+                          if (constraints.maxWidth < 380) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                barcodeField,
+                                const SizedBox(height: 12),
+                                scanButton,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 6, child: barcodeField),
+                              const SizedBox(width: 12),
+                              Expanded(flex: 4, child: scanButton),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       InkWell(
@@ -347,50 +359,47 @@ class _EditProductScreenState extends State<EditProductScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildField(
-                              controller: _priceStripCtrl,
-                              label: 'Price / Strip',
-                              icon: LucideIcons.dollarSign,
-                              keyboardType: TextInputType.number,
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'Required' : null,
-                              onChanged: (val) {
-                                if (val.isEmpty) return;
-                                final stripPrice = double.tryParse(val);
-                                final pps =
-                                    int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                                if (stripPrice != null && pps > 0) {
-                                  _pricePcCtrl.text = (stripPrice / pps)
-                                      .toStringAsFixed(2);
-                                }
-                              },
-                            ),
+                      LayoutBuilder(
+                        builder: (context, constraints) =>
+                            ResponsiveHelper.responsiveRow(
+                          constraints: constraints,
+                          left: _buildField(
+                            controller: _priceStripCtrl,
+                            label: 'Price / Strip',
+                            icon: LucideIcons.dollarSign,
+                            keyboardType: TextInputType.number,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'Required' : null,
+                            onChanged: (val) {
+                              if (val.isEmpty) return;
+                              final stripPrice = double.tryParse(val);
+                              final pps =
+                                  int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                              if (stripPrice != null && pps > 0) {
+                                _pricePcCtrl.text = (stripPrice / pps)
+                                    .toStringAsFixed(2);
+                              }
+                            },
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildField(
-                              controller: _pricePcCtrl,
-                              label: 'Price / Pc',
-                              icon: LucideIcons.dollarSign,
-                              keyboardType: TextInputType.number,
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? 'Required' : null,
-                              onChanged: (val) {
-                                if (val.isEmpty) return;
-                                final pcPrice = double.tryParse(val);
-                                final pps =
-                                    int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                                if (pcPrice != null && pps > 0) {
-                                  _priceStripCtrl.text = (pcPrice * pps)
-                                      .toStringAsFixed(2);
-                                }
-                              },
-                            ),
+                          right: _buildField(
+                            controller: _pricePcCtrl,
+                            label: 'Price / Pc',
+                            icon: LucideIcons.dollarSign,
+                            keyboardType: TextInputType.number,
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'Required' : null,
+                            onChanged: (val) {
+                              if (val.isEmpty) return;
+                              final pcPrice = double.tryParse(val);
+                              final pps =
+                                  int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                              if (pcPrice != null && pps > 0) {
+                                _priceStripCtrl.text = (pcPrice * pps)
+                                    .toStringAsFixed(2);
+                              }
+                            },
                           ),
-                        ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       _buildField(

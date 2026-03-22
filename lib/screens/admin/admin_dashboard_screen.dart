@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import 'product_list_screen.dart';
 import 'stock_in_screen.dart';
@@ -10,6 +11,7 @@ import 'expiring_soon_screen.dart';
 import 'low_stock_screen.dart';
 import 'package:intl/intl.dart';
 import 'returns_screen.dart';
+import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'top_products_screen.dart';
@@ -132,6 +134,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           actions: [
+            Builder(
+              builder: (context) {
+                final admin = context.watch<AdminProvider>();
+                final alertCount = admin.lowStockProducts.length + admin.expiringSoonProducts.length;
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.bell),
+                      tooltip: 'Notifications',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                        );
+                      },
+                    ),
+                    if (alertCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '$alertCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(LucideIcons.logOut),
               tooltip: 'Logout',
@@ -238,7 +285,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: ResponsiveHelper.screenPadding(context),
               child: const Row(
                 children: [
                   Icon(
@@ -285,27 +332,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ),
             ),
-            const Divider(color: AppColors.secondaryAccent, height: 1),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ListTile(
-                leading: const Icon(LucideIcons.logOut, color: AppColors.error),
-                title: const Text(
-                  'Logout',
-                  style: TextStyle(
-                    color: AppColors.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () {
-                  Navigator.pop(context); // close drawer
-                  _exitAdmin();
-                },
-              ),
-            ),
           ],
         ),
       ),
@@ -345,13 +371,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
-    // Determine padding based on screen width
-    final padding = isTablet
-        ? const EdgeInsets.all(32)
-        : const EdgeInsets.all(16);
-
     return SingleChildScrollView(
-      padding: padding,
+      padding: ResponsiveHelper.screenPadding(context),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -361,9 +382,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  const Text(
                     'Overview',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                       color: AppColors.primaryDark,
@@ -445,7 +466,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: LucideIcons.alertTriangle,
                           iconColor: AppColors.error,
                           iconBg: AppColors.error.withValues(alpha: 0.1),
-                          onTap: () => _navigateTo(4),
+                          onTap: () => _navigateTo(5),
                         ),
                       ),
                       SizedBox(
@@ -458,7 +479,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           iconBg: AppColors.warningOrange.withValues(
                             alpha: 0.1,
                           ),
-                          onTap: () => _navigateTo(3),
+                          onTap: () => _navigateTo(4),
                         ),
                       ),
                     ],
@@ -641,7 +662,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  sale.id,
+                                  sale.invoiceNumber ??
+                                      (sale.id.length > 10
+                                          ? '${sale.id.substring(0, 10)}...'
+                                          : sale.id),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.primaryDark,

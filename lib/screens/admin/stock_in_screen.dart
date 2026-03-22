@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:pharmacy_pos/screens/admin/bulk_import_screen.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/responsive_helper.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
@@ -345,7 +346,7 @@ class _StockInScreenState extends State<StockInScreen> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: ResponsiveHelper.screenPadding(context),
       child: Form(
         key: _formKey,
         child: Column(
@@ -619,71 +620,82 @@ class _StockInScreenState extends State<StockInScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 6,
-                        child: _buildField(
-                          controller: _barcodeCtrl,
-                          label: 'Barcode (optional)',
-                          icon: LucideIcons.scanLine,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 4,
-                        child: SizedBox(
-                          height: 58,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final scannedCode = await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ScannerScreen(),
-                                ),
-                              );
-                              if (!context.mounted) return;
-                              if (scannedCode != null &&
-                                  scannedCode.isNotEmpty) {
-                                setState(() {
-                                  _barcodeCtrl.text = scannedCode;
-                                });
-                                // Auto-load if product exists
-                                final admin = context.read<AdminProvider>();
-                                final existing = admin.allProducts
-                                    .where((p) => p.barcode == scannedCode)
-                                    .firstOrNull;
-                                if (existing != null) {
-                                  _loadProductInfo(existing);
-                                }
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final scanButton = SizedBox(
+                        height: 58,
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final scannedCode = await Navigator.push<String>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ScannerScreen(),
+                              ),
+                            );
+                            if (!context.mounted) return;
+                            if (scannedCode != null &&
+                                scannedCode.isNotEmpty) {
+                              setState(() {
+                                _barcodeCtrl.text = scannedCode;
+                              });
+                              // Auto-load if product exists
+                              final admin = context.read<AdminProvider>();
+                              final existing = admin.allProducts
+                                  .where((p) => p.barcode == scannedCode)
+                                  .firstOrNull;
+                              if (existing != null) {
+                                _loadProductInfo(existing);
                               }
-                            },
-                            icon: const Icon(
-                              LucideIcons.scan,
+                            }
+                          },
+                          icon: const Icon(
+                            LucideIcons.scan,
+                            color: AppColors.white,
+                            size: 20,
+                          ),
+                          label: const Text(
+                            'Scan',
+                            style: TextStyle(
                               color: AppColors.white,
-                              size: 20,
-                            ),
-                            label: const Text(
-                              'Scan',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryDark,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: EdgeInsets.zero,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryDark,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
                         ),
-                      ),
-                    ],
+                      );
+                      final barcodeField = _buildField(
+                        controller: _barcodeCtrl,
+                        label: 'Barcode (optional)',
+                        icon: LucideIcons.scanLine,
+                        keyboardType: TextInputType.number,
+                      );
+                      if (constraints.maxWidth < 380) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            barcodeField,
+                            const SizedBox(height: 12),
+                            scanButton,
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 6, child: barcodeField),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 4, child: scanButton),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -752,60 +764,57 @@ class _StockInScreenState extends State<StockInScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildField(
-                          controller: _priceBoxCtrl,
-                          label: 'Price / Box',
-                          icon: LucideIcons.shoppingCart,
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final boxPrice = double.tryParse(val);
-                            final spb =
-                                int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            final pps =
-                                int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                            if (boxPrice != null && spb > 0) {
-                              final stripP = boxPrice / spb;
-                              _priceStripCtrl.text = stripP.toStringAsFixed(2);
-                              if (pps > 0) {
-                                _pricePcCtrl.text = (stripP / pps)
-                                    .toStringAsFixed(2);
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildField(
-                          controller: _priceStripCtrl,
-                          label: 'Price / Strip',
-                          icon: LucideIcons.dollarSign,
-                          keyboardType: TextInputType.number,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Required' : null,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final stripPrice = double.tryParse(val);
-                            final pps =
-                                int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                            final spb =
-                                int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            if (stripPrice != null) {
-                              if (pps > 0) {
-                                _pricePcCtrl.text = (stripPrice / pps)
-                                    .toStringAsFixed(2);
-                              }
-                              _priceBoxCtrl.text = (stripPrice * spb)
+                  LayoutBuilder(
+                    builder: (context, constraints) =>
+                        ResponsiveHelper.responsiveRow(
+                      constraints: constraints,
+                      left: _buildField(
+                        controller: _priceBoxCtrl,
+                        label: 'Price / Box',
+                        icon: LucideIcons.shoppingCart,
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final boxPrice = double.tryParse(val);
+                          final spb =
+                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          final pps =
+                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                          if (boxPrice != null && spb > 0) {
+                            final stripP = boxPrice / spb;
+                            _priceStripCtrl.text = stripP.toStringAsFixed(2);
+                            if (pps > 0) {
+                              _pricePcCtrl.text = (stripP / pps)
                                   .toStringAsFixed(2);
                             }
-                          },
-                        ),
+                          }
+                        },
                       ),
-                    ],
+                      right: _buildField(
+                        controller: _priceStripCtrl,
+                        label: 'Price / Strip',
+                        icon: LucideIcons.dollarSign,
+                        keyboardType: TextInputType.number,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final stripPrice = double.tryParse(val);
+                          final pps =
+                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                          final spb =
+                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          if (stripPrice != null) {
+                            if (pps > 0) {
+                              _pricePcCtrl.text = (stripPrice / pps)
+                                  .toStringAsFixed(2);
+                            }
+                            _priceBoxCtrl.text = (stripPrice * spb)
+                                .toStringAsFixed(2);
+                          }
+                        },
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildField(
@@ -856,57 +865,54 @@ class _StockInScreenState extends State<StockInScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildField(
-                          controller: _stockStripsCtrl,
-                          label: 'Stock (Strips)',
-                          icon: LucideIcons.layers,
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final strips = int.tryParse(val);
-                            final pps =
-                                int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                            final spb =
-                                int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            if (strips != null && pps > 0) {
-                              _stockPcsCtrl.text = (strips * pps).toString();
-                              if (spb > 0) {
-                                _stockBoxesCtrl.text = (strips ~/ spb)
-                                    .toString();
-                              }
+                  LayoutBuilder(
+                    builder: (context, constraints) =>
+                        ResponsiveHelper.responsiveRow(
+                      constraints: constraints,
+                      left: _buildField(
+                        controller: _stockStripsCtrl,
+                        label: 'Stock (Strips)',
+                        icon: LucideIcons.layers,
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final strips = int.tryParse(val);
+                          final pps =
+                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                          final spb =
+                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          if (strips != null && pps > 0) {
+                            _stockPcsCtrl.text = (strips * pps).toString();
+                            if (spb > 0) {
+                              _stockBoxesCtrl.text = (strips ~/ spb)
+                                  .toString();
                             }
-                          },
-                        ),
+                          }
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildField(
-                          controller: _stockPcsCtrl,
-                          label: 'Stock (Pcs)',
-                          icon: LucideIcons.layers,
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final pcs = int.tryParse(val);
-                            final pps =
-                                int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                            final spb =
-                                int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            if (pcs != null && pps > 0) {
-                              final strips = pcs ~/ pps;
-                              _stockStripsCtrl.text = strips.toString();
-                              if (spb > 0) {
-                                _stockBoxesCtrl.text = (strips ~/ spb)
-                                    .toString();
-                              }
+                      right: _buildField(
+                        controller: _stockPcsCtrl,
+                        label: 'Stock (Pcs)',
+                        icon: LucideIcons.layers,
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final pcs = int.tryParse(val);
+                          final pps =
+                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                          final spb =
+                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          if (pcs != null && pps > 0) {
+                            final strips = pcs ~/ pps;
+                            _stockStripsCtrl.text = strips.toString();
+                            if (spb > 0) {
+                              _stockBoxesCtrl.text = (strips ~/ spb)
+                                  .toString();
                             }
-                          },
-                        ),
+                          }
+                        },
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildField(
@@ -916,61 +922,60 @@ class _StockInScreenState extends State<StockInScreen> {
                     keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildField(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final expiryWidget = GestureDetector(
+                        onTap: _pickExpiryDate,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: AppColors.secondaryAccent,
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            color: AppColors.surfaceLight,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                LucideIcons.calendar,
+                                color: AppColors.secondaryAccent,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _expiryDate != null
+                                      ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
+                                      : 'Select Expiry*',
+                                  style: TextStyle(
+                                    color: _expiryDate != null
+                                        ? AppColors.primaryDark
+                                        : AppColors.secondaryAccent,
+                                    fontWeight: FontWeight.w600,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                      return ResponsiveHelper.responsiveRow(
+                        constraints: constraints,
+                        left: _buildField(
                           controller: _batchCtrl,
                           label: 'Batch No (optional)',
                           icon: LucideIcons.hash,
                           keyboardType: TextInputType.text,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _pickExpiryDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.secondaryAccent,
-                                width: 1.5,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              color: AppColors.surfaceLight,
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  LucideIcons.calendar,
-                                  color: AppColors.secondaryAccent,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    _expiryDate != null
-                                        ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                        : 'Select Expiry*',
-                                    style: TextStyle(
-                                      color: _expiryDate != null
-                                          ? AppColors.primaryDark
-                                          : AppColors.secondaryAccent,
-                                      fontWeight: FontWeight.w600,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                        right: expiryWidget,
+                      );
+                    },
                   ),
                 ],
               ),

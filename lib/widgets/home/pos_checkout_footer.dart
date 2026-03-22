@@ -20,6 +20,13 @@ class PosCheckoutFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 380;
+    final totalFontSize = isNarrow ? 24.0 : 30.0;
+    final takaSize = isNarrow ? 22.0 : 28.0;
+    final btnVertPad = isNarrow ? 12.0 : 16.0;
+    final checkoutFontSize = isNarrow ? 14.0 : 16.0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -69,15 +76,15 @@ class PosCheckoutFooter extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const TakaSymbol(
-                        size: 28,
+                      TakaSymbol(
+                        size: takaSize,
                         color: AppColors.primaryDark,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         total.toStringAsFixed(2),
-                        style: const TextStyle(
-                          fontSize: 30,
+                        style: TextStyle(
+                          fontSize: totalFontSize,
                           fontWeight: FontWeight.w900,
                           color: AppColors.primaryDark,
                           height: 1.0,
@@ -107,7 +114,7 @@ class PosCheckoutFooter extends StatelessWidget {
                           : AppColors.error,
                       width: 2,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: btnVertPad),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -122,15 +129,15 @@ class PosCheckoutFooter extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                     disabledBackgroundColor: Colors.grey.shade400,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: EdgeInsets.symmetric(vertical: btnVertPad),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Checkout',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: checkoutFontSize,
                       fontWeight: FontWeight.w900,
                       color: AppColors.white,
                     ),
