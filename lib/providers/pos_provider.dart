@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/cart_item.dart';
 import '../models/sale_record.dart';
+import 'admin_provider.dart';
 import '../services/database_helper.dart';
 import '../utils/product_matcher.dart';
 import 'package:vibration/vibration.dart';
 
 class POSProvider extends ChangeNotifier {
+  POSProvider(this._admin);
+
+  final AdminProvider _admin;
   final DatabaseHelper _db = DatabaseHelper();
 
   List<Product> _products = [];
@@ -16,6 +20,8 @@ class POSProvider extends ChangeNotifier {
   List<Product> get products => _products;
   List<CartItem> get cart => _cart;
   String get searchQuery => _searchQuery;
+  String? _selectedMedType;
+  String? get selectedMedType => _selectedMedType;
 
   /// Load all products from the database. Call once at startup and after mutations.
   Future<void> loadProducts() async {
@@ -23,17 +29,35 @@ class POSProvider extends ChangeNotifier {
     ProductMatcher.precomputeHashes(_products);
     notifyListeners();
   }
+  /// Groups filtered products by name, returning only one representative per name.
+  List<Product> get groupedFilteredProducts {
+    final list = filteredProducts;
+    final Map<String, Product> unique = {};
+    for (var p in list) {
+      final key = p.name.toLowerCase();
+      if (!unique.containsKey(key)) {
+        unique[key] = p;
+      }
+    }
+    return unique.values.toList();
+  }
 
   List<Product> get filteredProducts {
-    if (_searchQuery.isEmpty) return _products;
-    final lowerQuery = _searchQuery.toLowerCase();
-    return _products
-        .where(
-          (product) =>
-              product.name.toLowerCase().contains(lowerQuery) ||
-              product.generic.toLowerCase().contains(lowerQuery),
-        )
-        .toList();
+    var list = _products;
+    if (_searchQuery.isNotEmpty) {
+      final lowerQuery = _searchQuery.toLowerCase();
+      list = list
+          .where(
+            (product) =>
+                product.name.toLowerCase().contains(lowerQuery) ||
+                product.generic.toLowerCase().contains(lowerQuery),
+          )
+          .toList();
+    }
+    if (_selectedMedType != null) {
+      list = list.where((p) => (p.medType ?? 'Tablet') == _selectedMedType).toList();
+    }
+    return list;
   }
 
   List<CartItem> get filteredCart {
@@ -48,12 +72,26 @@ class POSProvider extends ChangeNotifier {
         .toList();
   }
 
+  /// Get all available medicine types for a given product name.
+  List<String> getAvailableTypes(String productName) {
+    return _products
+        .where((p) => p.name.toLowerCase() == productName.toLowerCase())
+        .map((p) => p.medType ?? 'Tablet')
+        .toSet()
+        .toList();
+  }
+
   double get calculateTotal {
     return _cart.fold(0, (total, item) => total + item.total);
   }
 
   void setSearchQuery(String query) {
     _searchQuery = query;
+    notifyListeners();
+  }
+
+  void setSelectedMedType(String? type) {
+    _selectedMedType = type;
     notifyListeners();
   }
 
@@ -79,7 +117,12 @@ class POSProvider extends ChangeNotifier {
       _cart[existingIndex].stripQuantity += 1;
     } else {
       _cart.add(
-        CartItem(product: productToAdd, stripQuantity: 1, pcQuantity: 0),
+        CartItem(
+          product: productToAdd,
+          stripQuantity: 1,
+          pcQuantity: 0,
+          medType: productToAdd.medType,
+        ),
       );
     }
 
@@ -97,7 +140,12 @@ class POSProvider extends ChangeNotifier {
       }
     } else if (delta > 0) {
       _cart.add(
-        CartItem(product: product, stripQuantity: delta, pcQuantity: 0),
+        CartItem(
+          product: product,
+          stripQuantity: delta,
+          pcQuantity: 0,
+          medType: product.medType,
+        ),
       );
       notifyListeners();
     }
@@ -126,9 +174,28 @@ class POSProvider extends ChangeNotifier {
       _cart[index].pcQuantity = pcs;
     } else {
       _cart.add(
-        CartItem(product: product, stripQuantity: strips, pcQuantity: pcs),
+        CartItem(
+          product: product,
+          stripQuantity: strips,
+          pcQuantity: pcs,
+          medType: product.medType,
+        ),
       );
     }
+    notifyListeners();
+  }
+
+  void updateCartItemMedType(CartItem item, String newType) {
+    // Find the product variant corresponding to this name + newType
+    final variant = _products.firstWhere(
+      (p) =>
+          p.name.toLowerCase() == item.product.name.toLowerCase() &&
+          (p.medType ?? 'Tablet') == newType,
+      orElse: () => item.product,
+    );
+
+    item.product = variant;
+    item.medType = newType;
     notifyListeners();
   }
 
@@ -215,6 +282,9 @@ class POSProvider extends ChangeNotifier {
     _cart.clear();
     // Reload products to reflect updated stock
     await loadProducts();
+    
+    // Trigger Google Drive Backup (same AdminProvider as the app so fileId + debounce are shared)
+    _admin.scheduleSync();
 
     return invoiceNumber; // Return it so UI can display it
   }

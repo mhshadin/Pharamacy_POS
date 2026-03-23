@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../utils/colors.dart';
 import '../services/auth_service.dart';
 import '../services/auth_storage.dart';
+import '../services/google_drive_auth.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -36,7 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _regObscurePassword = true;
 
-  bool _isGoogleSignInInitialized = false;
+  // Use the shared instance so interactive login and background Drive sync
+  // share the same GoogleSignIn session (required for signInSilently to work).
+  final _googleSignIn = googleSignInClient;
 
 
   @override
@@ -130,16 +132,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       print('[LoginScreen] Starting Google sign-in');
-      if (!_isGoogleSignInInitialized) {
-        await GoogleSignIn.instance.initialize(
-          serverClientId: 'YOUR_WEB_CLIENT_ID_HERE', // TODO: Replace with WEB_CLIENT_ID from config.php
-        );
-        _isGoogleSignInInitialized = true;
+      
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+         if (mounted) {
+           setState(() {
+             _isGoogleLoading = false;
+           });
+         }
+         return;
       }
-      final account = await GoogleSignIn.instance.authenticate();
 
-      final auth = account.authentication;
+      final auth = await account.authentication;
       final idToken = auth.idToken;
+      final accessToken = auth.accessToken;
 
       if (idToken == null || idToken.isEmpty) {
         print('[LoginScreen] GoogleSignIn returned null/empty idToken');
@@ -156,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
         hardwareUid: hardwareUid,
       );
 
-      await _authStorage.saveAuth(result);
+      await _authStorage.saveAuth(result, googleAccessToken: accessToken);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -165,15 +171,12 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       print('[LoginScreen] AuthException during Google sign-in: $e');
       _showErrorSnackBar(e.message);
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        print('[LoginScreen] Google sign-in cancelled by user');
-        return;
-      }
-      print('[LoginScreen] GoogleSignInException during Google sign-in: $e');
-      _showErrorSnackBar('Google sign-in failed. Please try again.');
     } catch (e) {
-      print('[LoginScreen] Unexpected error during Google sign-in: $e');
+      if (e.toString().contains('sign_in_canceled')) {
+         print('[LoginScreen] Google sign-in cancelled by user');
+         return;
+      }
+      print('[LoginScreen] Error during Google sign-in: $e');
       _showErrorSnackBar('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) {
@@ -230,211 +233,213 @@ class _LoginScreenState extends State<LoginScreen> {
       data: theme.copyWith(textTheme: textTheme),
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Card(
-              color: AppColors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.cardBorder, width: 1.5),
-              ),
-              elevation: 8,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Pharmacy POS',
-                        textAlign: TextAlign.center,
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: AppColors.primaryDark,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Card(
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: AppColors.cardBorder, width: 1.5),
+                ),
+                elevation: 8,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Pharmacy POS',
+                          textAlign: TextAlign.center,
+                          style: textTheme.headlineSmall?.copyWith(
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Sign in to start selling',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
+                        const SizedBox(height: 4),
+                        Text(
+                          'Sign in to start selling',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      Form(
-                        key: _formKey,
-                        child: Column(
+                        const SizedBox(height: 24),
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: _inputDecoration(
+                                  label: 'Email',
+                                  icon: Icons.email_outlined,
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                  if (!value.contains('@')) {
+                                    return 'Please enter a valid email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                decoration: _inputDecoration(
+                                  label: 'Password',
+                                  icon: Icons.lock_outline,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your password';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _handleLogin,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryDark,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  AppColors.white,
+                                                ),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Sign in',
+                                          style: TextStyle(
+                                            color: AppColors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _isGoogleLoading
+                                      ? null
+                                      : _handleGoogleLogin,
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    side: const BorderSide(
+                                      color: AppColors.cardBorder,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    foregroundColor: AppColors.primaryDark,
+                                  ),
+                                  icon: const Icon(Icons.g_mobiledata, size: 28),
+                                  label: _isGoogleLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  AppColors.primaryDark,
+                                                ),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
                           children: [
-                            TextFormField(
-                              controller: _emailController,
-                              decoration: _inputDecoration(
-                                label: 'Email',
-                                icon: Icons.email_outlined,
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!value.contains('@')) {
-                                  return 'Please enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              decoration: _inputDecoration(
-                                label: 'Password',
-                                icon: Icons.lock_outline,
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
-                                    color: AppColors.primaryDark,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your password';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _isLoading ? null : _handleLogin,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryDark,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                AppColors.white,
-                                              ),
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Sign in',
-                                        style: TextStyle(
-                                          color: AppColors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: AppColors.cardBorder,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _isGoogleLoading
-                                    ? null
-                                    : _handleGoogleLogin,
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  side: const BorderSide(
-                                    color: AppColors.cardBorder,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  foregroundColor: AppColors.primaryDark,
-                                ),
-                                icon: const Icon(Icons.g_mobiledata, size: 28),
-                                label: _isGoogleLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                AppColors.primaryDark,
-                                              ),
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Continue with Google',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 15,
-                                        ),
-                                      ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Or create an account',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: AppColors.cardBorder,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 1,
-                              color: AppColors.cardBorder,
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _isRegistering
+                              ? null
+                              : () {
+                                  _showRegisterDialog();
+                                },
+                          child: const Text(
+                            'Create a new pharmacy account',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryDark,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Or create an account',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Container(
-                              height: 1,
-                              color: AppColors.cardBorder,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: _isRegistering
-                            ? null
-                            : () {
-                                _showRegisterDialog();
-                              },
-                        child: const Text(
-                          'Create a new pharmacy account',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

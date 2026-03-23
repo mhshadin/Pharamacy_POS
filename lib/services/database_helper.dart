@@ -61,10 +61,16 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 11,
       onUpgrade: _onUpgrade,
       onCreate: _onCreate,
     );
+  }
+
+  /// Gets the absolute path to the active database file.
+  Future<String?> getDatabasePath() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return '${dir.path}/pharmacy.db';
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -193,6 +199,23 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE products ADD COLUMN companyName TEXT');
       } catch (_) {}
     }
+
+    if (oldVersion < 10) {
+      try {
+        await db.execute('ALTER TABLE products ADD COLUMN medType TEXT');
+        await db.execute('ALTER TABLE sales ADD COLUMN medType TEXT');
+      } catch (_) {}
+    }
+
+    if (oldVersion < 11) {
+      // Ensure columns exist just in case version 10 was skipped or failed
+      try {
+        await db.execute('ALTER TABLE products ADD COLUMN medType TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE sales ADD COLUMN medType TEXT');
+      } catch (_) {}
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -213,7 +236,8 @@ class DatabaseHelper {
         minStockLevel INTEGER DEFAULT 20,
         companyName TEXT,
         supplierName TEXT,
-        supplierPhone TEXT
+        supplierPhone TEXT,
+        medType TEXT
       )
     ''');
 
@@ -240,7 +264,8 @@ class DatabaseHelper {
         invoiceNumber TEXT,
         batchNumber TEXT,
         isReturned INTEGER DEFAULT 0,
-        returnedQuantity INTEGER DEFAULT 0
+        returnedQuantity INTEGER DEFAULT 0,
+        medType TEXT
       )
     ''');
 

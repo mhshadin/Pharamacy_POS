@@ -7,6 +7,7 @@ import '../providers/admin_provider.dart';
 import '../models/product.dart';
 import '../services/speech_service.dart';
 import '../utils/product_matcher.dart';
+import '../utils/med_type_icons.dart';
 
 class ManualAddScreen extends StatefulWidget {
   const ManualAddScreen({super.key});
@@ -14,20 +15,18 @@ class ManualAddScreen extends StatefulWidget {
   @override
   State<ManualAddScreen> createState() => _ManualAddScreenState();
 }
-
 class _ManualAddScreenState extends State<ManualAddScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  String _searchQuery = '';
   bool _isListening = false;
+  // Track selected variant ID per product name
+  final Map<String, String> _selectedVariantIds = {};
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
-      });
+      context.read<POSProvider>().setSearchQuery(_searchController.text);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,7 +99,6 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     final best = ProductMatcher.findBestMatch(text, products);
 
     if (best != null) {
-      // Auto add 1 PC for the best matched product.
       posProvider.updatePcQuantity(best.product, 1);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -113,7 +111,6 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
         ),
       );
     } else {
-      // No confident match; keep text for manual correction and suggestions.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -127,11 +124,10 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     }
   }
 
-  // Handle manual quantity input via Dialog
   void _editQuantity(
     BuildContext context,
     Product product,
-    String typeLabel, // 'STRIP' or 'PC'
+    String typeLabel,
     int currentQ,
   ) {
     final TextEditingController qController = TextEditingController(
@@ -181,7 +177,6 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                 final int newQ = int.tryParse(qController.text) ?? 0;
                 final provider = context.read<POSProvider>();
                 
-                // Get existing item or defaults
                 int strips = 0;
                 int pcs = 0;
                 final idx = provider.cart.indexWhere((c) => c.product.id == product.id);
@@ -216,24 +211,18 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     final posProvider = context.watch<POSProvider>();
     final adminProvider = context.watch<AdminProvider>();
 
-    // Compute total sales per product name for sorting
     final Map<String, int> productSales = {};
     for (var sale in adminProvider.allSales) {
       productSales[sale.productName] =
           (productSales[sale.productName] ?? 0) + sale.quantity;
     }
 
-    // Filter and Sort Products
-    List<Product> products = posProvider.products.where((p) {
-      if (_searchQuery.isEmpty) return true;
-      return p.name.toLowerCase().contains(_searchQuery) ||
-          p.generic.toLowerCase().contains(_searchQuery);
-    }).toList();
+    final List<Product> products = posProvider.groupedFilteredProducts;
 
     products.sort((a, b) {
       final salesA = productSales[a.name] ?? 0;
       final salesB = productSales[b.name] ?? 0;
-      return salesB.compareTo(salesA); // Descending (most sold first)
+      return salesB.compareTo(salesA);
     });
 
     return Scaffold(
@@ -256,10 +245,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
       ),
       body: Column(
         children: [
-          // Search Bar
           Container(
             color: AppColors.primaryDark,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Container(
               decoration: BoxDecoration(
                 color: AppColors.white,
@@ -276,7 +264,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search product or generic name...',
                   hintStyle: TextStyle(
-                    color: AppColors.secondaryAccent.withValues(alpha: 0.7),
+                    color: AppColors.secondaryAccent.withOpacity(0.7),
                     fontWeight: FontWeight.w500,
                   ),
                   prefixIcon: const Icon(
@@ -291,7 +279,66 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
             ),
           ),
 
-          // Product List
+          // Med Type Choice Chips
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            decoration: const BoxDecoration(
+              color: AppColors.primaryDark,
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('All'),
+                    selected: posProvider.selectedMedType == null,
+                    onSelected: (selected) {
+                      if (selected) posProvider.setSelectedMedType(null);
+                    },
+                    selectedColor: AppColors.highlightActive,
+                    backgroundColor: AppColors.surfaceLight.withOpacity(0.1),
+                    labelStyle: TextStyle(
+                      color: posProvider.selectedMedType == null
+                          ? AppColors.white
+                          : AppColors.white.withOpacity(0.7),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ...adminProvider.medicineTypes.map((type) {
+                    final isSelected = posProvider.selectedMedType == type;
+                    final chipColor = MedTypeIcons.getColor(type);
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(type),
+                        avatar: Icon(
+                          MedTypeIcons.getIcon(type),
+                          size: 14,
+                          color: isSelected 
+                            ? MedTypeIcons.getContrastColor(chipColor) 
+                            : AppColors.white.withOpacity(0.6),
+                        ),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          posProvider.setSelectedMedType(selected ? type : null);
+                        },
+                        selectedColor: chipColor,
+                        backgroundColor: AppColors.surfaceLight.withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? MedTypeIcons.getContrastColor(chipColor)
+                              : AppColors.white.withOpacity(0.7),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+
           Expanded(
             child: products.isEmpty
                 ? const Center(
@@ -310,10 +357,22 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (ctx, idx) {
                       final product = products[idx];
+                      
+                      // Get currently active variant of this product name
+                      final activeVariantId = _selectedVariantIds[product.name];
+                      final activeProduct = activeVariantId == null
+                          ? product
+                          : posProvider.products.firstWhere(
+                              (p) => p.id == activeVariantId,
+                              orElse: () => product,
+                            );
 
-                      // Check if in cart to sync quantity
+                      final availableVariants = posProvider.products
+                          .where((p) => p.name.toLowerCase() == product.name.toLowerCase())
+                          .toList();
+
                       final cartItemIdx = posProvider.cart.indexWhere(
-                        (c) => c.product.id == product.id,
+                        (c) => c.product.id == activeProduct.id,
                       );
                       final int stripQty = cartItemIdx >= 0
                           ? posProvider.cart[cartItemIdx].stripQuantity
@@ -344,7 +403,6 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                         ),
                         child: Column(
                           children: [
-                            // Product Info
                             Row(
                               children: [
                                 Container(
@@ -376,15 +434,48 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                                           height: 1.1,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        product.generic,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.secondaryAccent,
-                                          fontWeight: FontWeight.w600,
+                                      if (availableVariants.length > 1)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 8),
+                                          child: Wrap(
+                                            spacing: 4,
+                                            children: availableVariants.map((v) {
+                                              final isSelected = v.id == activeProduct.id;
+                                              return GestureDetector(
+                                                onTap: () {
+                                                  setState(() {
+                                                    _selectedVariantIds[product.name] = v.id;
+                                                  });
+                                                },
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? MedTypeIcons.getColor(v.medType)
+                                                        : AppColors.background,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(
+                                                      color: MedTypeIcons.getColor(v.medType),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    v.medType ?? 'Tablet',
+                                                    style: TextStyle(
+                                                      fontSize: 8,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: isSelected
+                                                          ? MedTypeIcons.getContrastColor(MedTypeIcons.getColor(v.medType))
+                                                          : MedTypeIcons.getColor(v.medType),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -395,7 +486,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                                       children: [
                                         const Text('৳', style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold)),
                                         Text(
-                                          product.priceStrip.toStringAsFixed(2),
+                                          activeProduct.priceStrip.toStringAsFixed(2),
                                           style: const TextStyle(
                                             fontSize: 18,
                                             color: AppColors.primaryDark,
@@ -404,9 +495,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                                         ),
                                       ],
                                     ),
-                                    const Text(
-                                      'STRIP PRICE',
-                                      style: TextStyle(
+                                    Text(
+                                      '${(activeProduct.unitLabels['unit2'] ?? 'STRIP').toUpperCase()} PRICE',
+                                      style: const TextStyle(
                                         fontSize: 9,
                                         color: AppColors.secondaryAccent,
                                         fontWeight: FontWeight.bold,
@@ -417,7 +508,6 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                               ],
                             ),
                             const SizedBox(height: 12),
-                            // Controls Row
                             Container(
                               padding: const EdgeInsets.only(top: 8),
                               decoration: const BoxDecoration(
@@ -432,22 +522,22 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  // STRIP Controls
-                                  _ManualQuantityBox(
-                                    label: 'STRIP',
-                                    quantity: stripQty,
-                                    onDecrement: () => posProvider.updateStripQuantity(product, -1),
-                                    onIncrement: () => posProvider.updateStripQuantity(product, 1),
-                                    onTap: () => _editQuantity(context, product, 'STRIP', stripQty),
-                                  ),
-                                  // PC Controls
-                                  _ManualQuantityBox(
-                                    label: 'PC',
-                                    quantity: pcQty,
-                                    onDecrement: () => posProvider.updatePcQuantity(product, -1),
-                                    onIncrement: () => posProvider.updatePcQuantity(product, 1),
-                                    onTap: () => _editQuantity(context, product, 'PC', pcQty),
-                                  ),
+                                  if (activeProduct.unitLabels['unit2'] != null)
+                                    _ManualQuantityBox(
+                                      label: activeProduct.unitLabels['unit2']!.toUpperCase(),
+                                      quantity: stripQty,
+                                      onDecrement: () => posProvider.updateStripQuantity(activeProduct, -1),
+                                      onIncrement: () => posProvider.updateStripQuantity(activeProduct, 1),
+                                      onTap: () => _editQuantity(context, activeProduct, activeProduct.unitLabels['unit2']!.toUpperCase(), stripQty),
+                                    ),
+                                  if (activeProduct.unitLabels['unit3'] != null)
+                                    _ManualQuantityBox(
+                                      label: activeProduct.unitLabels['unit3']!.toUpperCase(),
+                                      quantity: pcQty,
+                                      onDecrement: () => posProvider.updatePcQuantity(activeProduct, -1),
+                                      onIncrement: () => posProvider.updatePcQuantity(activeProduct, 1),
+                                      onTap: () => _editQuantity(context, activeProduct, activeProduct.unitLabels['unit3']!.toUpperCase(), pcQty),
+                                    ),
                                 ],
                               ),
                             ),

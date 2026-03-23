@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:pharmacy_pos/screens/admin/bulk_import_screen.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
@@ -24,17 +25,16 @@ class _StockInScreenState extends State<StockInScreen> {
   final _barcodeCtrl = TextEditingController();
   final _priceBoxCtrl = TextEditingController();
   final _priceStripCtrl = TextEditingController();
-  final _pricePcCtrl = TextEditingController();
   final _stripsPerBoxCtrl = TextEditingController(text: '10');
   final _pcsPerStripCtrl = TextEditingController(text: '10');
   final _stockBoxesCtrl = TextEditingController();
   final _stockStripsCtrl = TextEditingController();
-  final _stockPcsCtrl = TextEditingController();
   final _lowStockWarningCtrl = TextEditingController(); // New field
   final _batchCtrl = TextEditingController();
   TextEditingController? _supplierNameCtrl;
   final _supplierPhoneCtrl = TextEditingController();
   DateTime? _expiryDate;
+  String? _selectedMedType = 'Tablet';
 
   @override
   void initState() {
@@ -57,12 +57,10 @@ class _StockInScreenState extends State<StockInScreen> {
     _barcodeCtrl.dispose();
     _priceBoxCtrl.dispose();
     _priceStripCtrl.dispose();
-    _pricePcCtrl.dispose();
     _stripsPerBoxCtrl.dispose();
     _pcsPerStripCtrl.dispose();
     _stockBoxesCtrl.dispose();
     _stockStripsCtrl.dispose();
-    _stockPcsCtrl.dispose();
     _lowStockWarningCtrl.dispose();
     _batchCtrl.dispose();
     _supplierNameCtrl?.dispose();
@@ -78,13 +76,13 @@ class _StockInScreenState extends State<StockInScreen> {
       _barcodeCtrl.text = selection.barcode ?? '';
       _priceBoxCtrl.text = selection.priceBox.toStringAsFixed(2);
       _priceStripCtrl.text = selection.priceStrip.toStringAsFixed(2);
-      _pricePcCtrl.text = selection.pricePc.toStringAsFixed(2);
       _stripsPerBoxCtrl.text = selection.stripsPerBox.toString();
       _pcsPerStripCtrl.text = selection.pcsPerStrip.toString();
       _lowStockWarningCtrl.text =
           (selection.minStockLevel / selection.stripsPerBox).toStringAsFixed(0);
       _supplierNameCtrl?.text = selection.supplierName ?? '';
       _supplierPhoneCtrl.text = selection.supplierPhone ?? '';
+      _selectedMedType = selection.medType ?? 'Tablet';
     });
   }
 
@@ -133,25 +131,20 @@ class _StockInScreenState extends State<StockInScreen> {
       return;
     }
 
-    int boxesInput = int.tryParse(_stockBoxesCtrl.text) ?? 0;
-    int stripsInput = int.tryParse(_stockStripsCtrl.text) ?? 0;
-    int pcsInput = int.tryParse(_stockPcsCtrl.text) ?? 0;
     int spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
     int pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
     if (spb <= 0) spb = 1;
     if (pps <= 0) pps = 10;
 
-    // Preference hierarchy for total calculation: Pcs > Strips > Boxes
-    if (_stockPcsCtrl.text.isEmpty) {
-      if (_stockStripsCtrl.text.isNotEmpty) {
-        pcsInput = stripsInput * pps;
-      } else if (_stockBoxesCtrl.text.isNotEmpty) {
-        pcsInput = boxesInput * spb * pps;
-      }
+    int stripsInput = int.tryParse(_stockStripsCtrl.text) ?? 0;
+    int boxesInput = int.tryParse(_stockBoxesCtrl.text) ?? 0;
+    int pcsInput = 0;
+    if (_stockStripsCtrl.text.isNotEmpty) {
+      pcsInput = stripsInput * pps;
+    } else if (_stockBoxesCtrl.text.isNotEmpty) {
+      pcsInput = boxesInput * spb * pps;
     }
 
-    // Since Strips and Pcs fields auto-update to represent the EXACT SAME total amount,
-    // we use pcsInput as the definitive total.
     final totalPcs = pcsInput;
     final finalStrips = totalPcs ~/ pps;
     final finalPcs = totalPcs % pps;
@@ -161,8 +154,13 @@ class _StockInScreenState extends State<StockInScreen> {
 
     final allProducts = context.read<AdminProvider>().allProducts;
     final existingProduct = allProducts
-        .where((p) => p.name.toLowerCase() == productName.toLowerCase())
+        .where((p) =>
+            p.name.toLowerCase() == productName.toLowerCase() &&
+            (p.medType ?? 'Tablet') == _selectedMedType)
         .firstOrNull;
+
+    final stripPrice = double.tryParse(_priceStripCtrl.text) ?? 0;
+    final pricePc = pps > 0 ? stripPrice / pps : 0.0;
 
     try {
       if (existingProduct != null) {
@@ -171,8 +169,8 @@ class _StockInScreenState extends State<StockInScreen> {
           name: existingProduct.name,
           generic: _genericCtrl?.text.trim() ?? '',
           priceBox: double.tryParse(_priceBoxCtrl.text) ?? 0,
-          priceStrip: double.tryParse(_priceStripCtrl.text) ?? 0,
-          pricePc: double.tryParse(_pricePcCtrl.text) ?? 0,
+          priceStrip: stripPrice,
+          pricePc: pricePc,
           stripsPerBox: spb,
           pcsPerStrip: pps,
           stockStrips: existingProduct.stockStrips,
@@ -194,6 +192,7 @@ class _StockInScreenState extends State<StockInScreen> {
           supplierPhone: _supplierPhoneCtrl.text.trim().isEmpty
               ? null
               : _supplierPhoneCtrl.text.trim(),
+          medType: _selectedMedType,
         );
         await context.read<AdminProvider>().updateProduct(updatedProduct);
         if (!mounted) return;
@@ -213,8 +212,8 @@ class _StockInScreenState extends State<StockInScreen> {
           name: productName,
           generic: _genericCtrl?.text.trim() ?? '',
           priceBox: double.tryParse(_priceBoxCtrl.text) ?? 0,
-          priceStrip: double.tryParse(_priceStripCtrl.text) ?? 0,
-          pricePc: double.tryParse(_pricePcCtrl.text) ?? 0,
+          priceStrip: stripPrice,
+          pricePc: pricePc,
           stripsPerBox: spb,
           pcsPerStrip: pps,
           stockStrips: finalStrips,
@@ -236,6 +235,7 @@ class _StockInScreenState extends State<StockInScreen> {
           supplierPhone: _supplierPhoneCtrl.text.trim().isEmpty
               ? null
               : _supplierPhoneCtrl.text.trim(),
+          medType: _selectedMedType,
         );
 
         await context.read<AdminProvider>().addProduct(
@@ -266,12 +266,10 @@ class _StockInScreenState extends State<StockInScreen> {
     _barcodeCtrl.clear();
     _priceBoxCtrl.clear();
     _priceStripCtrl.clear();
-    _pricePcCtrl.clear();
     _stripsPerBoxCtrl.text = '1';
     _pcsPerStripCtrl.text = '10';
     _stockBoxesCtrl.clear();
     _stockStripsCtrl.clear();
-    _stockPcsCtrl.clear();
     if (mounted) {
       _lowStockWarningCtrl.text = context
           .read<AdminProvider>()
@@ -281,7 +279,10 @@ class _StockInScreenState extends State<StockInScreen> {
     _batchCtrl.clear();
     _supplierNameCtrl?.clear();
     _supplierPhoneCtrl.clear();
-    setState(() => _expiryDate = null);
+    setState(() {
+      _expiryDate = null;
+      _selectedMedType = 'Tablet';
+    });
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -620,6 +621,8 @@ class _StockInScreenState extends State<StockInScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  _buildMedTypeDropdown(),
+                  const SizedBox(height: 12),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final scanButton = SizedBox(
@@ -701,13 +704,15 @@ class _StockInScreenState extends State<StockInScreen> {
               ),
             ),
 
-            // SECTION 2: PRICING & PACKAGING
+            // SECTION 2a: PACKAGING
             _buildSection(
-              title: 'Pricing & Packaging',
-              icon: LucideIcons.circleDollarSign,
-              child: Column(
-                children: [
-                  _buildField(
+              title: 'Packaging',
+              icon: LucideIcons.package,
+              child: LayoutBuilder(
+                builder: (context, constraints) =>
+                    ResponsiveHelper.responsiveRow(
+                  constraints: constraints,
+                  left: _buildField(
                     controller: _stripsPerBoxCtrl,
                     label: 'Strips per Box',
                     icon: LucideIcons.package,
@@ -720,123 +725,68 @@ class _StockInScreenState extends State<StockInScreen> {
                       if (spb > 0) {
                         final boxP = double.tryParse(_priceBoxCtrl.text);
                         if (boxP != null) {
-                          _priceStripCtrl.text = (boxP / spb).toStringAsFixed(
-                            2,
-                          );
-                          final stripP = double.tryParse(_priceStripCtrl.text);
-                          final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          if (stripP != null && pps > 0) {
-                            _pricePcCtrl.text = (stripP / pps).toStringAsFixed(
-                              2,
-                            );
-                          }
+                          _priceStripCtrl.text = (boxP / spb).toStringAsFixed(2);
                         }
                         final boxes = int.tryParse(_stockBoxesCtrl.text);
                         if (boxes != null) {
                           _stockStripsCtrl.text = (boxes * spb).toString();
-                          final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          _stockPcsCtrl.text = (boxes * spb * pps).toString();
                         }
                       }
                     },
                   ),
-                  const SizedBox(height: 12),
-                  _buildField(
+                  right: _buildField(
                     controller: _pcsPerStripCtrl,
-                    label: 'Pieces per Strip',
+                    label: 'Pcs per Strip',
                     icon: LucideIcons.boxes,
                     keyboardType: TextInputType.number,
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Required' : null,
+                  ),
+                ),
+              ),
+            ),
+
+            // SECTION 2b: PRICING
+            _buildSection(
+              title: 'Pricing',
+              icon: LucideIcons.circleDollarSign,
+              child: LayoutBuilder(
+                builder: (context, constraints) =>
+                    ResponsiveHelper.responsiveRow(
+                  constraints: constraints,
+                  left: _buildField(
+                    controller: _priceBoxCtrl,
+                    label: 'Price / Box',
+                    icon: LucideIcons.shoppingCart,
+                    keyboardType: TextInputType.number,
                     onChanged: (val) {
                       if (val.isEmpty) return;
-                      final pps = int.tryParse(val) ?? 10;
-                      if (pps > 0) {
-                        final stripP = double.tryParse(_priceStripCtrl.text);
-                        if (stripP != null) {
-                          _pricePcCtrl.text = (stripP / pps).toStringAsFixed(2);
-                        }
-                        final strips = int.tryParse(_stockStripsCtrl.text);
-                        if (strips != null) {
-                          _stockPcsCtrl.text = (strips * pps).toString();
-                        }
+                      final boxPrice = double.tryParse(val);
+                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                      if (boxPrice != null && spb > 0) {
+                        _priceStripCtrl.text =
+                            (boxPrice / spb).toStringAsFixed(2);
                       }
                     },
                   ),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) =>
-                        ResponsiveHelper.responsiveRow(
-                      constraints: constraints,
-                      left: _buildField(
-                        controller: _priceBoxCtrl,
-                        label: 'Price / Box',
-                        icon: LucideIcons.shoppingCart,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final boxPrice = double.tryParse(val);
-                          final spb =
-                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          final pps =
-                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          if (boxPrice != null && spb > 0) {
-                            final stripP = boxPrice / spb;
-                            _priceStripCtrl.text = stripP.toStringAsFixed(2);
-                            if (pps > 0) {
-                              _pricePcCtrl.text = (stripP / pps)
-                                  .toStringAsFixed(2);
-                            }
-                          }
-                        },
-                      ),
-                      right: _buildField(
-                        controller: _priceStripCtrl,
-                        label: 'Price / Strip',
-                        icon: LucideIcons.dollarSign,
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final stripPrice = double.tryParse(val);
-                          final pps =
-                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          final spb =
-                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          if (stripPrice != null) {
-                            if (pps > 0) {
-                              _pricePcCtrl.text = (stripPrice / pps)
-                                  .toStringAsFixed(2);
-                            }
-                            _priceBoxCtrl.text = (stripPrice * spb)
-                                .toStringAsFixed(2);
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildField(
-                    controller: _pricePcCtrl,
-                    label: 'Price / Pc',
+                  right: _buildField(
+                    controller: _priceStripCtrl,
+                    label: 'Price / Strip',
                     icon: LucideIcons.dollarSign,
                     keyboardType: TextInputType.number,
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Required' : null,
                     onChanged: (val) {
                       if (val.isEmpty) return;
-                      final pcPrice = double.tryParse(val);
-                      final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
+                      final stripPrice = double.tryParse(val);
                       final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      if (pcPrice != null && pps > 0) {
-                        final stripP = pcPrice * pps;
-                        _priceStripCtrl.text = stripP.toStringAsFixed(2);
-                        _priceBoxCtrl.text = (stripP * spb).toStringAsFixed(2);
+                      if (stripPrice != null && spb > 0) {
+                        _priceBoxCtrl.text =
+                            (stripPrice * spb).toStringAsFixed(2);
                       }
                     },
                   ),
-                ],
+                ),
               ),
             ),
 
@@ -855,64 +805,25 @@ class _StockInScreenState extends State<StockInScreen> {
                       if (val.isEmpty) return;
                       final boxes = int.tryParse(val);
                       final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
                       if (boxes != null && spb > 0) {
                         _stockStripsCtrl.text = (boxes * spb).toString();
-                        if (pps > 0) {
-                          _stockPcsCtrl.text = (boxes * spb * pps).toString();
-                        }
                       }
                     },
                   ),
                   const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) =>
-                        ResponsiveHelper.responsiveRow(
-                      constraints: constraints,
-                      left: _buildField(
-                        controller: _stockStripsCtrl,
-                        label: 'Stock (Strips)',
-                        icon: LucideIcons.layers,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final strips = int.tryParse(val);
-                          final pps =
-                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          final spb =
-                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          if (strips != null && pps > 0) {
-                            _stockPcsCtrl.text = (strips * pps).toString();
-                            if (spb > 0) {
-                              _stockBoxesCtrl.text = (strips ~/ spb)
-                                  .toString();
-                            }
-                          }
-                        },
-                      ),
-                      right: _buildField(
-                        controller: _stockPcsCtrl,
-                        label: 'Stock (Pcs)',
-                        icon: LucideIcons.layers,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final pcs = int.tryParse(val);
-                          final pps =
-                              int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                          final spb =
-                              int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          if (pcs != null && pps > 0) {
-                            final strips = pcs ~/ pps;
-                            _stockStripsCtrl.text = strips.toString();
-                            if (spb > 0) {
-                              _stockBoxesCtrl.text = (strips ~/ spb)
-                                  .toString();
-                            }
-                          }
-                        },
-                      ),
-                    ),
+                  _buildField(
+                    controller: _stockStripsCtrl,
+                    label: 'Stock (Strips)',
+                    icon: LucideIcons.layers,
+                    keyboardType: TextInputType.number,
+                    onChanged: (val) {
+                      if (val.isEmpty) return;
+                      final strips = int.tryParse(val);
+                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                      if (strips != null && spb > 0) {
+                        _stockBoxesCtrl.text = (strips ~/ spb).toString();
+                      }
+                    },
                   ),
                   const SizedBox(height: 12),
                   _buildField(
@@ -1216,6 +1127,9 @@ class _StockInScreenState extends State<StockInScreen> {
                             const Divider(height: 1, color: AppColors.divider),
                         itemBuilder: (_, idx) {
                           final product = sortedProducts[idx];
+                          final lowAcc = admin.isProductLowStock(product)
+                              ? admin.lowStockTierFor(product).accentColor
+                              : null;
                           return ListTile(
                             leading: Container(
                               padding: const EdgeInsets.all(8),
@@ -1252,17 +1166,14 @@ class _StockInScreenState extends State<StockInScreen> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: admin.isProductLowStock(product)
-                                    ? AppColors.error.withValues(alpha: 0.1)
-                                    : AppColors.success.withValues(alpha: 0.1),
+                                color: (lowAcc ?? AppColors.success)
+                                    .withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                admin.isProductLowStock(product) ? 'LOW' : 'OK',
+                                lowAcc != null ? 'LOW' : 'OK',
                                 style: TextStyle(
-                                  color: admin.isProductLowStock(product)
-                                      ? AppColors.error
-                                      : AppColors.success,
+                                  color: lowAcc ?? AppColors.success,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,
                                 ),
@@ -1333,6 +1244,50 @@ class _StockInScreenState extends State<StockInScreen> {
           borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
         ),
       ),
+    );
+  }
+
+  Widget _buildMedTypeDropdown() {
+    final admin = context.watch<AdminProvider>();
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedMedType,
+      decoration: InputDecoration(
+        labelText: 'Medicine Type',
+        labelStyle: const TextStyle(
+          color: AppColors.secondaryAccent,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIcon: const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
+        filled: true,
+        fillColor: AppColors.surfaceLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
+        ),
+      ),
+      items: admin.medicineTypes.map((type) {
+        return DropdownMenuItem(
+          value: type,
+          child: Text(
+            type,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        setState(() => _selectedMedType = val);
+      },
     );
   }
 }

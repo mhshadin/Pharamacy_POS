@@ -30,6 +30,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late TextEditingController _pcsPerStripCtrl;
   late TextEditingController _lowStockWarningCtrl; // New field
   DateTime? _selectedExpiryDate;
+  String? _selectedMedType;
 
   List<StockBatch>? _batches;
   bool _isLoadingBatches = true;
@@ -38,6 +39,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
   void initState() {
     super.initState();
     _selectedExpiryDate = widget.product.expiryDate;
+    _selectedMedType = widget.product.medType ?? 'Tablet';
     _nameCtrl = TextEditingController(text: widget.product.name);
     _genericCtrl = TextEditingController(text: widget.product.generic);
     _companyCtrl = TextEditingController(text: widget.product.companyName ?? '');
@@ -153,6 +155,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
               ? null
               : _supplierPhoneCtrl.text.trim())
           : widget.product.supplierPhone,
+      medType: _selectedMedType,
     );
 
     // Update product info
@@ -254,6 +257,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
                         label: 'Company Name (optional)',
                         icon: LucideIcons.building2,
                       ),
+                      const SizedBox(height: 12),
+                      _buildMedTypeDropdown(),
                       if (showSupplierInfo) ...[
                         const SizedBox(height: 12),
                         _buildField(
@@ -619,6 +624,50 @@ class _EditProductScreenState extends State<EditProductScreen> {
           borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
         ),
       ),
+    );
+  }
+
+  Widget _buildMedTypeDropdown() {
+    final admin = context.watch<AdminProvider>();
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedMedType,
+      decoration: InputDecoration(
+        labelText: 'Medicine Type',
+        labelStyle: const TextStyle(
+          color: AppColors.secondaryAccent,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIcon: const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
+        filled: true,
+        fillColor: AppColors.surfaceLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
+        ),
+      ),
+      items: admin.medicineTypes.map((type) {
+        return DropdownMenuItem(
+          value: type,
+          child: Text(
+            type,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        setState(() => _selectedMedType = val);
+      },
     );
   }
 }

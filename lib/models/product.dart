@@ -1,3 +1,5 @@
+import '../utils/med_type_units.dart';
+
 class Product {
   final String id;
   final String name;
@@ -15,6 +17,7 @@ class Product {
   final String? companyName;
   final String? supplierName;
   final String? supplierPhone;
+  final String? medType;
 
   /// Cached phonetic hash used by voice search matching.
   /// Computed once at load time by ProductMatcher.precomputeHashes().
@@ -38,11 +41,54 @@ class Product {
     this.companyName,
     this.supplierName,
     this.supplierPhone,
+    this.medType,
   });
 
   int get totalPieces => (stockStrips * pcsPerStrip) + stockPcs;
   int get stockBoxes => stripsPerBox > 0 ? stockStrips ~/ stripsPerBox : 0;
   int get remainingStrips => stripsPerBox > 0 ? stockStrips % stripsPerBox : 0;
+
+  Map<String, String?> get unitLabels => MedTypeUnits.getLabels(medType);
+
+  Product copyWith({
+    String? id,
+    String? name,
+    String? generic,
+    double? priceStrip,
+    double? pricePc,
+    double? priceBox,
+    int? pcsPerStrip,
+    int? stripsPerBox,
+    int? stockStrips,
+    int? stockPcs,
+    DateTime? expiryDate,
+    String? barcode,
+    int? minStockLevel,
+    String? companyName,
+    String? supplierName,
+    String? supplierPhone,
+    String? medType,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      generic: generic ?? this.generic,
+      priceStrip: priceStrip ?? this.priceStrip,
+      pricePc: pricePc ?? this.pricePc,
+      priceBox: priceBox ?? this.priceBox,
+      pcsPerStrip: pcsPerStrip ?? this.pcsPerStrip,
+      stripsPerBox: stripsPerBox ?? this.stripsPerBox,
+      stockStrips: stockStrips ?? this.stockStrips,
+      stockPcs: stockPcs ?? this.stockPcs,
+      expiryDate: expiryDate ?? this.expiryDate,
+      barcode: barcode ?? this.barcode,
+      minStockLevel: minStockLevel ?? this.minStockLevel,
+      companyName: companyName ?? this.companyName,
+      supplierName: supplierName ?? this.supplierName,
+      supplierPhone: supplierPhone ?? this.supplierPhone,
+      medType: medType ?? this.medType,
+    );
+  }
 
   // NOTE: isLowStock, isExpiringSoon, and isExpiringSoonCritical logic
   // have been moved to AdminProvider to support dynamic thresholds from the settings table.
@@ -69,6 +115,7 @@ class Product {
       'companyName': companyName,
       'supplierName': supplierName,
       'supplierPhone': supplierPhone,
+      'medType': medType,
     };
   }
 
@@ -93,6 +140,7 @@ class Product {
       companyName: map['companyName'] as String?,
       supplierName: map['supplierName'] as String?,
       supplierPhone: map['supplierPhone'] as String?,
+      medType: map['medType'] as String?,
     );
   }
 }

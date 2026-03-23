@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
@@ -10,6 +11,7 @@ import 'edit_product_screen.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/shared/empty_state_widget.dart';
+import '../../utils/med_type_icons.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -25,6 +27,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   String _sortBy = 'Urgency (Recommended)';
   final Set<String> _selectedCompanies = {};
   final Set<String> _selectedGenericNames = {};
+  final Set<String> _selectedMedTypes = {};
   bool _isSelectionMode = false;
   Set<String> _selectedIds = {};
 
@@ -71,6 +74,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
       list = list
           .where((p) => _selectedGenericNames.contains(p.generic))
           .toList();
+    }
+
+    // MedType filter
+    if (_selectedMedTypes.isNotEmpty) {
+      list = list.where((p) => _selectedMedTypes.contains(p.medType)).toList();
     }
 
     int urgencyRank(Product p) {
@@ -697,6 +705,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     activeCount: _selectedGenericNames.length,
                     onPressed: () => _showGenericSheet(allGenerics),
                   ),
+                  const SizedBox(width: 8),
+                  // MedType filter button
+                  _filterButton(
+                    icon: LucideIcons.layers,
+                    tooltip: 'Filter by Type',
+                    activeCount: _selectedMedTypes.length,
+                    onPressed: () => _showMedTypeSheet(admin.medicineTypes),
+                  ),
                   if (widget.isAdmin) ...[
                     const SizedBox(width: 8),
                     if (_isSelectionMode)
@@ -833,12 +849,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       : null,
                   actionLabel: 'Clear All Filters',
                 )
-              : ListView.builder(
+              : ListView.separated(
                   padding: ResponsiveHelper.screenPadding(context),
                   itemCount: filtered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (ctx, index) {
                     final product = filtered[index];
                     final isSelected = _selectedIds.contains(product.id);
+                    final lowAccent = admin.isProductLowStock(product)
+                        ? admin.lowStockTierFor(product).accentColor
+                        : null;
                     return GestureDetector(
                       onLongPress: widget.isAdmin && !_isSelectionMode
                           ? () {
@@ -879,9 +899,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           border: Border.all(
                             color: isSelected
                                 ? AppColors.primaryDark
-                                : admin.isProductLowStock(product)
-                                ? AppColors.error.withValues(alpha: 0.3)
-                                : AppColors.divider,
+                                : lowAccent != null
+                                    ? lowAccent.withValues(alpha: 0.3)
+                                    : AppColors.divider,
                             width: isSelected ? 2 : 1,
                           ),
                           boxShadow: [
@@ -965,63 +985,93 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: admin.isProductLowStock(product)
-                                        ? AppColors.error.withValues(alpha: 0.1)
+                                    color: lowAccent != null
+                                        ? lowAccent.withValues(alpha: 0.1)
                                         : AppColors.success.withValues(
                                             alpha: 0.1,
                                           ),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: admin.isProductLowStock(product)
-                                          ? AppColors.error.withValues(
-                                              alpha: 0.3,
-                                            )
+                                      color: lowAccent != null
+                                          ? lowAccent.withValues(alpha: 0.3)
                                           : AppColors.success.withValues(
                                               alpha: 0.3,
                                             ),
                                     ),
                                   ),
                                   child: Text(
-                                    admin.isProductLowStock(product)
+                                    lowAccent != null
                                         ? 'Low Stock'
                                         : 'In Stock',
                                     style: TextStyle(
-                                      color: admin.isProductLowStock(product)
-                                          ? AppColors.error
-                                          : AppColors.success,
+                                      color: lowAccent ?? AppColors.success,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 11,
                                     ),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(width: 8),
+                                  if (product.medType != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            MedTypeIcons.getIcon(product.medType),
+                                            size: 12,
+                                            color: MedTypeIcons.getColor(product.medType),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            product.medType!,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: MedTypeIcons.getColor(product.medType),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
                             const SizedBox(height: 12),
                             Row(
                               children: [
                                 _StockBadge(
                                   label: 'Boxes',
                                   value: '${product.stockBoxes}',
-                                  isLow: admin.isProductLowStock(product),
+                                  lowStockAccent: lowAccent,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
                                   label: 'Strips',
                                   value: '${product.remainingStrips}',
-                                  isLow: admin.isProductLowStock(product),
+                                  lowStockAccent: lowAccent,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
                                   label: 'Pcs',
                                   value: '${product.totalPieces}',
-                                  isLow: false,
+                                  lowStockAccent: null,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
                                   label: 'Strip ৳',
                                   value: product.priceStrip.toStringAsFixed(2),
                                   isTaka: true,
-                                  isLow: false,
+                                  lowStockAccent: null,
                                 ),
                                 const Spacer(),
                                 if (widget.isAdmin)
@@ -1084,33 +1134,150 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     return body;
   }
+
+  void _showMedTypeSheet(List<String> types) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.5,
+              maxChildSize: 0.85,
+              minChildSize: 0.3,
+              builder: (_, controller) => Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.divider,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Filter by Medicine Type',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setSheetState(() => _selectedMedTypes.clear());
+                            setState(() {});
+                          },
+                          child: const Text(
+                            'Clear All',
+                            style: TextStyle(color: AppColors.secondaryAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.divider),
+                  Expanded(
+                    child: ListView(
+                      controller: controller,
+                      children: types.map((type) {
+                        final isSelected = _selectedMedTypes.contains(type);
+                        return CheckboxListTile(
+                          value: isSelected,
+                          title: Text(
+                            type,
+                            style: const TextStyle(
+                              color: AppColors.primaryDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          activeColor: AppColors.primaryDark,
+                          onChanged: (val) {
+                            setSheetState(() {
+                              if (val == true) {
+                                _selectedMedTypes.add(type);
+                              } else {
+                                _selectedMedTypes.remove(type);
+                              }
+                            });
+                            setState(() {});
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryDark,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _StockBadge extends StatelessWidget {
   final String label;
   final String value;
-  final bool isLow;
+  /// When set, product is low stock and this color reflects severity (green/amber/red).
+  final Color? lowStockAccent;
   final bool isTaka;
 
   const _StockBadge({
     required this.label,
     required this.value,
-    required this.isLow,
+    required this.lowStockAccent,
     this.isTaka = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = lowStockAccent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isLow
-            ? AppColors.error.withValues(alpha: 0.08)
+        color: accent != null
+            ? accent.withValues(alpha: 0.08)
             : AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isLow
-              ? AppColors.error.withValues(alpha: 0.2)
+          color: accent != null
+              ? accent.withValues(alpha: 0.2)
               : AppColors.divider,
         ),
       ),
@@ -1129,7 +1296,7 @@ class _StockBadge extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 14,
-                  color: isLow ? AppColors.error : AppColors.primaryDark,
+                  color: accent ?? AppColors.primaryDark,
                 ),
               ),
             ],

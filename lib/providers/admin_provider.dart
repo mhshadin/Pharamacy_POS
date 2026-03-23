@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/stock_batch.dart';
 import '../services/database_helper.dart';
 import '../services/notification_service.dart';
+import '../services/drive_service.dart';
+import '../services/auth_storage.dart';
+import '../services/google_drive_auth.dart';
+import '../utils/inventory_alert_tiers.dart';
 import 'dart:developer' as developer;
 
 /// Any UI that mutates product or batch data (including returns)
@@ -35,13 +40,31 @@ class AdminProvider extends ChangeNotifier {
   int _lowStockThreshold = 2; // Default to 2 boxes
   int _expiringSoonDays = 90;
   int _criticalExpiryDays = 30;
+  int _moderateExpiryDays = 60;
   int _expiryDelayMonths = 6; // Default to 6 months
   bool _showSupplierInfo = false;
   int _defaultOrderBoxes = 100;
+  List<String> _medicineTypes = [];
+  static const List<String> defaultMedicineTypes = [
+    'Tablet', 'Syrup', 'Injection', 'Capsule',
+    'Cream', 'Ointment', 'Drops', 'Inhaler',
+    'Gel', 'Spray', 'Powder', 'Suppository'
+  ];
+
+  // Google Drive Sync
+  String? _googleDriveFileId;
+  DateTime? _lastSyncTime;
+  bool _isSyncing = false;
+  String? _syncError;
+  Timer? _debounceTimer;
 
   // Track notified products to avoid redundant alerts
   final Set<String> _notifiedLowStockIds = {};
   final Set<String> _notifiedExpiringIds = {};
+
+  // Track products that the user has "seen" by opening the notification screen
+  Set<String> _readLowStockIds = {};
+  Set<String> _readExpiringIds = {};
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
   List<Product> get allProducts => _products;
@@ -49,9 +72,15 @@ class AdminProvider extends ChangeNotifier {
   int get lowStockThreshold => _lowStockThreshold;
   int get expiringSoonDays => _expiringSoonDays;
   int get criticalExpiryDays => _criticalExpiryDays;
+  int get moderateExpiryDays => _moderateExpiryDays;
   int get expiryDelayMonths => _expiryDelayMonths;
   bool get showSupplierInfo => _showSupplierInfo;
   int get defaultOrderBoxes => _defaultOrderBoxes;
+  List<String> get medicineTypes => _medicineTypes;
+
+  DateTime? get lastSyncTime => _lastSyncTime;
+  bool get isSyncing => _isSyncing;
+  String? get syncError => _syncError;
 
   bool login(String pin) {
     if (pin == _currentPin) {
@@ -92,17 +121,20 @@ class AdminProvider extends ChangeNotifier {
 
     // 1. Handle Low Stock Alerts
     for (final p in lowStock) {
-      if (!_notifiedLowStockIds.contains(p.id)) {
+      // Only show OS notification if it hasn't been notified AND isn't already "read"
+      if (!_notifiedLowStockIds.contains(p.id) && !_readLowStockIds.contains(p.id)) {
         await service.showLowStockAlert(p.name, p.stockStrips);
         _notifiedLowStockIds.add(p.id);
       }
     }
     // Clear tracking for products that are no longer low stock
     _notifiedLowStockIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductLowStock(p)));
+    _readLowStockIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductLowStock(p)));
 
     // 2. Handle Expiry Alerts
     for (final p in expiringSoon) {
-      if (!_notifiedExpiringIds.contains(p.id)) {
+      // Only show OS notification if it hasn't been notified AND isn't already "read"
+      if (!_notifiedExpiringIds.contains(p.id) && !_readExpiringIds.contains(p.id)) {
         final expiryStr = p.expiryDate?.toLocal().toString().split(' ')[0] ?? 'Unknown';
         await service.showExpiryAlert(p.name, expiryStr);
         _notifiedExpiringIds.add(p.id);
@@ -110,6 +142,30 @@ class AdminProvider extends ChangeNotifier {
     }
     // Clear tracking for products that are no longer expiring soon
     _notifiedExpiringIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)));
+    _readExpiringIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)));
+    
+    // Persist cleaned up read IDs
+    await _saveReadIds();
+  }
+
+  /// Mark all current alerts as read. They will no longer show in the badge
+  /// or trigger new OS notifications until their status changes or new items appear.
+  Future<void> markNotificationsAsRead() async {
+    _readLowStockIds = lowStockProducts.map((p) => p.id).toSet();
+    _readExpiringIds = expiringSoonProducts.map((p) => p.id).toSet();
+    await _saveReadIds();
+    notifyListeners();
+  }
+
+  Future<void> _saveReadIds() async {
+    await _db.saveSetting('readLowStockIds', _readLowStockIds.join(','));
+    await _db.saveSetting('readExpiringIds', _readExpiringIds.join(','));
+  }
+
+  int get unreadAlertCount {
+    final unreadLowStock = lowStockProducts.where((p) => !_readLowStockIds.contains(p.id)).length;
+    final unreadExpiring = expiringSoonProducts.where((p) => !_readExpiringIds.contains(p.id)).length;
+    return unreadLowStock + unreadExpiring;
   }
 
   Future<void> loadSettings({bool notify = true}) async {
@@ -118,12 +174,142 @@ class AdminProvider extends ChangeNotifier {
     _expiringSoonDays = int.tryParse(settings['expiringSoonDays'] ?? '') ?? 90;
     _criticalExpiryDays =
         int.tryParse(settings['criticalExpiryDays'] ?? '') ?? 30;
+    _moderateExpiryDays =
+        int.tryParse(settings['moderateExpiryDays'] ?? '') ?? 60;
     _expiryDelayMonths = int.tryParse(settings['expiryDelayMonths'] ?? '') ?? 6;
+    _clampExpiryThresholds();
     _showSupplierInfo = settings['showSupplierInfo'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
     _currentPin = settings['adminPin'] ?? '12345';
+
+    // Load read notification IDs
+    final readLowStockStr = settings['readLowStockIds'] ?? '';
+    _readLowStockIds = readLowStockStr.split(',').where((s) => s.isNotEmpty).toSet();
+    
+    final readExpiringStr = settings['readExpiringIds'] ?? '';
+    _readExpiringIds = readExpiringStr.split(',').where((s) => s.isNotEmpty).toSet();
+
+    final medTypesStr = settings['medicineTypes'] ?? '';
+    if (medTypesStr.isEmpty) {
+      _medicineTypes = List.from(defaultMedicineTypes);
+    } else {
+      _medicineTypes = medTypesStr.split(',').where((s) => s.isNotEmpty).toList();
+    }
+
+    _googleDriveFileId = settings['googleDriveFileId'];
+
+    final lastSyncStr = settings['lastSyncTime'];
+    if (lastSyncStr != null && lastSyncStr.isNotEmpty) {
+      _lastSyncTime = DateTime.tryParse(lastSyncStr);
+    }
+
     if (notify) notifyListeners();
+  }
+
+  void _clampExpiryThresholds() {
+    if (_criticalExpiryDays < 0) _criticalExpiryDays = 0;
+    if (_expiringSoonDays < _criticalExpiryDays) {
+      _expiringSoonDays = _criticalExpiryDays;
+    }
+    if (_moderateExpiryDays < _criticalExpiryDays) {
+      _moderateExpiryDays = _criticalExpiryDays;
+    }
+    if (_moderateExpiryDays > _expiringSoonDays) {
+      _moderateExpiryDays = _expiringSoonDays;
+    }
+  }
+
+  /// Schedules a backup to Google Drive.
+  /// If [immediate] is true, it syncs right away.
+  /// Otherwise, it debounces the request by 5 minutes, resetting the timer on subsequent calls.
+  void scheduleSync({bool immediate = false}) {
+    if (immediate) {
+      _debounceTimer?.cancel();
+      _performDriveSync();
+    } else {
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(minutes: 5), () {
+        _performDriveSync();
+      });
+    }
+  }
+
+  Future<void> _performDriveSync() async {
+    if (_isSyncing) return; // Prevent concurrent syncs
+
+    // Refresh Drive file id (and related settings) from DB. Sync may run on a
+    // fresh AdminProvider instance (e.g. POSProvider), which never called loadData().
+    await loadSettings(notify: false);
+
+    // Determine a valid Google access token, refreshing silently if possible.
+    final authSession = await const AuthStorage().loadAuth();
+    final storedToken = authSession?.googleAccessToken;
+
+    // No stored token means user never signed in with Google — skip quietly.
+    if (storedToken == null || storedToken.isEmpty) {
+      developer.log("Skipping Drive sync: No Google access token found.");
+      return;
+    }
+
+    // Attempt a silent token refresh. On failure fall back to the stored token
+    // (may still be valid if it hasn't expired yet) rather than aborting.
+    final refreshed = await refreshGoogleAccessToken();
+    final googleToken = refreshed ?? storedToken;
+    if (refreshed != null) {
+      developer.log("Drive sync: access token refreshed successfully.");
+    } else {
+      developer.log("Drive sync: silent refresh failed, using stored token.");
+    }
+
+    final dbPath = await _db.getDatabasePath();
+    if (dbPath == null) {
+      developer.log("Skipping Drive sync: Could not determine DB path.");
+      return;
+    }
+
+    _isSyncing = true;
+    _syncError = null;
+    notifyListeners();
+
+    try {
+      final driveService = DriveService();
+      final newFileId = await driveService.uploadDatabaseToDrive(
+        accessToken: googleToken,
+        dbFilePath: dbPath,
+        fileId: _googleDriveFileId,
+      );
+
+      _lastSyncTime = DateTime.now();
+      _isSyncing = false;
+      
+      // If the file ID changed (or it was the first upload), save it
+      if (newFileId != _googleDriveFileId) {
+        _googleDriveFileId = newFileId;
+        await saveSetting('googleDriveFileId', newFileId);
+      }
+      
+      await saveSetting('lastSyncTime', _lastSyncTime!.toIso8601String());
+      
+      notifyListeners();
+      developer.log("Drive sync completed successfully. File ID: $newFileId");
+    } catch (e) {
+      developer.log("Drive sync failed", error: e);
+      _isSyncing = false;
+      final errorStr = e.toString();
+      if (errorStr.contains('401') || errorStr.contains('invalid_grant') ||
+          errorStr.contains('Invalid Credentials')) {
+        _syncError =
+            '401: Google session expired. Please sign out and sign back in with Google.';
+      } else {
+        _syncError = errorStr;
+      }
+      notifyListeners();
+
+      // Retry after 5 minutes on failure
+      developer.log("Scheduling retry sync in 5 minutes...");
+      scheduleSync(immediate: false);
+    }
   }
 
   Future<void> loadProducts({bool notify = true}) async {
@@ -143,6 +329,18 @@ class AdminProvider extends ChangeNotifier {
     } catch (e) {
       developer.log("Failed to save setting", error: e);
       rethrow;
+    }
+  }
+
+  Future<void> addMedicineType(String type) async {
+    if (type.trim().isEmpty || _medicineTypes.contains(type.trim())) return;
+    _medicineTypes.add(type.trim());
+    await saveSetting('medicineTypes', _medicineTypes.join(','));
+  }
+
+  Future<void> removeMedicineType(String type) async {
+    if (_medicineTypes.remove(type)) {
+      await saveSetting('medicineTypes', _medicineTypes.join(','));
     }
   }
 
@@ -178,6 +376,7 @@ class AdminProvider extends ChangeNotifier {
       await _db.insertBatch(batch);
       await loadProducts(); // Only reload products, not sales/settings
       await checkForNotifications();
+      scheduleSync(); // Trigger backup
     } catch (e) {
       developer.log("Failed to add batch", error: e);
       rethrow;
@@ -188,6 +387,7 @@ class AdminProvider extends ChangeNotifier {
     try {
       await _db.deleteBatch(batchId);
       await loadProducts();
+      scheduleSync(); // Trigger backup
     } catch (e) {
       developer.log("Failed to delete batch", error: e);
       rethrow;
@@ -199,6 +399,7 @@ class AdminProvider extends ChangeNotifier {
       await _db.updateProduct(product);
       await loadProducts();
       await checkForNotifications();
+      scheduleSync();
     } catch (e) {
       developer.log("Failed to update product", error: e);
       rethrow;
@@ -228,6 +429,7 @@ class AdminProvider extends ChangeNotifier {
       }
       await loadProducts();
       await checkForNotifications();
+      scheduleSync();
     } catch (e) {
       developer.log("Failed to add product", error: e);
       rethrow;
@@ -238,6 +440,7 @@ class AdminProvider extends ChangeNotifier {
     try {
       await _db.deleteProducts(productIds);
       await loadProducts();
+      scheduleSync();
     } catch (e) {
       developer.log("Failed to delete products", error: e);
       rethrow;
@@ -276,7 +479,8 @@ class AdminProvider extends ChangeNotifier {
           final sameGeneric =
               p.generic.trim().toLowerCase() ==
                   imported.generic.trim().toLowerCase();
-          if (sameName && sameGeneric) {
+          final sameType = (p.medType ?? 'Tablet') == (imported.medType ?? 'Tablet');
+          if (sameName && sameGeneric && sameType) {
             existing = p;
             break;
           }
@@ -314,6 +518,7 @@ class AdminProvider extends ChangeNotifier {
       await _db.insertProductsBulk(newProducts, batches);
       await loadProducts();
       await checkForNotifications();
+      scheduleSync();
     } catch (e) {
       developer.log("Failed to bulk insert products", error: e);
       rethrow;
@@ -326,6 +531,15 @@ class AdminProvider extends ChangeNotifier {
       p.daysUntilExpiry <= _expiringSoonDays;
   bool isProductExpiringCritical(Product p) =>
       p.daysUntilExpiry <= _criticalExpiryDays;
+
+  InventoryAlertTier lowStockTierFor(Product p) => computeLowStockTier(p);
+
+  InventoryAlertTier expiryTierFor(Product p) => computeExpiryTier(
+        daysUntilExpiry: p.daysUntilExpiry,
+        criticalExpiryDays: _criticalExpiryDays,
+        moderateExpiryDays: _moderateExpiryDays,
+        expiringSoonDays: _expiringSoonDays,
+      );
 
   List<Product> get lowStockProducts {
     return _products.where((p) => isProductLowStock(p)).toList()

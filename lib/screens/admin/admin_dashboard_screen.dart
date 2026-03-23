@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import 'product_list_screen.dart';
@@ -79,9 +80,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 3:
         return const SalesReportScreen();
       case 4:
-        return const ExpiringSoonScreen();
+        return const ExpiringSoonScreen(showAppBar: false);
       case 5:
-        return const LowStockScreen();
+        return const LowStockScreen(showAppBar: false);
       case 6:
         return const ProductListScreen(isAdmin: true);
       case 7:
@@ -137,7 +138,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Builder(
               builder: (context) {
                 final admin = context.watch<AdminProvider>();
-                final alertCount = admin.lowStockProducts.length + admin.expiringSoonProducts.length;
+                final alertCount = admin.unreadAlertCount;
                 return Stack(
                   children: [
                     IconButton(
@@ -511,16 +512,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     : Column(
                         children: [
                           ...admin.lowStockProducts.map((product) {
+                            final accent =
+                                admin.lowStockTierFor(product).accentColor;
                             return ListTile(
                               leading: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
+                                  color: accent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   LucideIcons.alertTriangle,
-                                  color: AppColors.error,
+                                  color: accent,
                                   size: 18,
                                 ),
                               ),
@@ -533,8 +536,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               ),
                               subtitle: Text(
                                 '${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs remaining (min: ${product.minStockLevel})',
-                                style: const TextStyle(
-                                  color: AppColors.error,
+                                style: TextStyle(
+                                  color: accent,
                                   fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                 ),
@@ -545,18 +548,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
+                                  color: accent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: AppColors.error.withValues(
-                                      alpha: 0.3,
-                                    ),
+                                    color: accent.withValues(alpha: 0.3),
                                   ),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Low Stock',
                                   style: TextStyle(
-                                    color: AppColors.error,
+                                    color: accent,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 11,
                                   ),
@@ -565,18 +566,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             );
                           }),
                           ...admin.expiringSoonProducts.map((product) {
+                            final tier = admin.expiryTierFor(product);
+                            final accent = tier.accentColor;
+                            final iconData = switch (tier) {
+                              InventoryAlertTier.critical =>
+                                LucideIcons.alertOctagon,
+                              InventoryAlertTier.moderate => LucideIcons.clock,
+                              InventoryAlertTier.mild =>
+                                LucideIcons.calendarDays,
+                            };
                             return ListTile(
                               leading: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warningOrange.withValues(
-                                    alpha: 0.1,
-                                  ),
+                                  color: accent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(
-                                  LucideIcons.clock,
-                                  color: AppColors.warningOrange,
+                                child: Icon(
+                                  iconData,
+                                  color: accent,
                                   size: 18,
                                 ),
                               ),
@@ -591,8 +599,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 product.expiryDate != null
                                     ? 'Expires: ${product.expiryDate!.toLocal().toString().split(' ')[0]}'
                                     : 'Unknown Expiry',
-                                style: const TextStyle(
-                                  color: AppColors.warningOrange,
+                                style: TextStyle(
+                                  color: accent,
                                   fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                 ),
@@ -603,20 +611,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warningOrange.withValues(
-                                    alpha: 0.1,
-                                  ),
+                                  color: accent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: AppColors.warningOrange.withValues(
-                                      alpha: 0.3,
-                                    ),
+                                    color: accent.withValues(alpha: 0.3),
                                   ),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Expiring Soon',
                                   style: TextStyle(
-                                    color: AppColors.warningOrange,
+                                    color: accent,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 11,
                                   ),

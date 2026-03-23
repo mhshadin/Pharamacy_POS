@@ -44,8 +44,11 @@ class PharmacyPOSApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => POSProvider()..loadProducts()),
         ChangeNotifierProvider(create: (_) => AdminProvider()..loadData()),
+        ChangeNotifierProvider(
+          create: (context) =>
+              POSProvider(context.read<AdminProvider>())..loadProducts(),
+        ),
       ],
       child: MaterialApp(
         title: 'Pharmacy POS',

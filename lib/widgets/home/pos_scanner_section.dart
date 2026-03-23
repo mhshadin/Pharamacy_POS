@@ -154,12 +154,24 @@ class PosScannerSection extends StatelessWidget {
                           right: 8,
                           child: _CornerBracket(bB: true, bR: true),
                         ),
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              if (isProcessingScan) return;
+                              onToggleCamera();
+                            },
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
                         if (isProcessingScan)
-                          Container(
-                            color: Colors.black45,
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.highlightActive,
+                          Positioned.fill(
+                            child: Container(
+                              color: Colors.black45,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.highlightActive,
+                                ),
                               ),
                             ),
                           ),
@@ -174,14 +186,6 @@ class PosScannerSection extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _ScannerButton(
-                      onPressed: onToggleCamera,
-                      icon: isCameraActive ? LucideIcons.camera : LucideIcons.cameraOff,
-                      label: 'Camera',
-                      isActive: isCameraActive,
-                      activeColor: AppColors.highlightActive,
-                    ),
-                    SizedBox(height: btnSpacing),
                     _ScannerButton(
                       onPressed: onManualAdd,
                       icon: LucideIcons.plusSquare,

@@ -18,6 +18,21 @@ class SalesReportScreen extends StatefulWidget {
 }
 
 class _SalesReportScreenState extends State<SalesReportScreen> {
+  static const List<String> _periodPresets = [
+    'Today',
+    'This Week',
+    'This Month',
+    'Last 3 Months',
+    'All',
+  ];
+  static const List<String> _sortOptions = [
+    'Newest First',
+    'Oldest First',
+    'Amount (High)',
+    'Amount (Low)',
+    'Product A-Z',
+  ];
+
   String _chartPeriod = 'Week'; // for charts
   String _listFilter = 'This Week'; // for transaction list
   String _sortBy = 'Newest First';
@@ -79,13 +94,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     if (_chartPeriod == 'Month') return _getMonthlyData(sales);
     if (_chartPeriod == 'Year') return _getYearlyData(sales);
     return _getWeeklyData(sales);
-  }
-
-  // To simulate the 'line chart' which was previously overlaid mock data,
-  // we'll just use a slightly smoothed or accumulated version of the bar data,
-  // or simply the exact same data to represent the trend.
-  List<double> _getLineData(List<SaleRecord> sales) {
-    return _getBarData(sales);
   }
 
   List<String> get _labels {
@@ -230,9 +238,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
 
     final barData = _getBarData(admin.allSales);
-    final lineData = _getLineData(admin.allSales);
     final barMaxY = _getBarMaxY(barData);
-    final lineMaxY = _getBarMaxY(lineData); // Same logic for line chart Max Y
     final periodTotal = _getPeriodTotal(barData);
 
     return SingleChildScrollView(
@@ -293,122 +299,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
           const SizedBox(height: 16),
 
-          // Bar chart
-          _ChartCard(
-            title: '$_summaryLabel Sales Overview',
-            icon: LucideIcons.barChart3,
-            child: SizedBox(
-              height: (MediaQuery.of(context).size.width * 0.55).clamp(160.0, 260.0),
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: barMaxY,
-                  barTouchData: BarTouchData(
-                    enabled: true,
-                    touchTooltipData: BarTouchTooltipData(
-                      tooltipPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      getTooltipItem: (group, gi, rod, ri) {
-                        final l = group.x < _labels.length
-                            ? _labels[group.x]
-                            : '';
-                        return BarTooltipItem(
-                          '$l\n৳${rod.toY.toStringAsFixed(0)}',
-                          const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        getTitlesWidget: (v, m) {
-                          if (v.toInt() >= 0 && v.toInt() < _labels.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                _labels[v.toInt()],
-                                style: const TextStyle(
-                                  color: AppColors.secondaryAccent,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        interval: barMaxY == 0 ? 1 : barMaxY / 5,
-                        getTitlesWidget: (v, m) {
-                          return Text(
-                            '৳${v.toInt()}',
-                            style: const TextStyle(
-                              color: AppColors.secondaryAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: barMaxY == 0 ? 1 : barMaxY / 5,
-                    getDrawingHorizontalLine: (v) =>
-                        FlLine(color: AppColors.divider, strokeWidth: 1),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  barGroups: List.generate(
-                    barData.length,
-                    (i) => _makeBarGroup(i, barData[i]),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildLineChart(barData, barMaxY),
 
           const SizedBox(height: 16),
 
-          // Pie + Line
-          isTablet
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildPieChart(admin.allSales)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildLineChart(lineData, lineMaxY)),
-                  ],
-                )
-              : Column(
-                  children: [
-                    _buildPieChart(admin.allSales),
-                    const SizedBox(height: 16),
-                    _buildLineChart(lineData, lineMaxY),
-                  ],
-                ),
+          _buildPieChart(admin.allSales),
 
           const SizedBox(height: 24),
 
@@ -560,179 +455,185 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 ),
                 const Divider(height: 1, color: AppColors.divider),
 
-                // Filter row
+                // Period + sort dropdowns + Custom button
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children:
-                        [
-                            'Today',
-                            'This Week',
-                            'This Month',
-                            'Last 3 Months',
-                            'All',
-                          ].map((f) {
-                            final isActive = _listFilter == f;
-                            return GestureDetector(
-                              onTap: () => setState(() => _listFilter = f),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isActive
-                                      ? AppColors.primaryDark
-                                      : AppColors.surfaceLight,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: isActive
-                                        ? AppColors.primaryDark
-                                        : AppColors.divider,
-                                  ),
-                                ),
-                                child: Text(
-                                  f,
-                                  style: TextStyle(
-                                    color: isActive
-                                        ? AppColors.white
-                                        : AppColors.secondaryAccent,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList()
-                          ..add(
-                            GestureDetector(
-                              onTap: _pickCustomDateRange,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _listFilter == 'Custom'
-                                      ? AppColors.primaryDark
-                                      : AppColors.surfaceLight,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: _listFilter == 'Custom'
-                                        ? AppColors.primaryDark
-                                        : AppColors.divider,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      LucideIcons.calendar,
-                                      size: 14,
-                                      color: _listFilter == 'Custom'
-                                          ? AppColors.white
-                                          : AppColors.secondaryAccent,
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const gap = 8.0;
+                      final inputBorder = OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.divider),
+                      );
+                      final periodField = InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Period',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: inputBorder,
+                          enabledBorder: inputBorder,
+                          focusedBorder: inputBorder.copyWith(
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryDark,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: _listFilter == 'Custom' ? null : _listFilter,
+                            hint: _listFilter == 'Custom'
+                                ? Text(
+                                    _customStart != null && _customEnd != null
+                                        ? 'Custom ${_customStart!.day}/${_customStart!.month} – ${_customEnd!.day}/${_customEnd!.month}'
+                                        : 'Custom range',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: AppColors.primaryDark,
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _listFilter == 'Custom' &&
-                                              _customStart != null
-                                          ? '${_customStart!.day}/${_customStart!.month} - ${_customEnd!.day}/${_customEnd!.month}'
-                                          : 'Custom',
-                                      style: TextStyle(
-                                        color: _listFilter == 'Custom'
-                                            ? AppColors.white
-                                            : AppColors.secondaryAccent,
-                                        fontWeight: FontWeight.bold,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : null,
+                            items: _periodPresets
+                                .map(
+                                  (p) => DropdownMenuItem<String>(
+                                    value: p,
+                                    child: Text(
+                                      p,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
                                         fontSize: 12,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() {
+                                _listFilter = v;
+                                _customStart = null;
+                                _customEnd = null;
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                      final sortField = InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Sort',
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: inputBorder,
+                          enabledBorder: inputBorder,
+                          focusedBorder: inputBorder.copyWith(
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryDark,
+                              width: 1.5,
                             ),
                           ),
-                  ),
-                ),
-
-                // Sort row
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        LucideIcons.arrowUpDown,
-                        size: 14,
-                        color: AppColors.secondaryAccent,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Sort:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.secondaryAccent,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children:
-                                [
-                                  'Newest First',
-                                  'Oldest First',
-                                  'Amount (High)',
-                                  'Amount (Low)',
-                                  'Product A-Z',
-                                ].map((s) {
-                                  final isActive = _sortBy == s;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: GestureDetector(
-                                      onTap: () => setState(() => _sortBy = s),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isActive
-                                              ? AppColors.secondaryAccent
-                                                    .withValues(alpha: 0.15)
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: isActive
-                                                ? AppColors.secondaryAccent
-                                                : AppColors.divider,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          s,
-                                          style: TextStyle(
-                                            color: isActive
-                                                ? AppColors.primaryDark
-                                                : AppColors.secondaryAccent,
-                                            fontWeight: isActive
-                                                ? FontWeight.bold
-                                                : FontWeight.w500,
-                                            fontSize: 11,
-                                          ),
-                                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: _sortBy,
+                            items: _sortOptions
+                                .map(
+                                  (s) => DropdownMenuItem<String>(
+                                    value: s,
+                                    child: Text(
+                                      s,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                  );
-                                }).toList(),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _sortBy = v);
+                            },
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                      final customBtn = OutlinedButton.icon(
+                        onPressed: _pickCustomDateRange,
+                        icon: Icon(
+                          LucideIcons.calendar,
+                          size: 18,
+                          color: _listFilter == 'Custom'
+                              ? AppColors.white
+                              : AppColors.secondaryAccent,
+                        ),
+                        label: Text(
+                          'Custom',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: _listFilter == 'Custom'
+                                ? AppColors.white
+                                : AppColors.secondaryAccent,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: _listFilter == 'Custom'
+                              ? AppColors.primaryDark
+                              : AppColors.surfaceLight,
+                          side: BorderSide(
+                            color: _listFilter == 'Custom'
+                                ? AppColors.primaryDark
+                                : AppColors.divider,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                      );
+
+                      if (constraints.maxWidth >= 520) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(child: periodField),
+                            const SizedBox(width: gap),
+                            Expanded(child: sortField),
+                            const SizedBox(width: gap),
+                            customBtn,
+                          ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(child: periodField),
+                              const SizedBox(width: gap),
+                              Expanded(child: sortField),
+                            ],
+                          ),
+                          const SizedBox(height: gap),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: customBtn,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
 
@@ -1238,29 +1139,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  BarChartGroupData _makeBarGroup(int x, double y) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          width: _chartPeriod == 'Year'
-              ? 36
-              : (_chartPeriod == 'Month' ? 14 : 20),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(6),
-            topRight: Radius.circular(6),
-          ),
-          gradient: const LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [AppColors.secondaryAccent, AppColors.primaryDark],
-          ),
-        ),
-      ],
     );
   }
 }

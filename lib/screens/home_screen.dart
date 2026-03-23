@@ -439,34 +439,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         title: const Text('PHARMA POS'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isCameraActive ? LucideIcons.camera : LucideIcons.cameraOff,
-              color: AppColors.white,
-            ),
-            onPressed: () {
-              if (Platform.isWindows) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Camera scanner is restricted on Windows desktop.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
-              setState(() {
-                _isCameraActive = !_isCameraActive;
-                if (_isCameraActive) {
-                  _cameraController.start();
-                } else {
-                  _cameraController.stop();
-                }
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -780,7 +752,7 @@ class _LowStockStandaloneScreenState extends State<LowStockStandaloneScreen> {
           ),
         ),
       ),
-      body: const LowStockScreen(),
+      body: const LowStockScreen(showAppBar: false),
     );
   }
 }
@@ -820,7 +792,7 @@ class _ExpiringSoonStandaloneScreenState
           ),
         ),
       ),
-      body: const ExpiringSoonScreen(),
+      body: const ExpiringSoonScreen(showAppBar: false),
     );
   }
 }

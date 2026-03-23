@@ -3,14 +3,19 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/phone_launcher.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
+import 'restock_screen.dart';
+import '../../utils/med_type_icons.dart';
 
 class LowStockScreen extends StatefulWidget {
-  const LowStockScreen({super.key});
+  const LowStockScreen({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   State<LowStockScreen> createState() => _LowStockScreenState();
@@ -369,9 +374,12 @@ class _LowStockScreenState extends State<LowStockScreen> {
     final hasCompanies = allCompanies.isNotEmpty;
 
     if (allLowStock.isEmpty) {
-      return const Material(
-        color: AppColors.background,
-        child: Center(
+      return Scaffold(
+        appBar: widget.showAppBar
+            ? AppBar(title: const Text('Low Stock Alerts'), centerTitle: true)
+            : null,
+        backgroundColor: AppColors.background,
+        body: const Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -399,9 +407,12 @@ class _LowStockScreenState extends State<LowStockScreen> {
       );
     }
 
-    return Material(
-      color: AppColors.background,
-      child: Column(
+    return Scaffold(
+      appBar: widget.showAppBar
+          ? AppBar(title: const Text('Low Stock Alerts'), centerTitle: true)
+          : null,
+      backgroundColor: AppColors.background,
+      body: Column(
         children: [
           // ── Filter controls ──────────────────────────────────
           Container(
@@ -709,6 +720,8 @@ class _LowStockScreenState extends State<LowStockScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, index) {
                       final product = filtered[index];
+                      final tier = admin.lowStockTierFor(product);
+                      final accent = tier.accentColor;
                       final percentage = (product.stockStrips / product.minStockLevel).clamp(0.0, 1.0);
                       final minBoxes = product.stripsPerBox > 0
                           ? (product.minStockLevel / product.stripsPerBox).ceil()
@@ -722,10 +735,10 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           final iconBox = Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.1),
+                              color: accent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(LucideIcons.alertTriangle, color: AppColors.error, size: 20),
+                            child: Icon(LucideIcons.alertTriangle, color: accent, size: 20),
                           );
 
                           final nameColumn = Column(
@@ -752,6 +765,42 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             ],
                           );
 
+                          final medTypeBadge = product.medType != null
+                              ? Container(
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.25),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        MedTypeIcons.getIcon(product.medType),
+                                        size: 10,
+                                        color: MedTypeIcons.getColor(product.medType),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        product.medType!,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: MedTypeIcons.getColor(product.medType),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : const SizedBox.shrink();
+
                           final phoneBtn = hasSupplierPhone
                               ? IconButton(
                                   tooltip: 'Call supplier',
@@ -768,8 +817,8 @@ class _LowStockScreenState extends State<LowStockScreen> {
                               _statBox(
                                 label: 'IN STOCK',
                                 value: '${product.stockBoxes} bx',
-                                bg: AppColors.error.withValues(alpha: 0.08),
-                                fg: AppColors.error,
+                                bg: accent.withValues(alpha: 0.08),
+                                fg: accent,
                                 compact: isNarrow,
                               ),
                               const SizedBox(width: 8),
@@ -792,75 +841,93 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             ),
                           );
 
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.divider),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.03),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      RestockScreen(product: product),
                                 ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    iconBox,
-                                    const SizedBox(width: 12),
-                                    Expanded(child: nameColumn),
-                                    ?phoneBtn,
-                                  ],
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Divider(height: 1),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        statRow,
-                                        const SizedBox(height: 8),
-                                        extraInfo,
-                                      ],
-                                    ),
-                                    SizedBox(
-                                      width: isNarrow ? 80 : 120,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.divider),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      iconBox,
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            nameColumn,
+                                            medTypeBadge,
+                                          ],
+                                        ),
+                                      ),
+                                      if (phoneBtn != null) phoneBtn,
+                                    ],
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    child: Divider(height: 1),
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: LinearProgressIndicator(
-                                              value: percentage,
-                                              backgroundColor: AppColors.error.withValues(alpha: 0.1),
-                                              valueColor: const AlwaysStoppedAnimation(AppColors.error),
-                                              minHeight: 6,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${(percentage * 100).toInt()}% level',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              color: AppColors.error,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                                          statRow,
+                                          const SizedBox(height: 8),
+                                          extraInfo,
                                         ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                      SizedBox(
+                                        width: isNarrow ? 80 : 120,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(4),
+                                              child: LinearProgressIndicator(
+                                                value: percentage,
+                                                backgroundColor: accent.withValues(alpha: 0.1),
+                                                valueColor: AlwaysStoppedAnimation(accent),
+                                                minHeight: 6,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${(percentage * 100).toInt()}% level',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: accent,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },

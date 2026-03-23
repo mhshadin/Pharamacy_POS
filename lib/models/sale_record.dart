@@ -8,6 +8,7 @@ class SaleRecord {
   final String? batchNumber;
   final bool isReturned;
   final int returnedQuantity;
+  final String? medType;
 
   SaleRecord({
     required this.id,
@@ -19,6 +20,7 @@ class SaleRecord {
     this.batchNumber,
     this.isReturned = false,
     this.returnedQuantity = 0,
+    this.medType,
   });
 
   int get effectiveQuantity => quantity - returnedQuantity;
@@ -36,6 +38,7 @@ class SaleRecord {
       'batchNumber': batchNumber,
       'isReturned': isReturned ? 1 : 0,
       'returnedQuantity': returnedQuantity,
+      'medType': medType,
     };
   }
 
@@ -50,6 +53,7 @@ class SaleRecord {
       batchNumber: map['batchNumber'] as String?,
       isReturned: (map['isReturned'] as int?) == 1,
       returnedQuantity: map['returnedQuantity'] as int? ?? 0,
+      medType: map['medType'] as String?,
     );
   }
 }

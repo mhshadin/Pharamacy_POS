@@ -4,6 +4,8 @@ import '../../utils/colors.dart';
 import '../../models/cart_item.dart';
 import '../../providers/pos_provider.dart';
 import '../taka_symbol.dart';
+import '../../utils/med_type_icons.dart';
+import 'package:provider/provider.dart';
 
 class PosCartItemCard extends StatelessWidget {
   final CartItem item;
@@ -20,8 +22,7 @@ class PosCartItemCard extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isNarrow = screenWidth < 380;
     final nameFontSize = isNarrow ? 15.0 : 18.0;
-    final stripPriceFontSize = isNarrow ? 15.0 : 18.0;
-    final pcPriceFontSize = isNarrow ? 13.0 : 16.0;
+    final totalFontSize = isNarrow ? 16.0 : 19.0;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -36,7 +37,7 @@ class PosCartItemCard extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
@@ -73,6 +74,58 @@ class PosCartItemCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    _buildMedTypeBadge(context),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        TakaSymbol(
+                          size: isNarrow ? 10.0 : 11.0,
+                          color: AppColors.primaryDark,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          item.product.priceStrip.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: isNarrow ? 11.0 : 12.0,
+                            color: AppColors.primaryDark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'strip',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        TakaSymbol(
+                          size: isNarrow ? 10.0 : 11.0,
+                          color: AppColors.secondaryAccent,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          item.product.pricePc.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: isNarrow ? 11.0 : 12.0,
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'pc',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -83,14 +136,14 @@ class PosCartItemCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TakaSymbol(
-                        size: isNarrow ? 12.0 : 14.0,
+                        size: isNarrow ? 13.0 : 15.0,
                         color: AppColors.primaryDark,
                       ),
                       const SizedBox(width: 2),
                       Text(
-                        item.product.priceStrip.toStringAsFixed(2),
+                        item.total.toStringAsFixed(2),
                         style: TextStyle(
-                          fontSize: stripPriceFontSize,
+                          fontSize: totalFontSize,
                           color: AppColors.primaryDark,
                           fontWeight: FontWeight.w900,
                         ),
@@ -98,35 +151,7 @@ class PosCartItemCard extends StatelessWidget {
                     ],
                   ),
                   const Text(
-                    'STRIP PRICE',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: AppColors.secondaryAccent,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TakaSymbol(
-                        size: isNarrow ? 10.0 : 12.0,
-                        color: AppColors.secondaryAccent,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        item.product.pricePc.toStringAsFixed(2),
-                        style: TextStyle(
-                          fontSize: pcPriceFontSize,
-                          color: AppColors.secondaryAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Text(
-                    'PC PRICE',
+                    'TOTAL',
                     style: TextStyle(
                       fontSize: 9,
                       color: AppColors.secondaryAccent,
@@ -189,6 +214,96 @@ class PosCartItemCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMedTypeBadge(BuildContext context) {
+    final type = item.medType ?? item.product.medType ?? 'Tablet';
+    final provider = context.read<POSProvider>();
+    final medTypes = provider.getAvailableTypes(item.product.name);
+
+    return GestureDetector(
+      onTap: () {
+        if (medTypes.length <= 1) return; // Don't show dialog if only one type exists
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.background,
+            title: const Text(
+              'Change Medicine Type',
+              style: TextStyle(
+                color: AppColors.primaryDark,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: medTypes.length,
+                itemBuilder: (c, i) {
+                  final t = medTypes[i];
+                  return ListTile(
+                    leading: Icon(
+                      MedTypeIcons.getIcon(t),
+                      color: MedTypeIcons.getColor(t),
+                      size: 20,
+                    ),
+                    title: Text(
+                      t,
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    selected: t == type,
+                    selectedTileColor: MedTypeIcons.getColor(t).withValues(alpha: 0.1),
+                    onTap: () {
+                      provider.updateCartItemMedType(item, t);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: MedTypeIcons.getColor(type).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: MedTypeIcons.getColor(type).withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              MedTypeIcons.getIcon(type),
+              size: 10,
+              color: MedTypeIcons.getColor(type),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              type,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: MedTypeIcons.getColor(type),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              LucideIcons.chevronDown,
+              size: 10,
+              color: AppColors.secondaryAccent,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -291,4 +406,3 @@ class _QuantityBox extends StatelessWidget {
     );
   }
 }
-

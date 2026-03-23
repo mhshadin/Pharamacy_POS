@@ -34,6 +34,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   late TextEditingController _supplierPhoneCtrl;
 
   DateTime? _expiryDate;
+  String? _selectedMedType;
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
     _supplierPhoneCtrl =
         TextEditingController(text: p.supplierPhone ?? '');
     _expiryDate = widget.record.expiryDate;
+    _selectedMedType = p.medType ?? 'Tablet';
   }
 
   @override
@@ -157,6 +159,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
       supplierPhone: _supplierPhoneCtrl.text.trim().isEmpty
           ? null
           : _supplierPhoneCtrl.text.trim(),
+      medType: _selectedMedType,
     );
 
     final updatedRecord = BulkImportRecord(
@@ -267,6 +270,8 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                       icon: LucideIcons.scanLine,
                       keyboardType: TextInputType.number,
                     ),
+                    const SizedBox(height: 12),
+                    _buildMedTypeDropdown(),
                   ],
                 ),
               ),
@@ -447,6 +452,65 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMedTypeDropdown() {
+    final medTypes = widget.admin.medicineTypes;
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedMedType,
+      decoration: InputDecoration(
+        labelText: 'Medicine Type',
+        labelStyle: const TextStyle(
+          color: AppColors.secondaryAccent,
+          fontWeight: FontWeight.w500,
+        ),
+        prefixIcon: const Icon(
+          LucideIcons.pill,
+          color: AppColors.secondaryAccent,
+          size: 20,
+        ),
+        filled: true,
+        fillColor: AppColors.surfaceLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppColors.secondaryAccent,
+            width: 1.5,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppColors.secondaryAccent,
+            width: 1.5,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: AppColors.primaryDark,
+            width: 2,
+          ),
+        ),
+      ),
+      items: medTypes.map((type) {
+        return DropdownMenuItem(
+          value: type,
+          child: Text(
+            type,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        if (val != null) {
+          setState(() => _selectedMedType = val);
+        }
+      },
     );
   }
 

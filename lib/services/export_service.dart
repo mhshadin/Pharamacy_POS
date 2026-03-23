@@ -218,12 +218,13 @@ class ExportService {
     List<Product> products,
   ) async {
     List<List<dynamic>> rows = [
-      ['Name', 'Generic', 'Barcode', 'Strips', 'Pcs', 'Total Pcs', 'Expiry'],
+      ['Name', 'Generic', 'Type', 'Barcode', 'Strips', 'Pcs', 'Total Pcs', 'Expiry'],
     ];
     for (var p in products) {
       rows.add([
         p.name,
         p.generic,
+        p.medType ?? 'Tablet',
         p.barcode ?? 'N/A',
         p.stockStrips,
         p.stockPcs,
@@ -310,11 +311,12 @@ class ExportService {
             ),
             pw.SizedBox(height: 20),
             pw.TableHelper.fromTextArray(
-              headers: ['Product Name', 'Generic', 'Stock', 'Expiry'],
+              headers: ['Product Name', 'Generic', 'Type', 'Stock', 'Expiry'],
               data: products.map((p) {
                 return [
                   p.name,
                   p.generic,
+                  p.medType ?? 'Tablet',
                   '${p.stockStrips} Str / ${p.stockPcs} Pcs',
                   p.expiryDate != null
                       ? dateFormat.format(p.expiryDate!)
@@ -330,8 +332,9 @@ class ExportService {
               cellAlignments: {
                 0: pw.Alignment.centerLeft,
                 1: pw.Alignment.centerLeft,
-                2: pw.Alignment.centerRight,
+                2: pw.Alignment.centerLeft,
                 3: pw.Alignment.centerRight,
+                4: pw.Alignment.centerRight,
               },
             ),
           ];

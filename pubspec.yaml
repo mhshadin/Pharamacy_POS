@@ -33,7 +33,7 @@ dependencies:
   flutter_svg: 2.2.4
   file_picker: ^10.3.10
   excel: ^4.0.6
-  google_sign_in: ^7.2.0
+  google_sign_in: ^6.2.1
   google_mlkit_text_recognition: ^0.15.1
   image_picker: ^1.2.1
   speech_to_text: ^7.3.0
@@ -41,6 +41,10 @@ dependencies:
   timezone: ^0.11.0
 
   http: any
+
+dependency_overrides:
+  sqlite3: ^3.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

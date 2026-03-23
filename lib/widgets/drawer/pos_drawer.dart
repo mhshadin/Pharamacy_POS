@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../utils/colors.dart';
 import '../../services/auth_storage.dart';
+import '../../providers/admin_provider.dart';
 import '../../screens/login_screen.dart';
 import '../../screens/home_screen.dart';
 import '../../screens/admin/admin_dashboard_screen.dart';
@@ -115,6 +118,29 @@ class _PosDrawerState extends State<PosDrawer> {
             .toUpperCase()
         : 'U';
 
+    final admin = context.watch<AdminProvider>();
+    final isSyncing = admin.isSyncing;
+    final lastSync = admin.lastSyncTime;
+    final syncError = admin.syncError;
+    
+    String syncText = 'Drive Backup: Not synced';
+    Color syncColor = Colors.white.withAlpha(150);
+    IconData syncIcon = LucideIcons.cloudOff;
+    
+    if (isSyncing) {
+      syncText = 'Drive Backup: Syncing...';
+      syncColor = AppColors.primaryDark.withOpacity(0.5);
+      syncIcon = LucideIcons.loader;
+    } else if (syncError != null) {
+      syncText = 'Drive Backup: Failed';
+      syncColor = Colors.red.shade300;
+      syncIcon = LucideIcons.alertTriangle;
+    } else if (lastSync != null) {
+      syncText = 'Synced: ${DateFormat('MMM dd, HH:mm').format(lastSync)}';
+      syncColor = AppColors.success;
+      syncIcon = LucideIcons.checkCircle2;
+    }
+
     return Drawer(
       backgroundColor: AppColors.primaryDark,
       shape: const RoundedRectangleBorder(
@@ -175,6 +201,24 @@ class _PosDrawerState extends State<PosDrawer> {
                         color: Colors.white.withAlpha(179),
                         decoration: TextDecoration.none,
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(syncIcon, color: syncColor, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          syncText,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: syncColor,
+                            fontWeight: FontWeight.w500,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -239,18 +283,6 @@ class _PosDrawerState extends State<PosDrawer> {
                         await nav.push(MaterialPageRoute(
                           builder: (_) =>
                               const ExpiringSoonStandaloneScreen(),
-                        ));
-                      }),
-                    ),
-
-                    const DrawerSectionLabel(title: 'REPORTS'),
-                    DrawerMenuItem(
-                      icon: LucideIcons.lineChart,
-                      label: 'Sales Report',
-                      onTap: () => _go((nav) async {
-                        await nav.push(MaterialPageRoute(
-                          builder: (_) =>
-                              const SalesReportStandaloneScreen(),
                         ));
                       }),
                     ),

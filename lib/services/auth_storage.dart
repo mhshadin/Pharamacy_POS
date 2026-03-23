@@ -10,6 +10,7 @@ class AuthSession {
     required this.userRole,
     required this.subscriptionStatus,
     required this.subscriptionValidUntil,
+    this.googleAccessToken,
   });
 
   final String licenseToken;
@@ -18,6 +19,7 @@ class AuthSession {
   final String userRole;
   final String subscriptionStatus;
   final String subscriptionValidUntil;
+  final String? googleAccessToken;
 
   bool get hasValidToken => licenseToken.isNotEmpty;
 }
@@ -30,10 +32,11 @@ class AuthStorage {
   static const _keySubStatus = 'auth_sub_status';
   static const _keySubValidUntil = 'auth_sub_valid_until';
   static const _keyHardwareUid = 'hardware_uid';
+  static const _keyGoogleAccessToken = 'auth_google_access_token';
 
   const AuthStorage();
 
-  Future<void> saveAuth(AuthResult result) async {
+  Future<void> saveAuth(AuthResult result, {String? googleAccessToken}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyToken, result.licenseToken);
     await prefs.setString(_keyUserId, result.userId);
@@ -41,6 +44,9 @@ class AuthStorage {
     await prefs.setString(_keyUserRole, result.userRole);
     await prefs.setString(_keySubStatus, result.subscriptionStatus);
     await prefs.setString(_keySubValidUntil, result.subscriptionValidUntil);
+    if (googleAccessToken != null) {
+      await prefs.setString(_keyGoogleAccessToken, googleAccessToken);
+    }
   }
 
   Future<AuthSession?> loadAuth() async {
@@ -55,7 +61,14 @@ class AuthStorage {
       userRole: prefs.getString(_keyUserRole) ?? '',
       subscriptionStatus: prefs.getString(_keySubStatus) ?? '',
       subscriptionValidUntil: prefs.getString(_keySubValidUntil) ?? '',
+      googleAccessToken: prefs.getString(_keyGoogleAccessToken),
     );
+  }
+
+  /// Updates only the stored Google access token without touching other fields.
+  Future<void> setGoogleAccessToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyGoogleAccessToken, token);
   }
 
   Future<void> clearAuth() async {
@@ -66,6 +79,7 @@ class AuthStorage {
     await prefs.remove(_keyUserRole);
     await prefs.remove(_keySubStatus);
     await prefs.remove(_keySubValidUntil);
+    await prefs.remove(_keyGoogleAccessToken);
   }
 
   Future<String> getOrCreateHardwareUid() async {

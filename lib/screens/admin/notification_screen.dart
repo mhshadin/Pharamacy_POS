@@ -2,11 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/admin_provider.dart';
+import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
 import 'low_stock_screen.dart';
 import 'expiring_soon_screen.dart';
 
-class NotificationScreen extends StatelessWidget {
+class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
+
+  @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Mark notifications as read when the screen is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AdminProvider>().markNotificationsAsRead();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,13 +69,18 @@ class NotificationScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
             children: [
               if (lowStock.isNotEmpty) ...[
-                _buildSectionHeader('Low Stock Alerts', Icons.warning_amber_rounded, Colors.orange),
+                _buildSectionHeader(
+                  'Low Stock Alerts',
+                  Icons.warning_amber_rounded,
+                  AppColors.primaryDark,
+                ),
                 ...lowStock.map((product) => _buildNotificationItem(
                   context: context,
                   title: product.name,
-                  subtitle: 'Item is low on stock (${product.stockStrips} strips left)',
+                  subtitle:
+                      'Item is low on stock (${product.stockStrips} strips left)',
                   icon: Icons.inventory_2_outlined,
-                  color: Colors.orange,
+                  color: adminProvider.lowStockTierFor(product).accentColor,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const LowStockScreen()),
@@ -66,18 +89,33 @@ class NotificationScreen extends StatelessWidget {
               ],
               if (expiringSoon.isNotEmpty) ...[
                 if (lowStock.isNotEmpty) const SizedBox(height: 20),
-                _buildSectionHeader('Expiring Soon', Icons.timer_outlined, Colors.red),
-                ...expiringSoon.map((product) => _buildNotificationItem(
-                  context: context,
-                  title: product.name,
-                  subtitle: 'Expires on ${product.expiryDate?.toLocal().toString().split(' ')[0]}',
-                  icon: Icons.event_busy_outlined,
-                  color: Colors.red,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ExpiringSoonScreen()),
-                  ),
-                )),
+                _buildSectionHeader(
+                  'Expiring Soon',
+                  Icons.timer_outlined,
+                  AppColors.primaryDark,
+                ),
+                ...expiringSoon.map((product) {
+                  final tier = adminProvider.expiryTierFor(product);
+                  final iconData = switch (tier) {
+                    InventoryAlertTier.critical => Icons.error_outline,
+                    InventoryAlertTier.moderate => Icons.timer_outlined,
+                    InventoryAlertTier.mild => Icons.calendar_today_outlined,
+                  };
+                  return _buildNotificationItem(
+                    context: context,
+                    title: product.name,
+                    subtitle:
+                        'Expires on ${product.expiryDate?.toLocal().toString().split(' ')[0]}',
+                    icon: iconData,
+                    color: tier.accentColor,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ExpiringSoonScreen(),
+                      ),
+                    ),
+                  );
+                }),
               ],
             ],
           );

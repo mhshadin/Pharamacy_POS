@@ -3,14 +3,16 @@ import 'product.dart';
 enum ItemType { strip, pc }
 
 class CartItem {
-  final Product product;
+  Product product;
   int stripQuantity;
   int pcQuantity;
+  String? medType;
 
   CartItem({
     required this.product,
     this.stripQuantity = 1,
     this.pcQuantity = 0,
+    this.medType,
   });
 
   double get total =>

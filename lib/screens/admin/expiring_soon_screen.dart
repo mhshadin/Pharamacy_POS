@@ -4,14 +4,19 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/inventory_alert_tiers.dart';
+import '../../utils/med_type_icons.dart';
 import '../../utils/phone_launcher.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
+import 'restock_screen.dart';
 
 class ExpiringSoonScreen extends StatefulWidget {
-  const ExpiringSoonScreen({super.key});
+  const ExpiringSoonScreen({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   @override
   State<ExpiringSoonScreen> createState() => _ExpiringSoonScreenState();
@@ -20,7 +25,7 @@ class ExpiringSoonScreen extends StatefulWidget {
 class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  String _filter = 'All'; // 'All' | 'Critical' | 'Warning'
+  String _filter = 'All'; // 'All' | 'Critical' | 'Warning' | 'Notice'
   String _sortBy = 'Soonest First';
   final Set<String> _selectedCompanies = {};
 
@@ -37,7 +42,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     super.dispose();
   }
 
-  List<Product> _applyFilters(List<Product> source) {
+  List<Product> _applyFilters(List<Product> source, AdminProvider admin) {
     var list = List<Product>.from(source);
 
     // Search
@@ -50,11 +55,23 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       }).toList();
     }
 
-    // Urgency chip
+    // Urgency chip (matches traffic-light tiers)
     if (_filter == 'Critical') {
-      list = list.where((p) => p.daysUntilExpiry <= 30).toList();
+      list = list
+          .where(
+            (p) => admin.expiryTierFor(p) == InventoryAlertTier.critical,
+          )
+          .toList();
     } else if (_filter == 'Warning') {
-      list = list.where((p) => p.daysUntilExpiry > 30).toList();
+      list = list
+          .where(
+            (p) => admin.expiryTierFor(p) == InventoryAlertTier.moderate,
+          )
+          .toList();
+    } else if (_filter == 'Notice') {
+      list = list
+          .where((p) => admin.expiryTierFor(p) == InventoryAlertTier.mild)
+          .toList();
     }
 
     // Multi-company
@@ -488,7 +505,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
     final allExpiring = admin.expiringSoonProducts;
-    final filtered = _applyFilters(allExpiring);
+    final filtered = _applyFilters(allExpiring, admin);
     final showSupplierInfo = admin.showSupplierInfo;
 
     final allCompanies = allExpiring
@@ -502,15 +519,18 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     final hasCompanies = allCompanies.isNotEmpty;
 
     if (allExpiring.isEmpty) {
-      return const Material(
-        color: AppColors.background,
-        child: Center(
+      return Scaffold(
+        appBar: widget.showAppBar
+            ? AppBar(title: const Text('Expiring Soon Alerts'), centerTitle: true)
+            : null,
+        backgroundColor: AppColors.background,
+        body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
-              SizedBox(height: 16),
-              Text(
+              const Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
+              const SizedBox(height: 16),
+              const Text(
                 'No products expiring soon!',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
@@ -518,10 +538,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                   color: AppColors.primaryDark,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
-                'All products have more than 90 days until expiry.',
-                style: TextStyle(
+                'All products have more than ${admin.expiringSoonDays} days until expiry.',
+                style: const TextStyle(
                   color: AppColors.secondaryAccent,
                   fontWeight: FontWeight.w500,
                 ),
@@ -532,9 +552,12 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       );
     }
 
-    return Material(
-      color: AppColors.background,
-      child: Column(
+    return Scaffold(
+      appBar: widget.showAppBar
+          ? AppBar(title: const Text('Expiring Soon Alerts'), centerTitle: true)
+          : null,
+      backgroundColor: AppColors.background,
+      body: Column(
         children: [
           // ── Filter controls ──────────────────────────────────
           Container(
@@ -650,7 +673,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final label in ['All', 'Critical', 'Warning'])
+                      for (final label in ['All', 'Critical', 'Warning', 'Notice'])
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
@@ -830,27 +853,40 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ListView.separated(
                     padding: ResponsiveHelper.screenPadding(context),
                     itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, idx) {
                       final product = filtered[idx];
                       final days = product.daysUntilExpiry;
-                      final isCritical = days <= 30;
+                      final tier = admin.expiryTierFor(product);
+                      final accent = tier.accentColor;
+                      final iconData = switch (tier) {
+                        InventoryAlertTier.critical => LucideIcons.alertOctagon,
+                        InventoryAlertTier.moderate => LucideIcons.clock,
+                        InventoryAlertTier.mild => LucideIcons.calendarDays,
+                      };
                       final supplierPhone =
                           showSupplierInfo ? product.supplierPhone?.trim() : null;
                       final hasSupplierPhone =
                           supplierPhone != null && supplierPhone.isNotEmpty;
 
-                      return Container(
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => RestockScreen(product: product),
+                            ),
+                          );
+                        },
+                        child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isCritical
-                                ? AppColors.error.withValues(alpha: 0.4)
-                                : AppColors.warningOrange.withValues(alpha: 0.4),
+                            color: accent.withValues(alpha: 0.4),
                             width: 2,
                           ),
                           boxShadow: [
@@ -866,20 +902,12 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: isCritical
-                                    ? AppColors.error.withValues(alpha: 0.1)
-                                    : AppColors.warningOrange.withValues(
-                                        alpha: 0.1,
-                                      ),
+                                color: accent.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
-                                isCritical
-                                    ? LucideIcons.alertOctagon
-                                    : LucideIcons.clock,
-                                color: isCritical
-                                    ? AppColors.error
-                                    : AppColors.warningOrange,
+                                iconData,
+                                color: accent,
                                 size: 22,
                               ),
                             ),
@@ -908,6 +936,40 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
+                                  if (product.medType != null)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 4, bottom: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.24),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            MedTypeIcons.getIcon(product.medType),
+                                            size: 10,
+                                            color: MedTypeIcons.getColor(product.medType),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            product.medType!,
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              color: MedTypeIcons.getColor(product.medType),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   Text(
                                     'Stock: ${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs',
                                     style: const TextStyle(
@@ -919,9 +981,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                   Text(
                                     'Expires: ${product.expiryDate!.day}/${product.expiryDate!.month}/${product.expiryDate!.year}',
                                     style: TextStyle(
-                                      color: isCritical
-                                          ? AppColors.error
-                                          : AppColors.warningOrange,
+                                      color: accent,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 12,
                                     ),
@@ -949,18 +1009,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                     vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: isCritical
-                                        ? AppColors.error.withValues(alpha: 0.1)
-                                        : AppColors.warningOrange.withValues(
-                                            alpha: 0.1,
-                                          ),
+                                    color: accent.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: isCritical
-                                          ? AppColors.error.withValues(alpha: 0.3)
-                                          : AppColors.warningOrange.withValues(
-                                              alpha: 0.3,
-                                            ),
+                                      color: accent.withValues(alpha: 0.3),
                                     ),
                                   ),
                                   child: Column(
@@ -970,9 +1022,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 18,
-                                          color: isCritical
-                                              ? AppColors.error
-                                              : AppColors.warningOrange,
+                                          color: accent,
                                         ),
                                       ),
                                       Text(
@@ -980,9 +1030,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 10,
-                                          color: isCritical
-                                              ? AppColors.error
-                                              : AppColors.warningOrange,
+                                          color: accent,
                                         ),
                                       ),
                                     ],
@@ -992,9 +1040,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
+                ),
           ),
         ],
       ),

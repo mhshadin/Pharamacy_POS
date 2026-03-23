@@ -34,6 +34,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     'ExpiryDate',
     'SupplierName',
     'SupplierPhone',
+    'MedType',
   ];
 
   static const List<String> _sampleRow = [
@@ -49,6 +50,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     '2026-12-31',
     'Best Pharma Supplier',
     '+1234567890',
+    'Tablet',
   ];
 
   bool _isProcessing = false;
@@ -256,6 +258,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           supplierPhone: getString('SupplierPhone').isEmpty
               ? null
               : getString('SupplierPhone'),
+          medType: getString('MedType').isEmpty ? 'Tablet' : getString('MedType'),
           expiryDate: expiry,
         );
 
@@ -680,6 +683,8 @@ onPressed: _parsedRecords.isEmpty
                           _buildMiniStat('Stock Pcs', '${product.totalPieces}'),
                           if (product.barcode != null)
                             _buildMiniStat('Barcode', product.barcode!),
+                          if (product.medType != null)
+                            _buildMiniStat('Type', product.medType!),
                         ],
                       ),
                     ],
