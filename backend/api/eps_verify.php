@@ -5,7 +5,7 @@ header("Access-Control-Allow-Methods: POST");
 header("Access-Control-Max-Age: 3600");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-require_once '../config/database.php';
+require_once __DIR__ . '/config.php';
 require_once 'eps_helper.php';
 
 $data = json_decode(file_get_contents("php://input"));
