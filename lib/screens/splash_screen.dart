@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/colors.dart';
 import '../services/auth_storage.dart';
+import '../services/time_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
@@ -24,6 +25,9 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     // Small delay so the splash is visible and storage can initialize.
     await Future.delayed(const Duration(milliseconds: 600));
+
+    // Try to sync time at startup if online
+    await TimeService().fetchServerTime();
 
     final session = await _authStorage.loadAuth();
 

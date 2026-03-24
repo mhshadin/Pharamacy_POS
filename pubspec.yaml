@@ -18,6 +18,7 @@ dependencies:
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
   vibration: ^3.1.8
+  path: ^1.9.0
   audioplayers: ^6.6.0
   lucide_icons: ^0.257.0
   google_fonts: ^8.0.2
@@ -41,6 +42,10 @@ dependencies:
   timezone: ^0.11.0
 
   http: any
+  webview_flutter: ^4.10.0
+  flutter_secure_storage: ^9.2.2
+  connectivity_plus: ^6.1.1
+
 
 dependency_overrides:
   sqlite3: ^3.2.0

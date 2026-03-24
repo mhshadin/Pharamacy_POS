@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/auth_storage.dart';
+import '../subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -151,6 +153,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // 2. ACCOUNT INFO
               _buildInfoCard(session),
               const SizedBox(height: 16),
+
+              // 2.5 SUBSCRIPTION SECTION
+              _buildSubscriptionCard(session),
+              const SizedBox(height: 16),
               
               // 3. SECURITY SECTION
               _buildSecuritySection(isGoogleUser),
@@ -273,6 +279,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ? session.subscriptionValidUntil.split(' ')[0]
             : 'N/A'
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard(AuthSession? session) {
+    if (session == null) return const SizedBox.shrink();
+    
+    final isSubActive = session.subscriptionStatus.toLowerCase() == 'active';
+    final planName = session.planName;
+    
+    return _Card(
+      title: 'Subscription Management',
+      icon: LucideIcons.creditCard,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (isSubActive ? AppColors.success : AppColors.error).withAlpha(15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isSubActive ? LucideIcons.checkCircle2 : LucideIcons.alertCircle,
+                  color: isSubActive ? AppColors.success : AppColors.error,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      planName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primaryDark,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      isSubActive ? 'Active Subscription' : 'Expired / Inactive',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: isSubActive ? AppColors.success : AppColors.error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                   Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SubscriptionScreen(
+                        pharmacyId: session.userId,
+                        isDismissible: true,
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                child: Text(
+                  isSubActive ? 'Renew' : 'Activate',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          if (session.subscriptionValidUntil.isNotEmpty) ...[
+            const Divider(height: 32),
+            _buildInfoRow(
+              LucideIcons.calendarClock, 
+              'Renewal Date', 
+              session.subscriptionValidUntil.split(' ')[0]
+            ),
+          ],
         ],
       ),
     );

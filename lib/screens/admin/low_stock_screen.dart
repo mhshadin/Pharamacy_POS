@@ -880,7 +880,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                           ],
                                         ),
                                       ),
-                                      if (phoneBtn != null) phoneBtn,
+                                      phoneBtn ?? const SizedBox.shrink(),
                                     ],
                                   ),
                                   const Padding(

@@ -1,0 +1,158 @@
+# EPS Payment Gateway Integration Guide
+
+This document provides a detailed technical overview of how to integrate the EPS (Easy Payment System) gateway into a project, covering both backend (PHP) and frontend (Flutter/Dart) implementations.
+
+## 1. Overview
+The integration follows a standard redirect-based payment flow:
+1.  **Initialize**: The client sends user and package details to the backend.
+2.  **Authenticate**: The backend authenticates with EPS using a token and HMAC hash.
+3.  **Redirect**: EPS provides a `RedirectURL`, which the client opens in a WebView.
+4.  **Verify**: After payment, the client (or callback) triggers a verification request to the backend to confirm the transaction status.
+
+---
+
+## 2. Prerequisites
+
+### Database Setup
+You need tables to store EPS credentials, subscription packages, and user subscription states.
+
+#### 1. EPS Settings
+```sql
+CREATE TABLE `eps_settings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `environment` enum('sandbox', 'production') NOT NULL DEFAULT 'sandbox',
+  `production_api_base_url` varchar(255) DEFAULT NULL, -- e.g., https://pgapi.eps.com.bd/v1
+  `production_username` varchar(255) DEFAULT NULL,
+  `production_password` varchar(255) DEFAULT NULL,
+  `production_merchant_id` varchar(255) DEFAULT NULL,
+  `production_store_id` varchar(255) DEFAULT NULL,
+  `production_hash_key` varchar(255) DEFAULT NULL,
+  `success_url` varchar(255) DEFAULT NULL,
+  `fail_url` varchar(255) DEFAULT NULL,
+  `cancel_url` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+);
+```
+
+#### 2. Subscription Packages
+```sql
+CREATE TABLE `subscription_packages` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `display_name` varchar(255) NOT NULL,
+  `price` decimal(10,2) NOT NULL,
+  `offer_price` decimal(10,2) DEFAULT NULL, -- 0.00 for free offers
+  `duration_days` int(11) NOT NULL,
+  `description` text DEFAULT NULL,
+  `features` text DEFAULT NULL, -- JSON array of strings
+  `is_popular` tinyint(1) DEFAULT 0,
+  `is_active` tinyint(1) DEFAULT 1,
+  `sort_order` int(11) DEFAULT 0,
+  PRIMARY KEY (`id`)
+);
+```
+
+#### 3. Users (Subscription Fields)
+Your user table should include these fields to track status.
+```sql
+ALTER TABLE `users` 
+  ADD `is_paid` tinyint(1) DEFAULT 0,
+  ADD `subscription_start_date` datetime DEFAULT NULL,
+  ADD `subscription_expiry_date` datetime DEFAULT NULL;
+```
+
+#### 4. Payments Tracking
+```sql
+CREATE TABLE `payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `package_name` varchar(255) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `transaction_id` varchar(255) NOT NULL, -- Merchant Transaction ID
+  `payment_status` enum('pending', 'completed', 'failed', 'cancelled') DEFAULT 'pending',
+  `payment_date` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+);
+```
+
+---
+
+## 3. Backend Implementation (PHP)
+
+### A. Authentication & Hashing
+All EPS API requests require an `x-hash` header, which is an HMAC-SHA512 hash of specific data using your `hash_key`.
+
+```php
+function generateEpsHash($data, $hashKey) {
+    $keyBytes = mb_convert_encoding($hashKey, 'UTF-8');
+    $hash = hash_hmac('sha512', $data, $keyBytes, true);
+    return base64_encode($hash);
+}
+```
+
+### B. Getting an EPS Token
+Before making a payment request, you must obtain a bearer token.
+
+- **Endpoint**: `{BASE_URL}/Auth/GetToken`
+- **Headers**: `x-hash` (Hash of `username`)
+- **Body**: `{"userName": "...", "password": "..."}`
+
+### C. Initializing Payment
+Call this endpoint to get the `RedirectURL`.
+
+- **Endpoint**: `{BASE_URL}/EPSEngine/InitializeEPS`
+- **Headers**: `Authorization: Bearer {TOKEN}`, `x-hash` (Hash of `merchantTransactionId`)
+- **Key Fields**:
+    - `merchantTransactionId`: Unique string per transaction.
+    - `transactionTypeId`: `2` for Android, `3` for iOS.
+    - `totalAmount`: Decimal amount.
+    - `successUrl`, `failUrl`, `cancelUrl`: Redirect endpoints after payment.
+
+---
+
+## 4. Frontend Implementation (Flutter)
+
+### A. Service Layer
+The [EpsService](file:///d:/desktop%20back/digimi_manage/digmi_manage/lib/services/eps_service.dart#11-231) handles the communication with your backend.
+
+```dart
+static Future<PaymentInitResult> initializePayment({
+  required int userId,
+  required int packageId,
+  required double amount,
+  // ... customer details
+}) async {
+  // 1. Post to your backend /eps_initialize_payment.php
+  // 2. Receive JSON containing 'redirect_url' and 'merchant_transaction_id'
+}
+```
+
+### B. WebView Flow
+Use `webview_flutter` to display the payment page. Key logic is intercepting the navigation to detect the result.
+
+```dart
+NavigationDecision _handleNavigation(String url) {
+  final lowerUrl = url.toLowerCase();
+  
+  // Detect success/fail patterns defined in success_url from backend
+  if (lowerUrl.contains('type=success') || lowerUrl.contains('status=success')) {
+    _onPaymentCompleted('success');
+    return NavigationDecision.prevent;
+  }
+  // ... handle failed/cancelled
+}
+```
+
+---
+
+## 5. Critical Fields Summary
+
+| Field | Description | Source |
+| :--- | :--- | :--- |
+| `merchantTransactionId` | Unique ID generated by your backend for tracking. | Your Backend |
+| `transactionTypeId` | Identifies platform (Android=2, iOS=3). | Client App |
+| `x-hash` | HMAC-SHA512 security header. | Generated per request |
+| `ValueA`, `ValueB` | Custom pass-through fields (e.g., UserId, PackageId). | Provided in Init |
+
+### Verification logic
+Always verify the status on the backend using `CheckMerchantTransactionStatus` with the `merchantTransactionId` before updating user balances or subscriptions. Never trust the client-side WebView redirect alone.

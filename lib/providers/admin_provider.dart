@@ -9,7 +9,9 @@ import '../services/drive_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/google_drive_auth.dart';
+import '../services/time_service.dart';
 import '../utils/inventory_alert_tiers.dart';
+import 'package:intl/intl.dart';
 import 'dart:developer' as developer;
 
 /// Any UI that mutates product or batch data (including returns)
@@ -110,7 +112,9 @@ class AdminProvider extends ChangeNotifier {
       ]);
       notifyListeners();
       await checkForNotifications();
+      await checkSubscriptionStatus();
     } catch (e) {
+      checkSubscriptionStatus();
       developer.log("Error loading initial data", error: e);
     }
   }
@@ -677,6 +681,47 @@ class AdminProvider extends ChangeNotifier {
         .where((p) => p.quantity > 0)
         .toList()
       ..sort((a, b) => b.boxesSold.compareTo(a.boxesSold));
+  }
+
+  // --- SUBSCRIPTION MONITORING ---
+  
+  Future<void> checkSubscriptionStatus() async {
+    final session = _authSession;
+    if (session == null || session.subscriptionValidUntil.isEmpty) return;
+
+    try {
+      final validUntil = DateTime.parse(session.subscriptionValidUntil);
+      final now = DateTime.now();
+      
+      // Calculate remaining days
+      final remainingDays = validUntil.difference(now).inDays;
+      
+      // 1. If expired, handle it
+      if (remainingDays < 0) return;
+
+      // 2. Check for warnings (7, 5, 1 days)
+      final thresholds = [7, 5, 1];
+      if (thresholds.contains(remainingDays)) {
+        final lastWarning = await TimeService().getLastWarningDate();
+        final todayStr = DateFormat('yyyy-MM-dd').format(now);
+        
+        if (lastWarning != todayStr) {
+          _pendingSubWarningDays = remainingDays;
+          await TimeService().saveWarningDate(todayStr);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      developer.log("Error checking subscription status", error: e);
+    }
+  }
+
+  int? _pendingSubWarningDays;
+  int? get pendingSubWarningDays => _pendingSubWarningDays;
+
+  void clearPendingWarning() {
+    _pendingSubWarningDays = null;
+    notifyListeners();
   }
 }
 

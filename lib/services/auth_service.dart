@@ -13,6 +13,7 @@ class AuthResult {
     required this.userRole,
     required this.subscriptionStatus,
     required this.subscriptionValidUntil,
+    required this.planName,
     required this.userEmail,
   });
 
@@ -23,6 +24,7 @@ class AuthResult {
   final String userRole;
   final String subscriptionStatus;
   final String subscriptionValidUntil;
+  final String planName;
 }
 
 class AuthException implements Exception {
@@ -76,8 +78,6 @@ class AuthService {
     required String hardwareUid,
   }) async {
     final uri = _buildUri('google_login.php');
-    print('[AuthService] POST $uri');
-    print('[AuthService] Payload idToken length=${idToken.length}, hardwareUid=$hardwareUid');
     final response = await http.post(
       uri,
       headers: _jsonHeaders(),
@@ -87,7 +87,6 @@ class AuthService {
       }),
     );
 
-    print('[AuthService] Response status=${response.statusCode} body=${response.body}');
     return _handleAuthResponse(response);
   }
 
@@ -192,6 +191,7 @@ class AuthService {
       userRole: (user['role'] ?? '').toString(),
       subscriptionStatus: (subscription['status'] ?? '').toString(),
       subscriptionValidUntil: (subscription['valid_until'] ?? '').toString(),
+      planName: (subscription['plan_name'] ?? 'N/A').toString(),
     );
   }
 

@@ -394,7 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.divider),
+                    borderSide: BorderSide(color: AppColors.white.withValues(alpha: 0.2)),
                   ),
                 ),
                 onSubmitted: (val) {
@@ -457,8 +457,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(

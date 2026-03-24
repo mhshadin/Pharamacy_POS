@@ -250,8 +250,8 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.white.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: AppColors.secondaryAccent, width: 2),
               ),
               child: TextField(

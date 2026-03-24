@@ -10,6 +10,7 @@ import 'providers/admin_provider.dart';
 import 'services/database_helper.dart';
 import 'services/speech_service.dart';
 import 'services/notification_service.dart';
+import 'widgets/time_lock_barrier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -139,6 +140,9 @@ class PharmacyPOSApp extends StatelessWidget {
             ),
           ),
         ),
+        builder: (context, child) {
+          return TimeLockBarrier(child: child!);
+        },
         home: const SplashScreen(),
       ),
     );

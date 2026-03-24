@@ -7,8 +7,8 @@
 ---
 
 **Project:** Pharmacy POS
-**Generated:** 2026-03-23 12:20:56
-**Category:** Luxury/Premium Brand
+**Generated:** 2026-03-24 12:32:11
+**Category:** SaaS (General)
 
 ---
 
@@ -153,27 +153,28 @@
 
 ## Style Guidelines
 
-**Style:** Liquid Glass
+**Style:** Flat Design
 
-**Keywords:** Flowing glass, morphing, smooth transitions, fluid effects, translucent, animated blur, iridescent, chromatic aberration
+**Keywords:** 2D, minimalist, bold colors, no shadows, clean lines, simple shapes, typography-focused, modern, icon-heavy
 
-**Best For:** Premium SaaS, high-end e-commerce, creative platforms, branding experiences, luxury portfolios
+**Best For:** Web apps, mobile apps, cross-platform, startup MVPs, user-friendly, SaaS, dashboards, corporate
 
-**Key Effects:** Morphing elements (SVG/CSS), fluid animations (400-600ms curves), dynamic blur (backdrop-filter), color transitions
+**Key Effects:** No gradients/shadows, simple hover (color/opacity shift), fast loading, clean transitions (150-200ms ease), minimal icons
 
 ### Page Pattern
 
-**Pattern Name:** Storytelling + Feature-Rich
+**Pattern Name:** Pricing-Focused Landing
 
-- **CTA Placement:** Above fold
-- **Section Order:** Hero > Features > CTA
+- **Conversion Strategy:** Annual discount 20-30%. Recommend mid-tier (most popular badge). Address objections in FAQ.
+- **CTA Placement:** Each pricing card + Sticky CTA in nav + Bottom
+- **Section Order:** 1. Hero (value proposition), 2. Pricing cards (3 tiers), 3. Feature comparison, 4. FAQ, 5. Final CTA
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Cheap visuals
-- ❌ Fast animations
+- ❌ Excessive animation
+- ❌ Dark mode by default
 
 ### Additional Forbidden Patterns
 

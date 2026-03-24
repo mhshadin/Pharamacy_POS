@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/auth_storage.dart';
 import '../services/google_drive_auth.dart';
 import 'home_screen.dart';
+import 'subscription_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -71,9 +72,18 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result);
 
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+
+      Widget nextScreen;
+      if (result.subscriptionStatus == 'active') {
+        nextScreen = const HomeScreen();
+      } else {
+        nextScreen = SubscriptionScreen(pharmacyId: result.userId, isDismissible: true);
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => nextScreen),
+      );
+
     } on AuthException catch (e) {
       _showErrorSnackBar(e.message);
     } catch (e) {
@@ -107,9 +117,17 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result);
 
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+      
+      // After registration, always show subscription screen or trial info
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => SubscriptionScreen(
+            pharmacyId: result.userId, 
+            isDismissible: true,
+          ),
+        ),
+      );
+
     } on AuthException catch (e) {
       _showErrorSnackBar(e.message);
     } catch (e) {
@@ -131,8 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('[LoginScreen] Starting Google sign-in');
-      
       final account = await _googleSignIn.signIn();
       if (account == null) {
          if (mounted) {
@@ -148,15 +164,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final accessToken = auth.accessToken;
 
       if (idToken == null || idToken.isEmpty) {
-        print('[LoginScreen] GoogleSignIn returned null/empty idToken');
         _showErrorSnackBar('Unable to get Google ID token.');
         return;
       }
 
       final hardwareUid = await _authStorage.getOrCreateHardwareUid();
-      print(
-        '[LoginScreen] Got idToken length=${idToken.length}, hardwareUid=$hardwareUid, calling backend...',
-      );
       final result = await _authService.loginWithGoogle(
         idToken: idToken,
         hardwareUid: hardwareUid,
@@ -165,18 +177,23 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result, googleAccessToken: accessToken);
 
       if (!mounted) return;
+
+      Widget nextScreen;
+      if (result.subscriptionStatus == 'active') {
+        nextScreen = const HomeScreen();
+      } else {
+        nextScreen = SubscriptionScreen(pharmacyId: result.userId, isDismissible: true);
+      }
+
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => nextScreen),
       );
     } on AuthException catch (e) {
-      print('[LoginScreen] AuthException during Google sign-in: $e');
       _showErrorSnackBar(e.message);
     } catch (e) {
       if (e.toString().contains('sign_in_canceled')) {
-         print('[LoginScreen] Google sign-in cancelled by user');
          return;
       }
-      print('[LoginScreen] Error during Google sign-in: $e');
       _showErrorSnackBar('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) {

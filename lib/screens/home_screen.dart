@@ -22,6 +22,8 @@ import 'ocr_scan_result_screen.dart';
 import '../widgets/drawer/pos_drawer.dart';
 import '../services/speech_service.dart';
 import '../utils/product_matcher.dart';
+import '../widgets/subscription_warning_dialog.dart';
+import 'subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -424,9 +426,39 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final adminProvider = context.watch<AdminProvider>();
     final posProvider = context.watch<POSProvider>();
     final cart = posProvider.cart;
     final filteredCart = posProvider.filteredCart;
+
+    // Handle Subscription Warning
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (adminProvider.pendingSubWarningDays != null) {
+        final days = adminProvider.pendingSubWarningDays!;
+        adminProvider.clearPendingWarning();
+        
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (ctx) => SubscriptionWarningDialog(
+            daysRemaining: days,
+            onRenew: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SubscriptionScreen(
+                    pharmacyId: adminProvider.authSession?.userId ?? '',
+                    isDismissible: true,
+                  ),
+                ),
+              );
+            },
+            onDismiss: () => Navigator.pop(ctx),
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       key: _scaffoldKey,
