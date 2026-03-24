@@ -24,9 +24,10 @@ $hardwareUid = isset($inputData['hardware_uid']) ? $inputData['hardware_uid'] : 
 try {
     $stmt = $pdo->prepare('
         SELECT u.id, u.pharmacy_id, u.role, u.is_active, u.auth_provider, u.password_hash, u.full_name, u.avatar_url,
-               s.valid_until, s.status as sub_status
+               s.valid_until, s.status as sub_status, sp.name as plan_name
         FROM users u
-        LEFT JOIN subscriptions s ON u.pharmacy_id = s.pharmacy_id
+        LEFT JOIN subscribers s ON u.pharmacy_id = s.pharmacy_id
+        LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
         WHERE u.email = ?
     ');
     $stmt->execute([$email]);
@@ -92,11 +93,13 @@ try {
         'license_token' => $licenseToken,
         'subscription' => [
             'status' => $user['sub_status'],
-            'valid_until' => $user['valid_until']
+            'valid_until' => $user['valid_until'],
+            'plan_name' => $user['plan_name']
         ],
         'user' => [
             'id' => $user['id'],
             'role' => $user['role'],
+            'email' => $email,
             'name' => $user['full_name'],
             'avatar' => $user['avatar_url']
         ]

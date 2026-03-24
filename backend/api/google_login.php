@@ -54,9 +54,10 @@ $avatar_url = isset($payload['picture']) ? $payload['picture'] : null;
 try {
     $stmt = $pdo->prepare('
         SELECT u.id, u.pharmacy_id, u.role, u.is_active, u.auth_provider, 
-               s.valid_until, s.status as sub_status
+               s.valid_until, s.status as sub_status, sp.name as plan_name
         FROM users u
-        LEFT JOIN subscriptions s ON u.pharmacy_id = s.pharmacy_id
+        LEFT JOIN subscribers s ON u.pharmacy_id = s.pharmacy_id
+        LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
         WHERE u.oauth_uid = ? OR u.email = ?
     ');
     $stmt->execute([$oauth_uid, $email]);
@@ -65,27 +66,40 @@ try {
     $pdo->beginTransaction();
 
     if (!$user) {
-        $pharmacyId = generate_uuid_v4();
-        $userId = generate_uuid_v4();
-        $subId = generate_uuid_v4();
-        $trialExpiry = date('Y-m-d H:i:s', strtotime('+14 days'));
+        // 1. Fetch Default "Trial" Plan
+        $stmtPlan = $pdo->prepare('SELECT id, trial_days FROM subscription_plans WHERE name = ? LIMIT 1');
+        $stmtPlan->execute(['Trial']);
+        $plan = $stmtPlan->fetch();
+        
+        if (!$plan) {
+            $planId = generate_uuid_v4();
+            $trialDays = 14;
+            $pdo->prepare('INSERT INTO subscription_plans (id, name, price, billing_cycle, trial_days) VALUES (?, ?, ?, ?, ?)')
+                ->execute([$planId, 'Trial', 0.00, 'monthly', $trialDays]);
+        } else {
+            $planId = $plan['id'];
+            $trialDays = $plan['trial_days'];
+        }
+
+        $expiryDate = date('Y-m-d H:i:s', strtotime("+$trialDays days"));
 
         $pdo->prepare('INSERT INTO pharmacies (id, business_name, owner_name, contact_phone, contact_email, account_status) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$pharmacyId, $full_name . "'s Pharmacy", $full_name, 'PENDING', $email, 'trial']);
+            ->execute([$pharmacyId, $full_name . "'s Pharmacy", $full_name, 'PENDING', $email, 'active']);
 
         $pdo->prepare('INSERT INTO users (id, pharmacy_id, role, email, auth_provider, oauth_uid, full_name, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
             ->execute([$userId, $pharmacyId, 'owner', $email, 'google', $oauth_uid, $full_name, $avatar_url]);
 
-        $pdo->prepare('INSERT INTO subscriptions (id, pharmacy_id, plan_name, billing_cycle, valid_until, status) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$subId, $pharmacyId, 'Trial', 'monthly', $trialExpiry, 'active']);
+        $pdo->prepare('INSERT INTO subscribers (id, pharmacy_id, plan_id, valid_until, status) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$subId, $pharmacyId, $planId, $expiryDate, 'active']);
 
         $user = [
             'id' => $userId,
             'pharmacy_id' => $pharmacyId,
             'role' => 'owner',
             'is_active' => 1,
-            'valid_until' => $trialExpiry,
-            'sub_status' => 'active'
+            'valid_until' => $expiryDate,
+            'sub_status' => 'active',
+            'plan_name' => 'Trial'
         ];
     } else {
         if ($user['auth_provider'] !== 'google') {
@@ -139,11 +153,13 @@ try {
         'license_token' => $licenseToken,
         'subscription' => [
             'status' => $user['sub_status'],
-            'valid_until' => $user['valid_until']
+            'valid_until' => $user['valid_until'],
+            'plan_name' => $user['plan_name']
         ],
         'user' => [
             'id' => $user['id'],
             'role' => $user['role'],
+            'email' => $email,
             'name' => $full_name,
             'avatar' => $avatar_url
         ]

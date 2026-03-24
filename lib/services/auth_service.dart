@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -12,11 +13,13 @@ class AuthResult {
     required this.userRole,
     required this.subscriptionStatus,
     required this.subscriptionValidUntil,
+    required this.userEmail,
   });
 
   final String licenseToken;
   final String userId;
   final String userName;
+  final String userEmail;
   final String userRole;
   final String subscriptionStatus;
   final String subscriptionValidUntil;
@@ -129,9 +132,42 @@ class AuthService {
     }
   }
 
+  Future<String> getAdminPin(String token) async {
+    final uri = _buildUri('admin_pin.php');
+    final response = await http.get(
+      uri,
+      headers: _jsonHeaders(token: token),
+    );
+
+    if (response.statusCode != 200) {
+      throw _buildException(response);
+    }
+
+    final data = jsonDecode(response.body);
+    return data['admin_pin']?.toString() ?? '12345';
+  }
+
+  Future<void> updateAdminPin({
+    required String token,
+    required String newPin,
+  }) async {
+    final uri = _buildUri('admin_pin.php');
+    final response = await http.post(
+      uri,
+      headers: _jsonHeaders(token: token),
+      body: jsonEncode({
+        'new_pin': newPin,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw _buildException(response);
+    }
+  }
+
   AuthResult _handleAuthResponse(http.Response response) {
     if (response.statusCode != 200 && response.statusCode != 201) {
-      print('[AuthService] Non-success status=${response.statusCode} body=${response.body}');
+      developer.log('[AuthService] Non-success status=${response.statusCode} body=${response.body}');
       throw _buildException(response);
     }
 
@@ -152,6 +188,7 @@ class AuthService {
       licenseToken: token,
       userId: (user['id'] ?? '').toString(),
       userName: (user['name'] ?? '').toString(),
+      userEmail: (user['email'] ?? '').toString(),
       userRole: (user['role'] ?? '').toString(),
       subscriptionStatus: (subscription['status'] ?? '').toString(),
       subscriptionValidUntil: (subscription['valid_until'] ?? '').toString(),

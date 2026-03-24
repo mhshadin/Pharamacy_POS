@@ -8,6 +8,8 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
+import '../../utils/med_type_units.dart';
+import '../../utils/med_type_icons.dart';
 import '../scanner_screen.dart';
 
 class StockInScreen extends StatefulWidget {
@@ -35,6 +37,8 @@ class _StockInScreenState extends State<StockInScreen> {
   final _supplierPhoneCtrl = TextEditingController();
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
+
+  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(_selectedMedType);
 
   @override
   void initState() {
@@ -710,38 +714,48 @@ class _StockInScreenState extends State<StockInScreen> {
               icon: LucideIcons.package,
               child: LayoutBuilder(
                 builder: (context, constraints) =>
-                    ResponsiveHelper.responsiveRow(
-                  constraints: constraints,
-                  left: _buildField(
-                    controller: _stripsPerBoxCtrl,
-                    label: 'Strips per Box',
-                    icon: LucideIcons.package,
-                    keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Required' : null,
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final spb = int.tryParse(val) ?? 1;
-                      if (spb > 0) {
-                        final boxP = double.tryParse(_priceBoxCtrl.text);
-                        if (boxP != null) {
-                          _priceStripCtrl.text = (boxP / spb).toStringAsFixed(2);
-                        }
-                        final boxes = int.tryParse(_stockBoxesCtrl.text);
-                        if (boxes != null) {
-                          _stockStripsCtrl.text = (boxes * spb).toString();
-                        }
-                      }
-                    },
-                  ),
-                  right: _buildField(
-                    controller: _pcsPerStripCtrl,
-                    label: 'Pcs per Strip',
-                    icon: LucideIcons.boxes,
-                    keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Required' : null,
-                  ),
+                    Row(
+                  children: [
+                    if (MedTypeUnits.hasUnit1(_selectedMedType))
+                      Expanded(
+                        child: _buildField(
+                          controller: _stripsPerBoxCtrl,
+                          label: '${_unitLabels['unit2'] ?? 'Strips'} per ${_unitLabels['unit1'] ?? 'Box'}',
+                          icon: LucideIcons.package,
+                          keyboardType: TextInputType.number,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
+                          onChanged: (val) {
+                            if (val.isEmpty) return;
+                            final spb = int.tryParse(val) ?? 1;
+                            if (spb > 0) {
+                              final boxP = double.tryParse(_priceBoxCtrl.text);
+                              if (boxP != null) {
+                                _priceStripCtrl.text = (boxP / spb).toStringAsFixed(2);
+                              }
+                              final boxes = int.tryParse(_stockBoxesCtrl.text);
+                              if (boxes != null) {
+                                _stockStripsCtrl.text = (boxes * spb).toString();
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    if (MedTypeUnits.hasUnit1(_selectedMedType) && MedTypeUnits.hasUnit3(_selectedMedType))
+                      const SizedBox(width: 12),
+                    if (MedTypeUnits.hasUnit3(_selectedMedType))
+                      Expanded(
+                        child: _buildField(
+                          controller: _pcsPerStripCtrl,
+                          label: '${_unitLabels['unit3'] ?? 'Pcs'} per ${_unitLabels['unit2'] ?? 'Strip'}',
+                          icon: LucideIcons.boxes,
+                          keyboardType: TextInputType.number,
+                          hintText: _selectedMedType?.toLowerCase() == 'syrup' ? 'e.g. 100 ml per bottle' : null,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -752,40 +766,48 @@ class _StockInScreenState extends State<StockInScreen> {
               icon: LucideIcons.circleDollarSign,
               child: LayoutBuilder(
                 builder: (context, constraints) =>
-                    ResponsiveHelper.responsiveRow(
-                  constraints: constraints,
-                  left: _buildField(
-                    controller: _priceBoxCtrl,
-                    label: 'Price / Box',
-                    icon: LucideIcons.shoppingCart,
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final boxPrice = double.tryParse(val);
-                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      if (boxPrice != null && spb > 0) {
-                        _priceStripCtrl.text =
-                            (boxPrice / spb).toStringAsFixed(2);
-                      }
-                    },
-                  ),
-                  right: _buildField(
-                    controller: _priceStripCtrl,
-                    label: 'Price / Strip',
-                    icon: LucideIcons.dollarSign,
-                    keyboardType: TextInputType.number,
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Required' : null,
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final stripPrice = double.tryParse(val);
-                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      if (stripPrice != null && spb > 0) {
-                        _priceBoxCtrl.text =
-                            (stripPrice * spb).toStringAsFixed(2);
-                      }
-                    },
-                  ),
+                    Row(
+                  children: [
+                    if (MedTypeUnits.hasUnit1(_selectedMedType))
+                      Expanded(
+                        child: _buildField(
+                          controller: _priceBoxCtrl,
+                          label: 'Price / ${_unitLabels['unit1'] ?? 'Box'}',
+                          icon: LucideIcons.shoppingCart,
+                          keyboardType: TextInputType.number,
+                          onChanged: (val) {
+                            if (val.isEmpty) return;
+                            final boxPrice = double.tryParse(val);
+                            final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                            if (boxPrice != null && spb > 0) {
+                              _priceStripCtrl.text =
+                                  (boxPrice / spb).toStringAsFixed(2);
+                            }
+                          },
+                        ),
+                      ),
+                    if (MedTypeUnits.hasUnit1(_selectedMedType))
+                      const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildField(
+                        controller: _priceStripCtrl,
+                        label: 'Price / ${_unitLabels['unit2'] ?? 'Strip'}',
+                        icon: LucideIcons.dollarSign,
+                        keyboardType: TextInputType.number,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final stripPrice = double.tryParse(val);
+                          final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          if (stripPrice != null && spb > 0) {
+                            _priceBoxCtrl.text =
+                                (stripPrice * spb).toStringAsFixed(2);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -796,24 +818,27 @@ class _StockInScreenState extends State<StockInScreen> {
               icon: LucideIcons.clipboardList,
               child: Column(
                 children: [
-                  _buildField(
-                    controller: _stockBoxesCtrl,
-                    label: 'Stock (Boxes)',
-                    icon: LucideIcons.box,
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final boxes = int.tryParse(val);
-                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      if (boxes != null && spb > 0) {
-                        _stockStripsCtrl.text = (boxes * spb).toString();
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
+                  if (MedTypeUnits.hasUnit1(_selectedMedType))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildField(
+                        controller: _stockBoxesCtrl,
+                        label: 'Stock (${_unitLabels['unit1'] ?? 'Boxes'})',
+                        icon: LucideIcons.box,
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          if (val.isEmpty) return;
+                          final boxes = int.tryParse(val);
+                          final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                          if (boxes != null && spb > 0) {
+                            _stockStripsCtrl.text = (boxes * spb).toString();
+                          }
+                        },
+                      ),
+                    ),
                   _buildField(
                     controller: _stockStripsCtrl,
-                    label: 'Stock (Strips)',
+                    label: 'Stock (${_unitLabels['unit2'] ?? 'Strips'})',
                     icon: LucideIcons.layers,
                     keyboardType: TextInputType.number,
                     onChanged: (val) {
@@ -825,13 +850,13 @@ class _StockInScreenState extends State<StockInScreen> {
                       }
                     },
                   ),
-                  const SizedBox(height: 12),
-                  _buildField(
-                    controller: _lowStockWarningCtrl,
-                    label: 'Low Stock Warning (Box)',
-                    icon: LucideIcons.alertTriangle,
-                    keyboardType: TextInputType.number,
-                  ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _lowStockWarningCtrl,
+                      label: 'Low Stock Warning (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? 'Box'})',
+                      icon: LucideIcons.alertTriangle,
+                      keyboardType: TextInputType.number,
+                    ),
                   const SizedBox(height: 12),
                   LayoutBuilder(
                     builder: (context, constraints) {
@@ -1202,7 +1227,7 @@ class _StockInScreenState extends State<StockInScreen> {
     void Function(String)? onChanged,
     FocusNode? focusNode,
     VoidCallback? onEditingComplete,
-    Widget? suffixIcon,
+    Widget? suffixIcon, String? hintText,
   }) {
     return TextFormField(
       controller: controller,
@@ -1217,6 +1242,7 @@ class _StockInScreenState extends State<StockInScreen> {
       ),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hintText,
         labelStyle: const TextStyle(
           color: AppColors.secondaryAccent,
           fontWeight: FontWeight.w500,
@@ -1245,49 +1271,101 @@ class _StockInScreenState extends State<StockInScreen> {
         ),
       ),
     );
+  }  void _showMedTypePicker() {
+    final admin = context.read<AdminProvider>();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Change Medicine Type',
+          style: TextStyle(
+            color: AppColors.primaryDark,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: admin.medicineTypes.length,
+            itemBuilder: (c, i) {
+              final t = admin.medicineTypes[i];
+              final isSelected = t == _selectedMedType;
+              return ListTile(
+                leading: Icon(
+                  MedTypeIcons.getIcon(t),
+                  color: MedTypeIcons.getColor(t),
+                  size: 20,
+                ),
+                title: Text(
+                  t,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                selected: isSelected,
+                selectedTileColor: MedTypeIcons.getColor(t).withValues(alpha: 0.1),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onTap: () {
+                  setState(() {
+                    _selectedMedType = t;
+                  });
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildMedTypeDropdown() {
-    final admin = context.watch<AdminProvider>();
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedMedType,
-      decoration: InputDecoration(
-        labelText: 'Medicine Type',
-        labelStyle: const TextStyle(
-          color: AppColors.secondaryAccent,
-          fontWeight: FontWeight.w500,
-        ),
-        prefixIcon: const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
-        filled: true,
-        fillColor: AppColors.surfaceLight,
-        border: OutlineInputBorder(
+    return InkWell(
+      onTap: _showMedTypePicker,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
+          border: Border.all(color: AppColors.secondaryAccent, width: 1.5),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
+        child: Row(
+          children: [
+            const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Medicine Type',
+                    style: TextStyle(
+                      color: AppColors.secondaryAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    _selectedMedType ?? 'Select type',
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(LucideIcons.chevronDown, color: AppColors.secondaryAccent, size: 20),
+          ],
         ),
       ),
-      items: admin.medicineTypes.map((type) {
-        return DropdownMenuItem(
-          value: type,
-          child: Text(
-            type,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
-      }).toList(),
-      onChanged: (val) {
-        setState(() => _selectedMedType = val);
-      },
     );
   }
 }

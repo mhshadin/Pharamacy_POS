@@ -53,20 +53,55 @@ CREATE TABLE `pharmacies` (
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
--- --------------------------------------------------------
-
 --
--- Table structure for table `subscriptions`
+-- Table structure for table `subscription_plans`
 --
 
-CREATE TABLE `subscriptions` (
+CREATE TABLE `subscription_plans` (
+  `id` varchar(36) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `description` text DEFAULT NULL,
+  `billing_cycle` enum('monthly','yearly','lifetime') NOT NULL,
+  `trial_days` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Table structure for table `coupons`
+--
+
+CREATE TABLE `coupons` (
+  `id` varchar(36) NOT NULL,
+  `code` varchar(50) NOT NULL,
+  `free_days` int(11) DEFAULT 0,
+  `discount_percent` decimal(5,2) DEFAULT 0.00,
+  `max_uses` int(11) DEFAULT NULL,
+  `used_count` int(11) DEFAULT 0,
+  `expires_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Table structure for table `subscribers`
+--
+
+CREATE TABLE `subscribers` (
   `id` varchar(36) NOT NULL,
   `pharmacy_id` varchar(36) NOT NULL,
-  `plan_name` varchar(50) NOT NULL,
-  `billing_cycle` enum('monthly','yearly','lifetime') NOT NULL,
+  `plan_id` varchar(36) NOT NULL,
   `valid_until` datetime NOT NULL,
   `last_sync_at` datetime DEFAULT NULL,
-  `status` enum('active','past_due','expired') DEFAULT 'active'
+  `status` enum('active','past_due','expired') DEFAULT 'active',
+  `coupon_id` varchar(36) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `pharmacy_id` (`pharmacy_id`),
+  KEY `plan_id` (`plan_id`),
+  KEY `coupon_id` (`coupon_id`),
+  KEY `idx_valid_until` (`valid_until`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -110,12 +145,12 @@ ALTER TABLE `pharmacies`
   ADD UNIQUE KEY `contact_email` (`contact_email`);
 
 --
--- Indexes for table `subscriptions`
+-- Indexes for table `subscribers`
 --
-ALTER TABLE `subscriptions`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `pharmacy_id` (`pharmacy_id`),
-  ADD KEY `idx_valid_until` (`valid_until`);
+ALTER TABLE `subscribers`
+  ADD CONSTRAINT `subscribers_ibfk_1` FOREIGN KEY (`pharmacy_id`) REFERENCES `pharmacies` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `subscribers_ibfk_2` FOREIGN KEY (`plan_id`) REFERENCES `subscription_plans` (`id`),
+  ADD CONSTRAINT `subscribers_ibfk_3` FOREIGN KEY (`coupon_id`) REFERENCES `coupons` (`id`);
 
 --
 -- Indexes for table `users`
@@ -136,11 +171,7 @@ ALTER TABLE `users`
 ALTER TABLE `devices`
   ADD CONSTRAINT `devices_ibfk_1` FOREIGN KEY (`pharmacy_id`) REFERENCES `pharmacies` (`id`) ON DELETE CASCADE;
 
---
--- Constraints for table `subscriptions`
---
-ALTER TABLE `subscriptions`
-  ADD CONSTRAINT `subscriptions_ibfk_1` FOREIGN KEY (`pharmacy_id`) REFERENCES `pharmacies` (`id`) ON DELETE CASCADE;
+-- Removed redundant subscriptions_ibfk_1 (handled in subscribers table)
 
 --
 -- Constraints for table `users`

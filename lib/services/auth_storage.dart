@@ -10,12 +10,14 @@ class AuthSession {
     required this.userRole,
     required this.subscriptionStatus,
     required this.subscriptionValidUntil,
+    required this.userEmail,
     this.googleAccessToken,
   });
 
   final String licenseToken;
   final String userId;
   final String userName;
+  final String userEmail;
   final String userRole;
   final String subscriptionStatus;
   final String subscriptionValidUntil;
@@ -31,6 +33,7 @@ class AuthStorage {
   static const _keyUserRole = 'auth_user_role';
   static const _keySubStatus = 'auth_sub_status';
   static const _keySubValidUntil = 'auth_sub_valid_until';
+  static const _keyUserEmail = 'auth_user_email';
   static const _keyHardwareUid = 'hardware_uid';
   static const _keyGoogleAccessToken = 'auth_google_access_token';
 
@@ -41,6 +44,7 @@ class AuthStorage {
     await prefs.setString(_keyToken, result.licenseToken);
     await prefs.setString(_keyUserId, result.userId);
     await prefs.setString(_keyUserName, result.userName);
+    await prefs.setString(_keyUserEmail, result.userEmail);
     await prefs.setString(_keyUserRole, result.userRole);
     await prefs.setString(_keySubStatus, result.subscriptionStatus);
     await prefs.setString(_keySubValidUntil, result.subscriptionValidUntil);
@@ -58,6 +62,7 @@ class AuthStorage {
       licenseToken: token,
       userId: prefs.getString(_keyUserId) ?? '',
       userName: prefs.getString(_keyUserName) ?? '',
+      userEmail: prefs.getString(_keyUserEmail) ?? '',
       userRole: prefs.getString(_keyUserRole) ?? '',
       subscriptionStatus: prefs.getString(_keySubStatus) ?? '',
       subscriptionValidUntil: prefs.getString(_keySubValidUntil) ?? '',
@@ -79,6 +84,7 @@ class AuthStorage {
     await prefs.remove(_keyUserRole);
     await prefs.remove(_keySubStatus);
     await prefs.remove(_keySubValidUntil);
+    await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyGoogleAccessToken);
   }
 

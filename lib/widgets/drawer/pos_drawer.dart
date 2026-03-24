@@ -112,11 +112,15 @@ class _PosDrawerState extends State<PosDrawer> {
     final userInitials = userName.isNotEmpty
         ? userName
             .split(' ')
-            .map((e) => e.isNotEmpty ? e[0] : '')
+            .where((e) => e.isNotEmpty)
+            .map((e) => e[0])
             .take(2)
             .join()
             .toUpperCase()
         : 'U';
+
+    // Check if google user for badge
+    final isGoogleUser = _authSession?.googleAccessToken != null;
 
     final admin = context.watch<AdminProvider>();
     final isSyncing = admin.isSyncing;
@@ -158,28 +162,62 @@ class _PosDrawerState extends State<PosDrawer> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryAccent,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withAlpha(51),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          userInitials,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            decoration: TextDecoration.none,
+                    Stack(
+                      children: [
+                        Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [AppColors.secondaryAccent, AppColors.secondaryAccent.withAlpha(150)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withAlpha(80),
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(50),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              userInitials,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        if (isGoogleUser)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Image.network(
+                                'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_logo.svg',
+                                width: 14,
+                                height: 14,
+                                errorBuilder: (context, error, stackTrace) => 
+                                  const Icon(LucideIcons.chrome, size: 12, color: Color(0xFF4285F4)),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -194,11 +232,13 @@ class _PosDrawerState extends State<PosDrawer> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Pharmacy POS',
+                      _authSession?.userRole.toUpperCase() ?? 'PHARMACY POS',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withAlpha(179),
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white.withAlpha(180),
                         decoration: TextDecoration.none,
                       ),
                     ),

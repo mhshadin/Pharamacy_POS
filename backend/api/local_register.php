@@ -50,19 +50,52 @@ try {
 
     $pharmacyId = generate_uuid_v4();
     $userId = generate_uuid_v4();
-    $subId = generate_uuid_v4();
+    $subscriberId = generate_uuid_v4();
     $deviceId = generate_uuid_v4();
     
-    $trialExpiry = date('Y-m-d H:i:s', strtotime('+14 days'));
+    // 1. Fetch Default "Trial" Plan
+    $stmtPlan = $pdo->prepare('SELECT id, trial_days FROM subscription_plans WHERE name = ? LIMIT 1');
+    $stmtPlan->execute(['Trial']);
+    $plan = $stmtPlan->fetch();
+    
+    if (!$plan) {
+        // Fallback if Trial plan is not seeded yet
+        $planId = generate_uuid_v4();
+        $trialDays = 14;
+        $pdo->prepare('INSERT INTO subscription_plans (id, name, price, billing_cycle, trial_days) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$planId, 'Trial', 0.00, 'monthly', $trialDays]);
+    } else {
+        $planId = $plan['id'];
+        $trialDays = $plan['trial_days'];
+    }
+
+    // 2. Handle Coupon Code
+    $couponId = null;
+    $extraDays = 0;
+    if (!empty($inputData['coupon_code'])) {
+        $stmtCoupon = $pdo->prepare('SELECT id, free_days, max_uses, used_count FROM coupons WHERE code = ? AND (expires_at IS NULL OR expires_at > NOW())');
+        $stmtCoupon->execute([$inputData['coupon_code']]);
+        $coupon = $stmtCoupon->fetch();
+        
+        if ($coupon && ($coupon['max_uses'] === null || $coupon['used_count'] < $coupon['max_uses'])) {
+            $couponId = $coupon['id'];
+            $extraDays = (int)$coupon['free_days'];
+            // Increment used count
+            $pdo->prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?')->execute([$couponId]);
+        }
+    }
+
+    $totalDays = $trialDays + $extraDays;
+    $expiryDate = date('Y-m-d H:i:s', strtotime("+$totalDays days"));
 
     $pdo->prepare('INSERT INTO pharmacies (id, business_name, owner_name, contact_phone, contact_email, account_status) VALUES (?, ?, ?, ?, ?, ?)')
-        ->execute([$pharmacyId, $businessName, $fullName, 'PENDING', $email, 'trial']);
+        ->execute([$pharmacyId, $businessName, $fullName, 'PENDING', $email, 'active']);
 
     $pdo->prepare('INSERT INTO users (id, pharmacy_id, role, email, auth_provider, oauth_uid, password_hash, full_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         ->execute([$userId, $pharmacyId, 'owner', $email, 'local', null, $passwordHash, $fullName]);
 
-    $pdo->prepare('INSERT INTO subscriptions (id, pharmacy_id, plan_name, billing_cycle, valid_until, status) VALUES (?, ?, ?, ?, ?, ?)')
-        ->execute([$subId, $pharmacyId, 'Trial', 'monthly', $trialExpiry, 'active']);
+    $pdo->prepare('INSERT INTO subscribers (id, pharmacy_id, plan_id, valid_until, status, coupon_id) VALUES (?, ?, ?, ?, ?, ?)')
+        ->execute([$subscriberId, $pharmacyId, $planId, $expiryDate, 'active', $couponId]);
 
     $pdo->prepare('INSERT INTO devices (id, pharmacy_id, hardware_uid, device_name, last_login_at) VALUES (?, ?, ?, ?, NOW())')
         ->execute([$deviceId, $pharmacyId, $hardwareUid, 'POS Device']);
@@ -70,7 +103,7 @@ try {
     $pdo->commit();
 
     $issuedAt = time();
-    $subExpiryTimestamp = strtotime($trialExpiry); 
+    $subExpiryTimestamp = strtotime($expiryDate); 
     $jwtExpiry = $issuedAt + (60 * 60 * 24 * 30); 
 
     $jwtPayload = [
@@ -92,7 +125,9 @@ try {
         'license_token' => $licenseToken,
         'subscription' => [
             'status' => 'active',
-            'valid_until' => $trialExpiry
+            'valid_until' => $expiryDate,
+            'plan_name' => 'Trial',
+            'coupon_applied' => $couponId ? true : false
         ],
         'user' => [
             'id' => $userId,

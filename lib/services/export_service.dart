@@ -218,7 +218,7 @@ class ExportService {
     List<Product> products,
   ) async {
     List<List<dynamic>> rows = [
-      ['Name', 'Generic', 'Type', 'Barcode', 'Strips', 'Pcs', 'Total Pcs', 'Expiry'],
+      ['Name', 'Generic', 'Type', 'Barcode', 'Unit 1 Stock', 'Unit 2 Stock', 'Total Pieces', 'Expiry'],
     ];
     for (var p in products) {
       rows.add([
@@ -317,7 +317,7 @@ class ExportService {
                   p.name,
                   p.generic,
                   p.medType ?? 'Tablet',
-                  '${p.stockStrips} Str / ${p.stockPcs} Pcs',
+                  '${p.stockStrips} ${p.unitLabels['unit2'] ?? 'Str'} / ${p.stockPcs} ${p.unitLabels['unit3'] ?? 'Pcs'}',
                   p.expiryDate != null
                       ? dateFormat.format(p.expiryDate!)
                       : 'N/A',
@@ -379,8 +379,8 @@ class ExportService {
         'Product Name',
         'Generic',
         'Company',
-        'Current Stock (Strips)',
-        'Current Stock (Pcs)',
+        'Stock (Level 2)',
+        'Stock (Total Pieces)',
         'Boxes to Order',
       ],
     ];
@@ -477,16 +477,16 @@ class ExportService {
                 'Product Name',
                 'Generic',
                 'Company',
-                'Stock (Strips/Pcs)',
-                'Boxes to Order',
+                'Stock (Level 2 / Total Pcs)',
+                'Boxes/Units to Order',
               ],
               data: products.map((p) {
                 return [
                   p.name,
                   p.generic,
                   p.companyName ?? '-',
-                  '${p.stockStrips} str / ${p.totalPieces} pcs',
-                  '${orderQtys[p.id] ?? 0}',
+                  '${p.stockStrips} ${p.unitLabels['unit2']?.toLowerCase() ?? 'str'} / ${p.totalPieces} pcs',
+                  '${orderQtys[p.id] ?? 0} ${p.unitLabels['unit1']?.toLowerCase() ?? 'bx'}',
                 ];
               }).toList(),
               border: pw.TableBorder.all(width: 0.5),

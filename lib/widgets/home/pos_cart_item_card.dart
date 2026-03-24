@@ -93,37 +93,39 @@ class PosCartItemCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 2),
-                        const Text(
-                          'strip',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.secondaryAccent,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        TakaSymbol(
-                          size: isNarrow ? 10.0 : 11.0,
-                          color: AppColors.secondaryAccent,
-                        ),
-                        const SizedBox(width: 2),
                         Text(
-                          item.product.pricePc.toStringAsFixed(2),
-                          style: TextStyle(
-                            fontSize: isNarrow ? 11.0 : 12.0,
-                            color: AppColors.secondaryAccent,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        const Text(
-                          'pc',
-                          style: TextStyle(
+                          (item.product.unitLabels['unit2'] ?? 'strip').toLowerCase(),
+                          style: const TextStyle(
                             fontSize: 10,
                             color: AppColors.secondaryAccent,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        if (item.product.unitLabels['unit3'] != null) ...[
+                          const SizedBox(width: 10),
+                          TakaSymbol(
+                            size: isNarrow ? 10.0 : 11.0,
+                            color: AppColors.secondaryAccent,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            item.product.pricePc.toStringAsFixed(2),
+                            style: TextStyle(
+                              fontSize: isNarrow ? 11.0 : 12.0,
+                              color: AppColors.secondaryAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            item.product.unitLabels['unit3']!.toLowerCase(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.secondaryAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -177,23 +179,26 @@ class PosCartItemCard extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      _QuantityBox(
-                        label: 'STRIP',
-                        quantity: item.stripQuantity,
-                        onDecrement: () =>
-                            provider.updateStripQuantity(item.product, -1),
-                        onIncrement: () =>
-                            provider.updateStripQuantity(item.product, 1),
-                      ),
-                      const SizedBox(width: 12),
-                      _QuantityBox(
-                        label: 'PC',
-                        quantity: item.pcQuantity,
-                        onDecrement: () =>
-                            provider.updatePcQuantity(item.product, -1),
-                        onIncrement: () =>
-                            provider.updatePcQuantity(item.product, 1),
-                      ),
+                      if (item.product.unitLabels['unit2'] != null)
+                        _QuantityBox(
+                          label: item.product.unitLabels['unit2']!.toUpperCase(),
+                          quantity: item.stripQuantity,
+                          onDecrement: () =>
+                              provider.updateStripQuantity(item.product, -1),
+                          onIncrement: () =>
+                              provider.updateStripQuantity(item.product, 1),
+                        ),
+                      if (item.product.unitLabels['unit2'] != null && item.product.unitLabels['unit3'] != null)
+                        const SizedBox(width: 12),
+                      if (item.product.unitLabels['unit3'] != null)
+                        _QuantityBox(
+                          label: item.product.unitLabels['unit3']!.toUpperCase(),
+                          quantity: item.pcQuantity,
+                          onDecrement: () =>
+                              provider.updatePcQuantity(item.product, -1),
+                          onIncrement: () =>
+                              provider.updatePcQuantity(item.product, 1),
+                        ),
                       const Spacer(),
                       IconButton(
                         onPressed: () => provider.removeItem(item.product.id),

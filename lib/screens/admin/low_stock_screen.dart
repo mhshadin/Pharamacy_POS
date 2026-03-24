@@ -310,13 +310,13 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 final p = products[i];
                 return ListTile(
                   title: Text(p.name),
-                  subtitle: Text('Deficit: ${p.minStockLevel - p.stockStrips} strips'),
+                  subtitle: Text('Deficit: ${p.minStockLevel - p.stockStrips} ${(p.unitLabels['unit2'] ?? 'strips').toLowerCase()}'),
                   trailing: SizedBox(
                     width: 80,
                     child: TextFormField(
                       initialValue: '${orderQtys[p.id]}',
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(suffixText: 'bx'),
+                      decoration: InputDecoration(suffixText: (p.unitLabels['unit1'] ?? p.unitLabels['unit2'] ?? 'bx').toLowerCase().substring(0, 2)),
                       onChanged: (v) {
                         orderQtys[p.id] = int.tryParse(v) ?? 1;
                       },
@@ -816,7 +816,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             children: [
                               _statBox(
                                 label: 'IN STOCK',
-                                value: '${product.stockBoxes} bx',
+                                value: '${product.stockBoxes} ${(product.unitLabels['unit1'] ?? 'bx').toLowerCase()}',
                                 bg: accent.withValues(alpha: 0.08),
                                 fg: accent,
                                 compact: isNarrow,
@@ -824,7 +824,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                               const SizedBox(width: 8),
                               _statBox(
                                 label: 'MIN',
-                                value: '$minBoxes bx',
+                                value: '$minBoxes ${(product.unitLabels['unit1'] ?? 'bx').toLowerCase()}',
                                 bg: AppColors.primaryDark.withValues(alpha: 0.06),
                                 fg: AppColors.primaryDark,
                                 compact: isNarrow,
@@ -833,7 +833,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           );
 
                           final extraInfo = Text(
-                            '${product.remainingStrips} strips • ${product.stockPcs} pcs extra',
+                            '${product.remainingStrips} ${(product.unitLabels['unit2'] ?? 'strips').toLowerCase()} • ${product.stockPcs} ${(product.unitLabels['unit3'] ?? 'pcs').toLowerCase()} extra',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 11,

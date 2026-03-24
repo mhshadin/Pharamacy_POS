@@ -296,11 +296,15 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                       if (selected) posProvider.setSelectedMedType(null);
                     },
                     selectedColor: AppColors.highlightActive,
-                    backgroundColor: AppColors.surfaceLight.withOpacity(0.1),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
                     labelStyle: TextStyle(
                       color: posProvider.selectedMedType == null
                           ? AppColors.white
-                          : AppColors.white.withOpacity(0.7),
+                          : AppColors.primaryDark,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -317,18 +321,22 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                           size: 14,
                           color: isSelected 
                             ? MedTypeIcons.getContrastColor(chipColor) 
-                            : AppColors.white.withOpacity(0.6),
+                            : AppColors.primaryDark,
                         ),
                         selected: isSelected,
                         onSelected: (selected) {
                           posProvider.setSelectedMedType(selected ? type : null);
                         },
                         selectedColor: chipColor,
-                        backgroundColor: AppColors.surfaceLight.withOpacity(0.1),
+                        backgroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
                         labelStyle: TextStyle(
                           color: isSelected
                               ? MedTypeIcons.getContrastColor(chipColor)
-                              : AppColors.white.withOpacity(0.7),
+                              : AppColors.primaryDark,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

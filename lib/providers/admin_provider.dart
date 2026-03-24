@@ -7,6 +7,7 @@ import '../services/database_helper.dart';
 import '../services/notification_service.dart';
 import '../services/drive_service.dart';
 import '../services/auth_storage.dart';
+import '../services/auth_service.dart';
 import '../services/google_drive_auth.dart';
 import '../utils/inventory_alert_tiers.dart';
 import 'dart:developer' as developer;
@@ -65,8 +66,11 @@ class AdminProvider extends ChangeNotifier {
   // Track products that the user has "seen" by opening the notification screen
   Set<String> _readLowStockIds = {};
   Set<String> _readExpiringIds = {};
+  
+  AuthSession? _authSession;
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
+  AuthSession? get authSession => _authSession;
   List<Product> get allProducts => _products;
 
   int get lowStockThreshold => _lowStockThreshold;
@@ -181,7 +185,23 @@ class AdminProvider extends ChangeNotifier {
     _showSupplierInfo = settings['showSupplierInfo'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
+    
+    // Load auth session for user info
+    _authSession = await const AuthStorage().loadAuth();
+    
+    // Load PIN - try backend first if online, otherwise local
     _currentPin = settings['adminPin'] ?? '12345';
+    if (_authSession != null) {
+      try {
+        final backendPin = await const AuthService().getAdminPin(_authSession!.licenseToken);
+        if (backendPin != _currentPin) {
+          _currentPin = backendPin;
+          await _db.saveSetting('adminPin', backendPin);
+        }
+      } catch (e) {
+        developer.log("Failed to fetch admin PIN from backend", error: e);
+      }
+    }
 
     // Load read notification IDs
     final readLowStockStr = settings['readLowStockIds'] ?? '';
@@ -595,6 +615,22 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> updatePin(String oldPin, String newPin) async {
     if (oldPin != _currentPin) return false;
+    
+    // 1. Update backend if logged in
+    if (_authSession != null) {
+      try {
+        await const AuthService().updateAdminPin(
+          token: _authSession!.licenseToken,
+          newPin: newPin,
+        );
+      } catch (e) {
+        developer.log("Failed to sync admin PIN to backend", error: e);
+        // We still proceed with local update for offline usability, 
+        // but user might want to know it didn't sync.
+      }
+    }
+
+    // 2. Update local
     _currentPin = newPin;
     await saveSetting('adminPin', newPin);
     return true;
