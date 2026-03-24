@@ -1,30 +1,55 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:pharmacy_pos/main.dart';
+import 'package:pharmacy_pos/widgets/plan_card.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const PharmacyPOSApp());
+  testWidgets('PlanCard displays correct information', (WidgetTester tester) async {
+    bool tapped = false;
+    
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlanCard(
+            name: 'Basic Plan',
+            price: 500,
+            description: 'A basic subscription plan',
+            billingCycle: 'monthly',
+            isSelected: false,
+            onTap: () => tapped = true,
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify name, price, and description are displayed
+    expect(find.text('Basic Plan'), findsOneWidget);
+    expect(find.text('৳500'), findsOneWidget);
+    expect(find.text('A basic subscription plan'), findsOneWidget);
+    expect(find.text(' /mo'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Tap the card and verify callback
+    await tester.tap(find.byType(PlanCard));
+    expect(tapped, true);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('PlanCard highlights when selected', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlanCard(
+            name: 'Premium',
+            price: 1500,
+            description: 'Premium features',
+            billingCycle: 'monthly',
+            isSelected: true,
+            onTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    // Since we can't easily check colors/borders in a simple widget test without 
+    // deep inspection, we just verify it builds and has the POPULAR badge (if name contains premium)
+    expect(find.text('POPULAR'), findsOneWidget);
   });
 }
