@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../utils/api_error_mapper.dart';
 import '../../providers/admin_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/auth_storage.dart';
@@ -17,13 +18,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKeyPin = GlobalKey<FormState>();
   final _formKeyPass = GlobalKey<FormState>();
-  
+  final _formKeyName = GlobalKey<FormState>();
+
   final _oldPinCtrl = TextEditingController();
   final _newPinCtrl = TextEditingController();
   final _confirmPinCtrl = TextEditingController();
   
   final _newPassCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
+
+  final _nameCtrl = TextEditingController();
   
   bool _obscureOld = true;
   bool _obscureNew = true;
@@ -33,6 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _pinExpanded = false;
   bool _passExpanded = false;
+  bool _nameExpanded = false;
   bool _isLoading = false;
 
   @override
@@ -42,6 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _confirmPinCtrl.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
+    _nameCtrl.dispose();
     super.dispose();
   }
 
@@ -74,6 +80,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Incorrect current PIN.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateName() async {
+    if (!_formKeyName.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await context.read<AdminProvider>().updateProfileName(
+        _nameCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      _nameCtrl.clear();
+      setState(() {
+        _nameExpanded = false;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Name updated successfully!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ApiErrorMapper.forProfileNameUpdate(e)),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -120,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('AuthException: ', '')),
+          content: Text(ApiErrorMapper.forPasswordUpdate(e)),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -147,7 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             children: [
               // 1. HERO SECTION
-              _buildHero(userName, userInitials, session?.userRole, session?.subscriptionStatus),
+              _buildHero(userName, userInitials, session?.userRole, session?.subscriptionStatus, session?.userAvatarUrl),
               const SizedBox(height: 24),
               
               // 2. ACCOUNT INFO
@@ -169,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildHero(String name, String initials, String? role, String? subStatus) {
+  Widget _buildHero(String name, String initials, String? role, String? subStatus, String? avatarUrl) {
     final isSubActive = subStatus?.toLowerCase() == 'active';
     
     return Container(
@@ -201,16 +241,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: AppColors.white.withAlpha(30),
               border: Border.all(color: AppColors.white.withAlpha(50), width: 4),
             ),
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.white,
-                  letterSpacing: 2,
-                ),
-              ),
+            child: ClipOval(
+              child: avatarUrl != null && avatarUrl.isNotEmpty
+                  ? Image.network(
+                      avatarUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.white,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.white,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -271,8 +329,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _buildInfoRow(LucideIcons.mail, 'Email Address', session?.userEmail ?? 'Not provided'),
-          const Divider(height: 24),
-          _buildInfoRow(LucideIcons.hash, 'User ID', session?.userId ?? 'N/A'),
           const Divider(height: 24),
           _buildInfoRow(LucideIcons.calendar, 'Subscription Valid Until', 
             session?.subscriptionValidUntil != null && session!.subscriptionValidUntil.isNotEmpty
@@ -415,6 +471,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildSecuritySection(bool isGoogleUser) {
     return Column(
       children: [
+        // Name Edit Form
+        _buildCollapsibleSection(
+          title: 'Edit Display Name',
+          icon: LucideIcons.pencil,
+          isExpanded: _nameExpanded,
+          onToggle: () => setState(() => _nameExpanded = !_nameExpanded),
+          child: Form(
+            key: _formKeyName,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  keyboardType: TextInputType.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryDark,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'New Display Name',
+                    prefixIcon: const Icon(LucideIcons.user, size: 18),
+                    filled: true,
+                    fillColor: AppColors.primaryDark.withAlpha(5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.divider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.divider),
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Name is required';
+                    if (v.trim().length > 100) return 'Max 100 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                _buildSubmitButton('Save Name', _updateName),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
         // PIN Form (Always present, but collapsible)
         _buildCollapsibleSection(
           title: 'Update Admin PIN',

@@ -35,8 +35,8 @@ This plan details the implementation of medicine types (e.g., Tablet, Syrup, Inj
 - **UI**: Add a new section for "Medicine Types".
 - **Interaction**: A list of chips/tags with an 'add' button and 'delete' icon on each.
 
-### 2.2 Stock In Integration
-- **File**: `lib/screens/admin/stock_in_screen.dart`
+### 2.2 Add Product Integration
+- **File**: `lib/screens/admin/add_product_screen.dart`
 - **UI**: Add a `DropdownButtonFormField` for medicine type.
 - **Logic**: Default selection set to 'Tablet'.
 

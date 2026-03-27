@@ -958,174 +958,113 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
           padding: ResponsiveHelper.screenPadding(context),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              const controlHeight = 40.0;
-              final controlRadius = BorderRadius.circular(8);
-              final hasActiveFilter =
-                  _startDate != null || _minAmount != null || _maxAmount != null;
+              const controlHeight = 44.0;
+              final controlRadius = BorderRadius.circular(12);
 
-              final filterControl = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: SizedBox(
-                      height: controlHeight,
-                      child: Material(
-                        color: AppColors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: controlRadius,
-                          side: const BorderSide(color: AppColors.divider),
-                        ),
-                        child: InkWell(
-                          borderRadius: controlRadius,
-                          onTap: _showFilterDialog,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  LucideIcons.calendar,
-                                  size: 16,
-                                  color: AppColors.primaryDark,
-                                ),
-                                const SizedBox(width: 6),
-                                if (hasActiveFilter)
-                                  Flexible(
-                                    child: Text(
-                                      [
-                                        if (_startDate != null)
-                                          _startDate!.day == _endDate!.day &&
-                                                  _startDate!.month ==
-                                                      _endDate!.month &&
-                                                  _startDate!.year ==
-                                                      _endDate!.year
-                                              ? DateFormat('dd MMM')
-                                                      .format(_startDate!) +
-                                                  (_startTime != null
-                                                      ? ' (${_startTime!.format(context)} - ${_endTime?.format(context) ?? '*'})'
-                                                      : '')
-                                              : '${DateFormat('dd MMM').format(_startDate!)} - ${DateFormat('dd MMM').format(_endDate!)}',
-                                        if (_minAmount != null ||
-                                            _maxAmount != null)
-                                          '৳${_minAmount?.toStringAsFixed(0) ?? '0'} - ৳${_maxAmount?.toStringAsFixed(0) ?? '∞'}',
-                                      ].join(' | '),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.primaryDark,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  const Text(
-                                    'Filters',
-                                    style: TextStyle(
-                                      color: AppColors.primaryDark,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
+              final filterControl = Align(
+                alignment: Alignment.centerLeft,
+                child: Material(
+                  color: AppColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: controlRadius,
+                    side: const BorderSide(color: AppColors.divider),
+                  ),
+                  child: InkWell(
+                    borderRadius: controlRadius,
+                    onTap: _showFilterDialog,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.calendar,
+                            size: 14,
+                            color: AppColors.secondaryAccent,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Filters',
+                            style: TextStyle(
+                              color: AppColors.secondaryAccent,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
-                  if (hasActiveFilter)
-                    IconButton(
-                      icon: const Icon(
-                        LucideIcons.xCircle,
-                        size: 18,
-                        color: AppColors.error,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _startDate = null;
-                          _endDate = null;
-                          _startTime = null;
-                          _endTime = null;
-                          _minAmount = null;
-                          _maxAmount = null;
-                          _searchInvoice();
-                        });
-                      },
-                      tooltip: 'Clear filters',
-                    ),
-                ],
+                ),
               );
 
               final sortControl = Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   const Text(
                     'Sort By:',
                     style: TextStyle(
                       color: AppColors.secondaryAccent,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: Container(
-                      height: controlHeight,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: controlRadius,
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<ReturnSortOption>(
-                          value: _currentSort,
-                          icon: const Icon(LucideIcons.chevronDown, size: 16),
-                          isExpanded: true,
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
-                          onChanged: (ReturnSortOption? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _currentSort = newValue;
-                                _searchInvoice();
-                              });
-                            }
-                          },
-                          items: const [
-                            DropdownMenuItem(
-                              value: ReturnSortOption.newest,
-                              child: Text('Date: Newest'),
-                            ),
-                            DropdownMenuItem(
-                              value: ReturnSortOption.oldest,
-                              child: Text('Date: Oldest'),
-                            ),
-                            DropdownMenuItem(
-                              value: ReturnSortOption.amountHighToLow,
-                              child: Text('Amt: High → Low'),
-                            ),
-                            DropdownMenuItem(
-                              value: ReturnSortOption.amountLowToHigh,
-                              child: Text('Amt: Low → High'),
-                            ),
-                          ],
+                  Container(
+                    height: controlHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<ReturnSortOption>(
+                        value: _currentSort,
+                        icon: const Icon(LucideIcons.chevronDown, size: 14),
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
                         ),
+                        onChanged: (ReturnSortOption? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              _currentSort = newValue;
+                              _searchInvoice();
+                            });
+                          }
+                        },
+                        items: const [
+                          DropdownMenuItem(
+                            value: ReturnSortOption.newest,
+                            child: Text('Date : Newest'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReturnSortOption.oldest,
+                            child: Text('Date : Oldest'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReturnSortOption.amountHighToLow,
+                            child: Text('Price : High'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReturnSortOption.amountLowToHigh,
+                            child: Text('Price : Low'),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               );
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: filterControl),
-                  const SizedBox(width: 8),
-                  Expanded(child: sortControl),
-                ],
+              return ResponsiveHelper.responsiveRow(
+                constraints: constraints,
+                left: filterControl,
+                right: sortControl,
+                spacing: 12,
+                breakpoint: 480,
               );
             },
           ),
@@ -1172,38 +1111,50 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                       (s) => (s.quantity - s.returnedQuantity) <= 0,
                     );
                     final tileWidth = MediaQuery.sizeOf(ctx).width;
-                    final isCompact = tileWidth < 460;
+                    final bool isVeryCompact = tileWidth < 480;
 
                     return Card(
                       color: AppColors.white,
                       margin: const EdgeInsets.only(bottom: 16),
-                      elevation: 2,
+                      elevation: 4,
+                      shadowColor: AppColors.primaryDark.withValues(alpha: 0.1),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: AppColors.divider),
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: allReturned
+                              ? AppColors.success.withValues(alpha: 0.3)
+                              : AppColors.divider,
+                          width: allReturned ? 2 : 1,
+                        ),
                       ),
                       child: Theme(
-                        data: Theme.of(
-                          context,
-                        ).copyWith(dividerColor: Colors.transparent),
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                        ),
                         child: ExpansionTile(
                           initiallyExpanded: index == 0,
-                          shape: const RoundedRectangleBorder(
-                            side: BorderSide.none,
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                          collapsedShape: const RoundedRectangleBorder(
-                            side: BorderSide.none,
-                          ),
+                          childrenPadding: EdgeInsets.zero,
                           leading: Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryDark.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              color: (allReturned
+                                      ? AppColors.success
+                                      : AppColors.primaryDark)
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              LucideIcons.fileText,
-                              color: AppColors.primaryDark,
-                              size: 20,
+                            child: Icon(
+                              allReturned
+                                  ? LucideIcons.checkCircle2
+                                  : LucideIcons.fileText,
+                              color: allReturned
+                                  ? AppColors.success
+                                  : AppColors.primaryDark,
+                              size: 22,
                             ),
                           ),
                           title: Text(
@@ -1211,87 +1162,163 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 16,
                               color: AppColors.primaryDark,
                             ),
                           ),
                           subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Row(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '${salesForInvoice.first.date.day}/${salesForInvoice.first.date.month}/${salesForInvoice.first.date.year} • ',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.secondaryAccent,
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      LucideIcons.calendar,
+                                      size: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat('dd MMM yyyy')
+                                          .format(salesForInvoice.first.date),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const TakaSymbol(
+                                      size: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      salesForInvoice
+                                          .fold(
+                                            0.0,
+                                            (sum, s) => sum + s.effectiveAmount,
+                                          )
+                                          .toStringAsFixed(2),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (allReturned)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'Fully Returned',
+                                        style: TextStyle(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const TakaSymbol(
-                                  size: 12,
-                                  color: AppColors.secondaryAccent,
-                                ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  salesForInvoice
-                                      .fold(
-                                        0.0,
-                                        (sum, s) => sum + s.effectiveAmount,
-                                      )
-                                      .toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.secondaryAccent,
+                                if (!allReturned && isVeryCompact)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: SizedBox(
+                                            height: 40,
+                                            child: OutlinedButton(
+                                              onPressed: () =>
+                                                  _loadInvoiceIntoCart(
+                                                salesForInvoice,
+                                              ),
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor:
+                                                    AppColors.primaryDark,
+                                                padding: EdgeInsets.zero,
+                                                side: const BorderSide(
+                                                  color: AppColors.divider,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Change',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: SizedBox(
+                                            height: 40,
+                                            child: ElevatedButton(
+                                              onPressed: () =>
+                                                  _processInvoiceReturn(
+                                                invoiceStr,
+                                                salesForInvoice,
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppColors.error,
+                                                foregroundColor: AppColors.white,
+                                                padding: EdgeInsets.zero,
+                                                elevation: 0,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Return Items',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
-                          trailing: allReturned
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Text(
-                                    'Fully Returned',
-                                    style: TextStyle(
-                                      color: AppColors.success,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                )
-                              : FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerRight,
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    alignment: WrapAlignment.end,
-                                    children: [
-                                      OutlinedButton(
-                                        onPressed: () =>
-                                            _loadInvoiceIntoCart(
+                          trailing: (allReturned || isVeryCompact)
+                              ? null
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      height: 40,
+                                      child: OutlinedButton(
+                                        onPressed: () => _loadInvoiceIntoCart(
                                           salesForInvoice,
                                         ),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor:
                                               AppColors.primaryDark,
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: isCompact ? 10 : 14,
-                                            vertical: isCompact ? 6 : 8,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
                                           ),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                          visualDensity: isCompact
-                                              ? VisualDensity.compact
-                                              : VisualDensity.standard,
                                           side: const BorderSide(
                                             color: AppColors.divider,
                                           ),
@@ -1307,47 +1334,36 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                           ),
                                         ),
                                       ),
-                                      ElevatedButton.icon(
-                                        onPressed: () =>
-                                            _processInvoiceReturn(
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      height: 40,
+                                      child: ElevatedButton(
+                                        onPressed: () => _processInvoiceReturn(
                                           invoiceStr,
                                           salesForInvoice,
                                         ),
-                                        icon: const Icon(
-                                          LucideIcons.rotateCcw,
-                                          size: 14,
-                                          color: AppColors.white,
-                                        ),
-                                        label: Text(
-                                          isCompact ? 'Return' : 'Return Items',
-                                          style: const TextStyle(
-                                            color: AppColors.white,
-                                          ),
-                                        ),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.error,
-                                          padding: isCompact
-                                              ? const EdgeInsets.symmetric(
-                                                  horizontal: 10,
-                                                  vertical: 8,
-                                                )
-                                              : const EdgeInsets.symmetric(
-                                                  horizontal: 12,
-                                                  vertical: 8,
-                                                ),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                          visualDensity: isCompact
-                                              ? VisualDensity.compact
-                                              : VisualDensity.standard,
+                                          foregroundColor: AppColors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                          ),
+                                          elevation: 2,
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
                                                 BorderRadius.circular(8),
                                           ),
                                         ),
+                                        child: const Text(
+                                          'Return Items',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                           children: [
                             const Divider(height: 1),

@@ -6,7 +6,7 @@ import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import 'product_list_screen.dart';
-import 'stock_in_screen.dart';
+import 'add_product_screen.dart';
 import 'sales_report_screen.dart';
 import 'expiring_soon_screen.dart';
 import 'low_stock_screen.dart';
@@ -33,7 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   final List<_NavItem> _navItems = [
     _NavItem(icon: LucideIcons.layoutDashboard, label: 'Dashboard'),
-    _NavItem(icon: LucideIcons.packagePlus, label: 'Stock In'),
+    _NavItem(icon: LucideIcons.packagePlus, label: 'Add Product'),
     _NavItem(icon: LucideIcons.rotateCcw, label: 'Returns'),
     _NavItem(icon: LucideIcons.barChart3, label: 'Sales Report'),
     _NavItem(icon: LucideIcons.clock, label: 'Expiring Soon'),
@@ -74,7 +74,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardPage();
       case 1:
-        return const StockInScreen();
+        return const AddProductScreen();
       case 2:
         return const ReturnsScreen();
       case 3:

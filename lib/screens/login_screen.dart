@@ -1,12 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../utils/colors.dart';
+import '../utils/api_error_mapper.dart';
 import '../services/auth_service.dart';
 import '../services/auth_storage.dart';
 import '../services/google_drive_auth.dart';
+import '../services/google_oauth_desktop.dart';
 import 'home_screen.dart';
 import 'subscription_screen.dart';
+import '../providers/admin_provider.dart';
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,7 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // Use the shared instance so interactive login and background Drive sync
   // share the same GoogleSignIn session (required for signInSilently to work).
   final _googleSignIn = googleSignInClient;
-
 
   @override
   void dispose() {
@@ -77,15 +82,17 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result.subscriptionStatus == 'active') {
         nextScreen = const HomeScreen();
       } else {
-        nextScreen = SubscriptionScreen(pharmacyId: result.userId, isDismissible: true);
+        nextScreen = SubscriptionScreen(
+          pharmacyId: result.userId,
+          isDismissible: true,
+        );
       }
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
-
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     } on AuthException catch (e) {
-      _showErrorSnackBar(e.message);
+      _showErrorSnackBar(ApiErrorMapper.forLogin(e));
     } catch (e) {
       _showErrorSnackBar('Login failed. Please try again.');
     } finally {
@@ -117,19 +124,18 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authStorage.saveAuth(result);
 
       if (!mounted) return;
-      
+
       // After registration, always show subscription screen or trial info
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => SubscriptionScreen(
-            pharmacyId: result.userId, 
+            pharmacyId: result.userId,
             isDismissible: true,
           ),
         ),
       );
-
     } on AuthException catch (e) {
-      _showErrorSnackBar(e.message);
+      _showErrorSnackBar(ApiErrorMapper.forRegistration(e));
     } catch (e) {
       _showErrorSnackBar('Registration failed. Please try again.');
     } finally {
@@ -149,32 +155,60 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final account = await _googleSignIn.signIn();
-      if (account == null) {
-         if (mounted) {
-           setState(() {
-             _isGoogleLoading = false;
-           });
-         }
-         return;
-      }
+      print("DEBUG: Google Login starting...");
+      String idToken;
+      String? accessToken;
 
-      final auth = await account.authentication;
-      final idToken = auth.idToken;
-      final accessToken = auth.accessToken;
+      if (Platform.isWindows) {
+        print("DEBUG: Using Windows PKCE Flow...");
+        final tokens = await signInWithGoogleDesktop();
+        idToken = tokens.idToken;
+        accessToken = tokens.accessToken;
+      } else {
+        print("DEBUG: Triggering native Google Sign-In...");
+        final account = await _googleSignIn.signIn();
+        if (account == null) {
+          print("DEBUG: Google Sign-In interaction CANCELED by user.");
+          if (mounted) {
+            setState(() {
+              _isGoogleLoading = false;
+            });
+          }
+          return;
+        }
 
-      if (idToken == null || idToken.isEmpty) {
-        _showErrorSnackBar('Unable to get Google ID token.');
-        return;
+        print("DEBUG: User selected account: ${account.email}");
+        final auth = await account.authentication;
+        idToken = auth.idToken ?? '';
+        accessToken = auth.accessToken;
+
+        print(
+          "DEBUG: Retrieved idToken (len: ${idToken.length}), accessToken (len: ${accessToken?.length ?? 0})",
+        );
+
+        if (idToken.isEmpty) {
+          print("DEBUG ERROR: Google ID token is EMPTY.");
+          _showErrorSnackBar('Unable to get Google ID token.');
+          return;
+        }
       }
 
       final hardwareUid = await _authStorage.getOrCreateHardwareUid();
+      print("DEBUG: Hardware UID: $hardwareUid");
+
+      print("DEBUG: Sending tokens to backend...");
       final result = await _authService.loginWithGoogle(
         idToken: idToken,
         hardwareUid: hardwareUid,
       );
 
+      print("DEBUG: Backend Login successful for user: ${result.userName}");
       await _authStorage.saveAuth(result, googleAccessToken: accessToken);
+
+      if (mounted) {
+        print("DEBUG: Triggering database restore from Drive...");
+        await context.read<AdminProvider>().checkAndRestoreFromDrive();
+      }
 
       if (!mounted) return;
 
@@ -182,17 +216,28 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result.subscriptionStatus == 'active') {
         nextScreen = const HomeScreen();
       } else {
-        nextScreen = SubscriptionScreen(pharmacyId: result.userId, isDismissible: true);
+        nextScreen = SubscriptionScreen(
+          pharmacyId: result.userId,
+          isDismissible: true,
+        );
       }
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => nextScreen),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
+    } on GoogleDesktopAuthCancelled {
+      print("DEBUG: Google Desktop Auth Cancelled.");
+    } on GoogleDesktopAuthException catch (e) {
+      print("DEBUG ERROR: Google Desktop Auth Exception: ${e.message}");
+      _showErrorSnackBar(ApiErrorMapper.forGoogleSignIn(e));
     } on AuthException catch (e) {
-      _showErrorSnackBar(e.message);
-    } catch (e) {
+      print("DEBUG ERROR: Backend Auth Exception: $e");
+      _showErrorSnackBar(ApiErrorMapper.forGoogleSignIn(e));
+    } catch (e, stack) {
+      print("DEBUG ERROR: Generic Google sign-in failure: $e");
+      print(stack);
       if (e.toString().contains('sign_in_canceled')) {
-         return;
+        return;
       }
       _showErrorSnackBar('Google sign-in failed. Please try again.');
     } finally {
@@ -258,7 +303,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 color: AppColors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.cardBorder, width: 1.5),
+                  side: const BorderSide(
+                    color: AppColors.cardBorder,
+                    width: 1.5,
+                  ),
                 ),
                 elevation: 8,
                 child: Padding(
@@ -390,7 +438,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     foregroundColor: AppColors.primaryDark,
                                   ),
-                                  icon: const Icon(Icons.g_mobiledata, size: 28),
+                                  icon: const Icon(
+                                    Icons.g_mobiledata,
+                                    size: 28,
+                                  ),
                                   label: _isGoogleLoading
                                       ? const SizedBox(
                                           height: 20,
@@ -611,7 +662,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : () async {
                                       await _handleRegister();
                                       if (dialogContext.mounted &&
-                                          Navigator.of(dialogContext).canPop() &&
+                                          Navigator.of(
+                                            dialogContext,
+                                          ).canPop() &&
                                           !_isRegistering) {
                                         Navigator.of(dialogContext).pop();
                                       }

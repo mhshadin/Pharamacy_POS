@@ -3,6 +3,7 @@
 
 // 1. CREDENTIALS
 define('WEB_CLIENT_ID', '1044506320101-d2u82o19cks959l14qv082j1jss1cuoh.apps.googleusercontent.com');
+define('DESKTOP_CLIENT_ID', '1044506320101-uqu1sqihoq9sk5281q709fekvhtpjibt.apps.googleusercontent.com');
 define('JWT_SECRET', 'YOUR_SUPER_LONG_RANDOM_SECRET_KEY_DO_NOT_SHARE');
 
 define('DB_HOST', 'localhost');

@@ -1,4 +1,4 @@
-# Stock In Page Overrides
+# Add Product Page Overrides
 
 > **PROJECT:** Pharmacy POS
 > **Generated:** 2026-03-23 12:20:56

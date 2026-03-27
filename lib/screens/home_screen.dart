@@ -9,11 +9,13 @@ import '../utils/colors.dart';
 import '../providers/pos_provider.dart';
 import '../providers/admin_provider.dart';
 import '../models/cart_item.dart';
+import '../models/product.dart';
 import '../services/ocr_service.dart';
 import '../widgets/home/out_of_stock_dialog.dart';
 import '../widgets/home/pos_scanner_section.dart';
 import '../widgets/home/pos_cart_list.dart';
 import '../widgets/home/pos_checkout_footer.dart';
+import '../widgets/home/pos_quick_actions.dart';
 import 'admin/expiring_soon_screen.dart';
 import 'admin/low_stock_screen.dart';
 import 'admin/sales_report_screen.dart';
@@ -24,6 +26,7 @@ import '../services/speech_service.dart';
 import '../utils/product_matcher.dart';
 import '../widgets/subscription_warning_dialog.dart';
 import 'subscription_screen.dart';
+import 'admin/notification_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,11 +47,23 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isProcessingScan = false;
   late bool _isCameraActive;
 
+  // Scanner expand/collapse — collapsed by default so cart is always visible
+  bool _isScannerExpanded = false;
+
   // Voice search state
   bool _isVoiceSearchActive = false;
   bool _isListeningVoice = false;
   final TextEditingController _voiceSearchController = TextEditingController();
   final FocusNode _voiceSearchFocus = FocusNode();
+
+  // Inline search state
+  bool _isSearchVisible = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  final LayerLink _searchLayerLink = LayerLink();
+  final GlobalKey _searchFieldKey = GlobalKey();
+  OverlayEntry? _searchOverlay;
+  List<Product> _searchSuggestions = [];
 
   @override
   void initState() {
@@ -96,8 +111,194 @@ class _HomeScreenState extends State<HomeScreen>
     _cameraController.dispose();
     _voiceSearchController.dispose();
     _voiceSearchFocus.dispose();
+    _searchController.dispose();
+    _searchFocus.dispose();
+    _removeSearchOverlay();
     super.dispose();
   }
+
+  // ── Inline search ────────────────────────────────────────────────────────
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearchVisible = !_isSearchVisible;
+      if (!_isSearchVisible) {
+        _searchController.clear();
+        _searchSuggestions = [];
+        _removeSearchOverlay();
+        _searchFocus.unfocus();
+      }
+    });
+    if (_isSearchVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _searchFocus.requestFocus();
+      });
+    }
+  }
+
+  void _onSearchChanged(String query, POSProvider posProvider) {
+    if (query.trim().isEmpty) {
+      setState(() => _searchSuggestions = []);
+      _removeSearchOverlay();
+      return;
+    }
+    final q = query.toLowerCase();
+    final results = posProvider.products
+        .where((p) =>
+            p.name.toLowerCase().contains(q) ||
+            p.generic.toLowerCase().contains(q))
+        .take(6)
+        .toList();
+    setState(() => _searchSuggestions = results);
+    if (results.isEmpty) {
+      _removeSearchOverlay();
+    } else if (_searchOverlay == null) {
+      _insertSearchOverlay(posProvider);
+    } else {
+      _searchOverlay!.markNeedsBuild();
+    }
+  }
+
+  double _getSearchFieldWidth() {
+    final rb =
+        _searchFieldKey.currentContext?.findRenderObject() as RenderBox?;
+    if (rb != null && rb.hasSize) return rb.size.width;
+    // Fallback: screen width minus the 12+12 horizontal padding of the search bar
+    return MediaQuery.of(context).size.width - 24.0;
+  }
+
+  void _insertSearchOverlay(POSProvider posProvider) {
+    final overlayState = Overlay.of(context);
+    _searchOverlay = OverlayEntry(
+      builder: (ctx) {
+        final pos = Provider.of<POSProvider>(ctx, listen: false);
+        // Cap the dropdown height so it never extends behind the keyboard.
+        // Using viewInsets.bottom to detect keyboard height.
+        final mq = MediaQuery.of(ctx);
+        final availableHeight =
+            mq.size.height - mq.viewInsets.bottom - mq.padding.top - 64 - 60;
+        final maxDropdownHeight = (availableHeight * 0.55).clamp(120.0, 320.0);
+
+        return CompositedTransformFollower(
+          link: _searchLayerLink,
+          showWhenUnlinked: false,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 10,
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              color: AppColors.white,
+              child: SizedBox(
+                width: _getSearchFieldWidth(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxDropdownHeight),
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: _searchSuggestions.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: AppColors.divider,
+                    ),
+                    itemBuilder: (_, idx) {
+                      final p = _searchSuggestions[idx];
+                      return InkWell(
+                        onTap: () {
+                          pos.updatePcQuantity(p, 1);
+                          _removeSearchOverlay();
+                          setState(() {
+                            _isSearchVisible = false;
+                            _searchController.clear();
+                            _searchSuggestions = [];
+                          });
+                          _searchFocus.unfocus();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Added ${p.name} (1 pc) to cart',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              backgroundColor: Colors.green.shade700,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 11),
+                          child: Row(
+                            children: [
+                              const Icon(LucideIcons.pill,
+                                  size: 15,
+                                  color: AppColors.secondaryAccent),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      p.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: AppColors.primaryDark,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                    if (p.generic.isNotEmpty)
+                                      Text(
+                                        p.generic,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.secondaryAccent
+                                              .withValues(alpha: 0.8),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${p.pricePc.toStringAsFixed(p.pricePc % 1 == 0 ? 0 : 1)}৳',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primaryDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    overlayState.insert(_searchOverlay!);
+  }
+
+  void _removeSearchOverlay() {
+    _searchOverlay?.remove();
+    _searchOverlay = null;
+  }
+
+  // ── Voice search ─────────────────────────────────────────────────────────
 
   Future<void> _startHomeVoiceSearch(POSProvider posProvider) async {
     setState(() {
@@ -183,6 +384,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── Dialogs ───────────────────────────────────────────────────────────────
+
   void _showModal({required String type, required String message}) {
     showDialog(
       context: context,
@@ -195,7 +398,8 @@ class _HomeScreenState extends State<HomeScreen>
         final iconSize = isNarrow ? 60.0 : 72.0;
 
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: AppColors.white,
           surfaceTintColor: AppColors.white,
           icon: Icon(
@@ -254,10 +458,12 @@ class _HomeScreenState extends State<HomeScreen>
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Sale Complete! Invoice: $invoiceNumber'),
+                            content:
+                                Text('Sale Complete! Invoice: $invoiceNumber'),
                             backgroundColor: AppColors.success,
                             behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         );
                       }
@@ -291,6 +497,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ── Barcode scan ──────────────────────────────────────────────────────────
+
   Future<void> _handleBarcodeScan(
     String code,
     POSProvider posProvider,
@@ -318,12 +526,24 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── Navigation ────────────────────────────────────────────────────────────
+
   Future<void> _navigateFromDrawer(Future<void> Function() navigate) async {
     if (!context.mounted) return;
-    Navigator.pop(context); // close drawer
+    Navigator.pop(context);
     final bool wasOn = _isCameraActive;
     if (wasOn && !Platform.isWindows) _cameraController.stop();
     await navigate();
+    if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
+  }
+
+  Future<void> _handleManualAdd() async {
+    final bool wasOn = _isCameraActive;
+    if (wasOn && !Platform.isWindows) _cameraController.stop();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ManualAddScreen()),
+    );
     if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
   }
 
@@ -348,7 +568,6 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
 
-      // Show loading dialog while OCR processes.
       loadingDialogOpen = true;
       showDialog(
         context: context,
@@ -383,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
       loadingDialogOpen = false;
-      Navigator.pop(context); // dismiss loading dialog
+      Navigator.pop(context);
 
       if (results.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -424,6 +643,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final adminProvider = context.watch<AdminProvider>();
@@ -431,12 +652,12 @@ class _HomeScreenState extends State<HomeScreen>
     final cart = posProvider.cart;
     final filteredCart = posProvider.filteredCart;
 
-    // Handle Subscription Warning
+    // Subscription warning
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (adminProvider.pendingSubWarningDays != null) {
         final days = adminProvider.pendingSubWarningDays!;
         adminProvider.clearPendingWarning();
-        
+
         showDialog(
           context: context,
           barrierDismissible: true,
@@ -460,129 +681,157 @@ class _HomeScreenState extends State<HomeScreen>
       }
     });
 
+    // Shared widgets
+    Widget expandableSearch = _ExpandableSearchBar(
+      isVisible: _isSearchVisible,
+      controller: _searchController,
+      focusNode: _searchFocus,
+      layerLink: _searchLayerLink,
+      fieldKey: _searchFieldKey,
+      onChanged: (q) => _onSearchChanged(q, posProvider),
+      onClose: _toggleSearch,
+    );
+
+    Widget quickActions = PosQuickActions(
+      isScannerExpanded: _isScannerExpanded,
+      onToggleScanner: () =>
+          setState(() => _isScannerExpanded = !_isScannerExpanded),
+      onManualAdd: _handleManualAdd,
+      onOcrScan: _handleOcrScan,
+      onVoiceSearch: () {
+        if (_isVoiceSearchActive) {
+          _stopHomeVoiceSearch();
+        } else {
+          _startHomeVoiceSearch(posProvider);
+        }
+      },
+      isVoiceActive: _isVoiceSearchActive,
+    );
+
+    Widget scannerSection = PosScannerSection(
+      cameraController: _cameraController,
+      scanAnimation: _scanAnimation,
+      isTablet: false,
+      isCameraActive: _isCameraActive,
+      isProcessingScan: _isProcessingScan,
+      onBarcodeScanned: (code) => _handleBarcodeScan(code, posProvider),
+      onToggleCamera: () {
+        if (Platform.isWindows) return;
+        setState(() {
+          _isCameraActive = !_isCameraActive;
+          if (_isCameraActive) {
+            _cameraController.start();
+          } else {
+            _cameraController.stop();
+          }
+        });
+      },
+      isExpanded: _isScannerExpanded,
+      onToggleExpanded: () =>
+          setState(() => _isScannerExpanded = !_isScannerExpanded),
+    );
+
+    Widget voiceSearchBar = _VoiceSearchBar(
+      isVisible: _isVoiceSearchActive,
+      isListening: _isListeningVoice,
+      controller: _voiceSearchController,
+      focusNode: _voiceSearchFocus,
+      onDiscard: _stopHomeVoiceSearch,
+      onConfirm: () =>
+          _handleHomeFinalSpeech(posProvider, _voiceSearchController.text),
+    );
+
+    Widget cartList = PosCartList(
+      cart: cart,
+      filteredCart: filteredCart,
+      provider: posProvider,
+    );
+
+    Widget checkoutFooter = PosCheckoutFooter(
+      cart: cart,
+      total: posProvider.calculateTotal,
+      onClear: () => _showModal(
+        type: 'clear',
+        message: 'Are you sure you want to clear the cart?',
+      ),
+      onCheckout: () {
+        if (_isAnyItemOutOfStock(cart)) {
+          _showStockWarning(
+            context,
+            () {
+              _showModal(
+                type: 'success',
+                message:
+                    'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+              );
+            },
+          );
+        } else {
+          _showModal(
+            type: 'success',
+            message:
+                'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+          );
+        }
+      },
+    );
+
     return Scaffold(
       key: _scaffoldKey,
+      backgroundColor: AppColors.posBackground,
       resizeToAvoidBottomInset: false,
       drawer: PosDrawer(onNavigate: _navigateFromDrawer),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(LucideIcons.menu),
-          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        ),
-        title: const Text('PHARMA POS'),
-        centerTitle: true,
-      ),
+      appBar: _buildGradientAppBar(),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isLarge = constraints.maxWidth > 900;
 
-          Widget scannerSection = PosScannerSection(
-            cameraController: _cameraController,
-            scanAnimation: _scanAnimation,
-            isTablet: isLarge,
-            isCameraActive: _isCameraActive,
-            isProcessingScan: _isProcessingScan,
-            onBarcodeScanned: (code) => _handleBarcodeScan(code, posProvider),
-            onToggleCamera: () {
-              if (Platform.isWindows) return;
-              setState(() {
-                _isCameraActive = !_isCameraActive;
-                if (_isCameraActive) {
-                  _cameraController.start();
-                } else {
-                  _cameraController.stop();
-                }
-              });
-            },
-            onManualAdd: () async {
-              final bool wasOn = _isCameraActive;
-              if (wasOn && !Platform.isWindows) _cameraController.stop();
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ManualAddScreen()),
-              );
-              if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
-            },
-            onOcrScan: _handleOcrScan,
-            isVoiceActive: _isVoiceSearchActive,
-            onVoiceSearch: () {
-              if (_isVoiceSearchActive) {
-                _stopHomeVoiceSearch();
-              } else {
-                _startHomeVoiceSearch(posProvider);
-              }
-            },
-          );
-
-          Widget voiceSearchBar = _VoiceSearchBar(
-            isVisible: _isVoiceSearchActive,
-            isListening: _isListeningVoice,
-            controller: _voiceSearchController,
-            focusNode: _voiceSearchFocus,
-            onDiscard: _stopHomeVoiceSearch,
-            onConfirm: () => _handleHomeFinalSpeech(posProvider, _voiceSearchController.text),
-          );
-
-          Widget cartList = PosCartList(
-            cart: cart,
-            filteredCart: filteredCart,
-            provider: posProvider,
-          );
-
-          Widget checkoutFooter = PosCheckoutFooter(
-            cart: cart,
-            total: posProvider.calculateTotal,
-            onClear: () => _showModal(
-              type: 'clear',
-              message: 'Are you sure you want to clear the cart?',
-            ),
-            onCheckout: () {
-              if (_isAnyItemOutOfStock(cart)) {
-                _showStockWarning(
-                  context,
-                  () {
-                    _showModal(
-                      type: 'success',
-                      message: 'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
-                    );
-                  },
-                );
-              } else {
-                _showModal(
-                  type: 'success',
-                  message: 'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
-                );
-              }
-            },
-          );
-
           if (isLarge) {
-            return Column(
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                voiceSearchBar,
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                // Left column: search + quick actions + voice + scanner
+                SizedBox(
+                  width: 400,
+                  child: Column(
                     children: [
-                      // Fixed width scanner for tablet/desktop
-                      SizedBox(
-                        width: 400,
-                        child: Column(
-                          children: [
-                            scannerSection,
-                            const Spacer(),
-                          ],
-                        ),
+                      expandableSearch,
+                      quickActions,
+                      voiceSearchBar,
+                      PosScannerSection(
+                        cameraController: _cameraController,
+                        scanAnimation: _scanAnimation,
+                        isTablet: true,
+                        isCameraActive: _isCameraActive,
+                        isProcessingScan: _isProcessingScan,
+                        onBarcodeScanned: (code) =>
+                            _handleBarcodeScan(code, posProvider),
+                        onToggleCamera: () {
+                          if (Platform.isWindows) return;
+                          setState(() {
+                            _isCameraActive = !_isCameraActive;
+                            if (_isCameraActive) {
+                              _cameraController.start();
+                            } else {
+                              _cameraController.stop();
+                            }
+                          });
+                        },
+                        isExpanded: _isScannerExpanded,
+                        onToggleExpanded: () => setState(
+                            () => _isScannerExpanded = !_isScannerExpanded),
                       ),
-                      const VerticalDivider(width: 1, color: AppColors.divider),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            cartList,
-                            checkoutFooter,
-                          ],
-                        ),
-                      ),
+                      const Spacer(),
+                    ],
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: AppColors.divider),
+                // Right column: cart + footer
+                Expanded(
+                  child: Column(
+                    children: [
+                      cartList,
+                      checkoutFooter,
                     ],
                   ),
                 ),
@@ -590,9 +839,11 @@ class _HomeScreenState extends State<HomeScreen>
             );
           }
 
-          // Single column stack for phone
+          // Phone: single column
           return Column(
             children: [
+              expandableSearch,
+              quickActions,
               scannerSection,
               voiceSearchBar,
               cartList,
@@ -603,7 +854,180 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+  PreferredSizeWidget _buildGradientAppBar() {
+    return AppBar(
+      toolbarHeight: 64,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.secondaryAccent, AppColors.primaryDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
+      leading: IconButton(
+        icon: const Icon(LucideIcons.menu, color: AppColors.white),
+        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        tooltip: 'Menu',
+      ),
+      title: const Text(
+        'PharmaPOS',
+        style: TextStyle(
+          color: AppColors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          letterSpacing: 1.2,
+        ),
+      ),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isSearchVisible ? LucideIcons.x : LucideIcons.search,
+            color: AppColors.white,
+          ),
+          onPressed: _toggleSearch,
+          tooltip: _isSearchVisible ? 'Close search' : 'Search products',
+        ),
+        Builder(
+          builder: (context) {
+            final admin = context.watch<AdminProvider>();
+            final alertCount = admin.unreadAlertCount;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(LucideIcons.bell, color: AppColors.white),
+                  tooltip: 'Alerts',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const NotificationScreen()),
+                    );
+                  },
+                ),
+                if (alertCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$alertCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
+
+// ── Expandable Search Bar ──────────────────────────────────────────────────
+
+class _ExpandableSearchBar extends StatelessWidget {
+  final bool isVisible;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final LayerLink layerLink;
+  final GlobalKey fieldKey;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  const _ExpandableSearchBar({
+    required this.isVisible,
+    required this.controller,
+    required this.focusNode,
+    required this.layerLink,
+    required this.fieldKey,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      height: isVisible ? 60.0 : 0.0,
+      color: AppColors.primaryDark,
+      child: isVisible
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: CompositedTransformTarget(
+                link: layerLink,
+                child: Container(
+                  key: fieldKey,
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.highlightActive.withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    onChanged: onChanged,
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search medicine name or generic…',
+                      hintStyle: TextStyle(
+                        color: AppColors.secondaryAccent.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w400,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: const Icon(
+                        LucideIcons.search,
+                        color: AppColors.secondaryAccent,
+                        size: 18,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(LucideIcons.x,
+                            size: 16, color: AppColors.secondaryAccent),
+                        onPressed: onClose,
+                        tooltip: 'Close search',
+                      ),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+}
+
+// ── Voice Search Bar ───────────────────────────────────────────────────────
 
 class _VoiceSearchBar extends StatefulWidget {
   final bool isVisible;
@@ -726,7 +1150,8 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
-                    hintText: widget.isListening ? 'Listening...' : 'Edit and tap search...',
+                    hintText:
+                        widget.isListening ? 'Listening...' : 'Edit and tap search...',
                     hintStyle: TextStyle(
                       color: AppColors.secondaryAccent.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500,
@@ -737,7 +1162,8 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
                     ),
                     suffixIcon: _buildSuffixIcon(),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onSubmitted: (_) => widget.onConfirm(),
                 ),
@@ -749,6 +1175,8 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
     );
   }
 }
+
+// ── Standalone screens (unchanged) ────────────────────────────────────────
 
 class LowStockStandaloneScreen extends StatefulWidget {
   const LowStockStandaloneScreen({super.key});
@@ -770,18 +1198,12 @@ class _LowStockStandaloneScreenState extends State<LowStockStandaloneScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         leading: IconButton(
-          icon: const Icon(
-            LucideIcons.menu,
-            color: AppColors.white,
-          ),
+          icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'Low Stock',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const LowStockScreen(showAppBar: false),
@@ -810,18 +1232,12 @@ class _ExpiringSoonStandaloneScreenState
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         leading: IconButton(
-          icon: const Icon(
-            LucideIcons.menu,
-            color: AppColors.white,
-          ),
+          icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'Expiring Soon',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const ExpiringSoonScreen(showAppBar: false),
@@ -850,22 +1266,15 @@ class _SalesReportStandaloneScreenState
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         leading: IconButton(
-          icon: const Icon(
-            LucideIcons.menu,
-            color: AppColors.white,
-          ),
+          icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'Sales Report',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const SalesReportScreen(),
     );
   }
 }
-

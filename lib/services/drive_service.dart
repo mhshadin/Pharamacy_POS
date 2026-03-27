@@ -4,85 +4,161 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
 class DriveService {
+  static const String _driveApiUrl = 'https://www.googleapis.com/drive/v3/files';
+  static const String _driveUploadUrl = 'https://www.googleapis.com/upload/drive/v3/files';
+
   /// Uploads or updates the database file to Google Drive.
   /// 
   /// If [fileId] is provided, it attempts to overwrite (PATCH) the existing file.
   /// Otherwise, it creates a new file (POST).
-  /// 
+  ///
   /// Returns the Google Drive file ID of the uploaded/updated file.
   Future<String> uploadDatabaseToDrive({
     required String accessToken,
     required String dbFilePath,
     String? fileId,
+    String? folderId,
   }) async {
-    final file = File(dbFilePath);
-    if (!await file.exists()) {
-      throw Exception('Database file not found at $dbFilePath');
+    try {
+      final File file = File(dbFilePath);
+      if (!await file.exists()) {
+        print("DEBUG ERROR: Local database file not found at $dbFilePath");
+        throw Exception("Database file not found at $dbFilePath");
+      }
+
+      final String fileName = p.basename(dbFilePath);
+      final List<int> bytes = await file.readAsBytes();
+
+      if (fileId != null && fileId.isNotEmpty) {
+        print("DEBUG: Attempting to update existing file $fileId. Folder ID: $folderId");
+        
+        final String patchUrl = '$_driveUploadUrl/$fileId?uploadType=media${folderId != null ? '&addParents=$folderId' : ''}';
+
+        final patchResponse = await http.patch(
+          Uri.parse(patchUrl),
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            'Content-Type': 'application/octet-stream',
+          },
+          body: bytes,
+        );
+
+        if (patchResponse.statusCode == 200) {
+          print("DEBUG: File content update successful for $fileId.");
+          return fileId;
+        } else if (patchResponse.statusCode == 404) {
+          print("DEBUG: File $fileId not found on Drive (404). Falling back to fresh upload.");
+          // Fall through to the multipart upload below
+        } else {
+          print("DEBUG ERROR: Patch failed for $fileId: ${patchResponse.statusCode} - ${patchResponse.body}");
+          throw Exception('Failed to update database file $fileId: ${patchResponse.statusCode} - ${patchResponse.body}');
+        }
+      }
+
+      print("DEBUG: Performing two-step upload (Create Metadata -> Patch Media)...");
+      
+      // Step 1: Create file entry with metadata
+      final createResponse = await http.post(
+        Uri.parse(_driveApiUrl),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': fileName,
+          if (folderId != null) 'parents': [folderId],
+        }),
+      );
+
+      if (createResponse.statusCode != 200 && createResponse.statusCode != 201) {
+        print("DEBUG ERROR: Metadata creation failed: ${createResponse.statusCode} - ${createResponse.body}");
+        throw Exception('Failed to create Drive file metadata: ${createResponse.body}');
+      }
+
+      final newFileId = jsonDecode(createResponse.body)['id'] as String;
+      print("DEBUG: Metadata created. New file ID: $newFileId. Uploading content...");
+
+      // Step 2: Patch content to the new file
+      final uploadUrl = '$_driveUploadUrl/$newFileId?uploadType=media';
+      final uploadResponse = await http.patch(
+        Uri.parse(uploadUrl),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/octet-stream',
+        },
+        body: bytes,
+      );
+
+      if (uploadResponse.statusCode == 200) {
+        print("DEBUG: Full upload successful for $newFileId.");
+        return newFileId;
+      } else {
+        print("DEBUG ERROR: Media upload failed for $newFileId: ${uploadResponse.statusCode} - ${uploadResponse.body}");
+        throw Exception('Failed to upload media content to Drive: ${uploadResponse.body}');
+      }
+    } catch (e, stack) {
+      print("DEBUG ERROR: uploadDatabaseToDrive exception: $e");
+      print(stack);
+      rethrow;
     }
+  }
 
-    final String fileName = p.basename(dbFilePath);
-    // 1. Prepare Multipart Request
-    final isUpdate = fileId != null && fileId.isNotEmpty;
-    final Uri uri = isUpdate
-        ? Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=multipart')
-        : Uri.parse('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+  /// Finds or creates a folder with the given [folderName] and returns its ID.
+  Future<String> getOrCreateFolder({
+    required String accessToken,
+    required String folderName,
+  }) async {
+    try {
+      print("DEBUG: Searching for folder '$folderName'...");
+      final searchUri = Uri.parse(
+        '$_driveApiUrl?q=name=\'$folderName\' and mimeType=\'application/vnd.google-apps.folder\' and trashed=false&fields=files(id, name)',
+      );
 
-    final request = http.MultipartRequest(isUpdate ? 'PATCH' : 'POST', uri);
-    request.headers.addAll({
-      'Authorization': 'Bearer $accessToken',
-    });
+      final searchResponse = await http.get(
+        searchUri,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
 
-    // 2. Add Metadata Part
-    // The metadata part MUST come first in the multipart request for Google Drive API.
-    final metadata = {
-      'name': fileName,
-      // If it's a new file, we can optionally set the parent folder here.
-      // 'parents': ['appDataFolder'] // or a specific folder ID
-    };
+      if (searchResponse.statusCode == 200) {
+        final data = jsonDecode(searchResponse.body);
+        final List files = data['files'] ?? [];
+        if (files.isNotEmpty) {
+          final id = files.first['id'] as String;
+          print("DEBUG: Found existing folder: $id");
+          return id;
+        }
+      } else {
+        print("DEBUG ERROR: Failed to search for folder: ${searchResponse.statusCode} - ${searchResponse.body}");
+        throw Exception('Failed to search for folder: ${searchResponse.statusCode}');
+      }
 
-    request.fields['metadata'] = jsonEncode(metadata);
-    
-    // We need to manually construct the multipart request to ensure correct content types
-    // Since http.MultipartRequest doesn't easily let us send JSON as one part and file as another
-    // with different Content-Types out of the box without some dancing.
-    // Let's use the direct REST API with a multipart body manually.
+      print("DEBUG: Folder '$folderName' not found, creating new one...");
+      final createUri = Uri.parse(_driveApiUrl);
+      final createResponse = await http.post(
+        createUri,
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'name': folderName,
+          'mimeType': 'application/vnd.google-apps.folder',
+        }),
+      );
 
-    final String boundary = 'foo_bar_baz_${DateTime.now().millisecondsSinceEpoch}';
-    
-    final http.Request rawRequest = http.Request(isUpdate ? 'PATCH' : 'POST', uri);
-    rawRequest.headers.addAll({
-      'Authorization': 'Bearer $accessToken',
-      'Content-Type': 'multipart/related; boundary=$boundary',
-    });
-
-    final List<int> bodyBytes = [];
-
-    // Part 1: Metadata
-    bodyBytes.addAll(utf8.encode('--$boundary\r\n'));
-    bodyBytes.addAll(utf8.encode('Content-Type: application/json; charset=UTF-8\r\n\r\n'));
-    bodyBytes.addAll(utf8.encode(jsonEncode(metadata)));
-    bodyBytes.addAll(utf8.encode('\r\n'));
-
-    // Part 2: File Content
-    bodyBytes.addAll(utf8.encode('--$boundary\r\n'));
-    bodyBytes.addAll(utf8.encode('Content-Type: application/octet-stream\r\n\r\n'));
-    bodyBytes.addAll(await file.readAsBytes());
-    bodyBytes.addAll(utf8.encode('\r\n'));
-
-    // End boundary
-    bodyBytes.addAll(utf8.encode('--$boundary--\r\n'));
-
-    rawRequest.bodyBytes = bodyBytes;
-
-    // 3. Send Request
-    final response = await http.Client().send(rawRequest);
-    final responseBody = await response.stream.bytesToString();
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final jsonResponse = jsonDecode(responseBody);
-      return jsonResponse['id'] as String;
-    } else {
-      throw Exception('Failed to upload to Google Drive: ${response.statusCode} - $responseBody');
+      if (createResponse.statusCode == 200 || createResponse.statusCode == 201) {
+        final data = jsonDecode(createResponse.body);
+        final id = data['id'] as String;
+        print("DEBUG: Created folder: $id");
+        return id;
+      } else {
+        print("DEBUG ERROR: Folder creation failed: ${createResponse.statusCode} - ${createResponse.body}");
+        throw Exception('Failed to create backup folder: ${createResponse.statusCode} - ${createResponse.body}');
+      }
+    } catch (e, stack) {
+      print("DEBUG ERROR: getOrCreateFolder exception: $e");
+      print(stack);
+      rethrow;
     }
   }
 }

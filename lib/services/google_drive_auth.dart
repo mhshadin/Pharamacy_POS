@@ -8,10 +8,7 @@ import 'auth_storage.dart';
 final googleSignInClient = GoogleSignIn(
   serverClientId:
       '1044506320101-d2u82o19cks959l14qv082j1jss1cuoh.apps.googleusercontent.com',
-  scopes: [
-    'email',
-    'https://www.googleapis.com/auth/drive.file',
-  ],
+  scopes: ['email', 'https://www.googleapis.com/auth/drive.file'],
 );
 
 /// Silently restores the Google session and returns a **fresh** access token.
@@ -26,17 +23,28 @@ final googleSignInClient = GoogleSignIn(
 /// helper is not called again first.
 Future<String?> refreshGoogleAccessToken() async {
   try {
-    final account = googleSignInClient.currentUser ??
+    print("DEBUG: Refreshing Google access token silently...");
+    final account =
+        googleSignInClient.currentUser ??
         await googleSignInClient.signInSilently();
-    if (account == null) return null;
+    if (account == null) {
+      print("DEBUG: No current user or silent sign-in failed.");
+      return null;
+    }
 
     final auth = await account.authentication;
     final token = auth.accessToken;
-    if (token == null || token.isEmpty) return null;
+    if (token == null || token.isEmpty) {
+      print("DEBUG: Access token is null or empty.");
+      return null;
+    }
 
+    print("DEBUG: Google access token refreshed successfully.");
     await const AuthStorage().setGoogleAccessToken(token);
     return token;
-  } catch (e) {
+  } catch (e, stack) {
+    print("DEBUG ERROR: refreshGoogleAccessToken failed: $e");
+    print(stack);
     return null;
   }
 }

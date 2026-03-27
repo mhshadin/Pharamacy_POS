@@ -12,14 +12,14 @@ import '../../utils/med_type_units.dart';
 import '../../utils/med_type_icons.dart';
 import '../scanner_screen.dart';
 
-class StockInScreen extends StatefulWidget {
-  const StockInScreen({super.key});
+class AddProductScreen extends StatefulWidget {
+  const AddProductScreen({super.key});
 
   @override
-  State<StockInScreen> createState() => _StockInScreenState();
+  State<AddProductScreen> createState() => _AddProductScreenState();
 }
 
-class _StockInScreenState extends State<StockInScreen> {
+class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
   TextEditingController? _nameCtrl;
   TextEditingController? _genericCtrl;
@@ -1271,7 +1271,9 @@ class _StockInScreenState extends State<StockInScreen> {
         ),
       ),
     );
-  }  void _showMedTypePicker() {
+  }
+
+  void _showMedTypePicker() {
     final admin = context.read<AdminProvider>();
     showDialog(
       context: context,

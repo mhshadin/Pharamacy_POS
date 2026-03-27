@@ -1,4 +1,10 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'package:http/http.dart' as http;
+import 'package:file_saver/file_saver.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
@@ -12,7 +18,6 @@ import '../services/google_drive_auth.dart';
 import '../services/time_service.dart';
 import '../utils/inventory_alert_tiers.dart';
 import 'package:intl/intl.dart';
-import 'dart:developer' as developer;
 
 /// Any UI that mutates product or batch data (including returns)
 /// should also trigger `POSProvider.loadProducts()` so the POS view
@@ -49,17 +54,27 @@ class AdminProvider extends ChangeNotifier {
   int _defaultOrderBoxes = 100;
   List<String> _medicineTypes = [];
   static const List<String> defaultMedicineTypes = [
-    'Tablet', 'Syrup', 'Injection', 'Capsule',
-    'Cream', 'Ointment', 'Drops', 'Inhaler',
-    'Gel', 'Spray', 'Powder', 'Suppository'
+    'Tablet',
+    'Syrup',
+    'Injection',
+    'Capsule',
+    'Cream',
+    'Ointment',
+    'Drops',
+    'Inhaler',
+    'Gel',
+    'Spray',
+    'Powder',
+    'Suppository',
   ];
 
   // Google Drive Sync
   String? _googleDriveFileId;
+  String? _googleDriveFolderId;
   DateTime? _lastSyncTime;
   bool _isSyncing = false;
   String? _syncError;
-  Timer? _debounceTimer;
+  Timer? _syncDebounce;
 
   // Track notified products to avoid redundant alerts
   final Set<String> _notifiedLowStockIds = {};
@@ -68,7 +83,7 @@ class AdminProvider extends ChangeNotifier {
   // Track products that the user has "seen" by opening the notification screen
   Set<String> _readLowStockIds = {};
   Set<String> _readExpiringIds = {};
-  
+
   AuthSession? _authSession;
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
@@ -84,6 +99,8 @@ class AdminProvider extends ChangeNotifier {
   int get defaultOrderBoxes => _defaultOrderBoxes;
   List<String> get medicineTypes => _medicineTypes;
 
+  String? get googleDriveFileId => _googleDriveFileId;
+  String? get googleDriveFolderId => _googleDriveFolderId;
   DateTime? get lastSyncTime => _lastSyncTime;
   bool get isSyncing => _isSyncing;
   String? get syncError => _syncError;
@@ -130,28 +147,39 @@ class AdminProvider extends ChangeNotifier {
     // 1. Handle Low Stock Alerts
     for (final p in lowStock) {
       // Only show OS notification if it hasn't been notified AND isn't already "read"
-      if (!_notifiedLowStockIds.contains(p.id) && !_readLowStockIds.contains(p.id)) {
+      if (!_notifiedLowStockIds.contains(p.id) &&
+          !_readLowStockIds.contains(p.id)) {
         await service.showLowStockAlert(p.name, p.stockStrips);
         _notifiedLowStockIds.add(p.id);
       }
     }
     // Clear tracking for products that are no longer low stock
-    _notifiedLowStockIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductLowStock(p)));
-    _readLowStockIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductLowStock(p)));
+    _notifiedLowStockIds.removeWhere(
+      (id) => !_products.any((p) => p.id == id && isProductLowStock(p)),
+    );
+    _readLowStockIds.removeWhere(
+      (id) => !_products.any((p) => p.id == id && isProductLowStock(p)),
+    );
 
     // 2. Handle Expiry Alerts
     for (final p in expiringSoon) {
       // Only show OS notification if it hasn't been notified AND isn't already "read"
-      if (!_notifiedExpiringIds.contains(p.id) && !_readExpiringIds.contains(p.id)) {
-        final expiryStr = p.expiryDate?.toLocal().toString().split(' ')[0] ?? 'Unknown';
+      if (!_notifiedExpiringIds.contains(p.id) &&
+          !_readExpiringIds.contains(p.id)) {
+        final expiryStr =
+            p.expiryDate?.toLocal().toString().split(' ')[0] ?? 'Unknown';
         await service.showExpiryAlert(p.name, expiryStr);
         _notifiedExpiringIds.add(p.id);
       }
     }
     // Clear tracking for products that are no longer expiring soon
-    _notifiedExpiringIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)));
-    _readExpiringIds.removeWhere((id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)));
-    
+    _notifiedExpiringIds.removeWhere(
+      (id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)),
+    );
+    _readExpiringIds.removeWhere(
+      (id) => !_products.any((p) => p.id == id && isProductExpiringSoon(p)),
+    );
+
     // Persist cleaned up read IDs
     await _saveReadIds();
   }
@@ -171,8 +199,12 @@ class AdminProvider extends ChangeNotifier {
   }
 
   int get unreadAlertCount {
-    final unreadLowStock = lowStockProducts.where((p) => !_readLowStockIds.contains(p.id)).length;
-    final unreadExpiring = expiringSoonProducts.where((p) => !_readExpiringIds.contains(p.id)).length;
+    final unreadLowStock = lowStockProducts
+        .where((p) => !_readLowStockIds.contains(p.id))
+        .length;
+    final unreadExpiring = expiringSoonProducts
+        .where((p) => !_readExpiringIds.contains(p.id))
+        .length;
     return unreadLowStock + unreadExpiring;
   }
 
@@ -189,15 +221,17 @@ class AdminProvider extends ChangeNotifier {
     _showSupplierInfo = settings['showSupplierInfo'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
-    
+
     // Load auth session for user info
     _authSession = await const AuthStorage().loadAuth();
-    
+
     // Load PIN - try backend first if online, otherwise local
     _currentPin = settings['adminPin'] ?? '12345';
     if (_authSession != null) {
       try {
-        final backendPin = await const AuthService().getAdminPin(_authSession!.licenseToken);
+        final backendPin = await const AuthService().getAdminPin(
+          _authSession!.licenseToken,
+        );
         if (backendPin != _currentPin) {
           _currentPin = backendPin;
           await _db.saveSetting('adminPin', backendPin);
@@ -209,21 +243,30 @@ class AdminProvider extends ChangeNotifier {
 
     // Load read notification IDs
     final readLowStockStr = settings['readLowStockIds'] ?? '';
-    _readLowStockIds = readLowStockStr.split(',').where((s) => s.isNotEmpty).toSet();
-    
+    _readLowStockIds = readLowStockStr
+        .split(',')
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
     final readExpiringStr = settings['readExpiringIds'] ?? '';
-    _readExpiringIds = readExpiringStr.split(',').where((s) => s.isNotEmpty).toSet();
+    _readExpiringIds = readExpiringStr
+        .split(',')
+        .where((s) => s.isNotEmpty)
+        .toSet();
 
     final medTypesStr = settings['medicineTypes'] ?? '';
     if (medTypesStr.isEmpty) {
       _medicineTypes = List.from(defaultMedicineTypes);
     } else {
-      _medicineTypes = medTypesStr.split(',').where((s) => s.isNotEmpty).toList();
+      _medicineTypes = medTypesStr
+          .split(',')
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
 
-    _googleDriveFileId = settings['googleDriveFileId'];
-
-    final lastSyncStr = settings['lastSyncTime'];
+    _googleDriveFileId = await _db.getSetting('googleDriveFileId');
+    _googleDriveFolderId = await _db.getSetting('googleDriveFolderId');
+    final lastSyncStr = await _db.getSetting('googleDriveLastSync');
     if (lastSyncStr != null && lastSyncStr.isNotEmpty) {
       _lastSyncTime = DateTime.tryParse(lastSyncStr);
     }
@@ -247,13 +290,13 @@ class AdminProvider extends ChangeNotifier {
   /// Schedules a backup to Google Drive.
   /// If [immediate] is true, it syncs right away.
   /// Otherwise, it debounces the request by 5 minutes, resetting the timer on subsequent calls.
-  void scheduleSync({bool immediate = false}) {
+  Future<void> scheduleSync({bool immediate = false}) async {
     if (immediate) {
-      _debounceTimer?.cancel();
-      _performDriveSync();
+      _syncDebounce?.cancel();
+      await _performDriveSync();
     } else {
-      _debounceTimer?.cancel();
-      _debounceTimer = Timer(const Duration(minutes: 5), () {
+      _syncDebounce?.cancel();
+      _syncDebounce = Timer(const Duration(minutes: 5), () {
         _performDriveSync();
       });
     }
@@ -286,53 +329,84 @@ class AdminProvider extends ChangeNotifier {
       developer.log("Drive sync: silent refresh failed, using stored token.");
     }
 
-    final dbPath = await _db.getDatabasePath();
-    if (dbPath == null) {
-      developer.log("Skipping Drive sync: Could not determine DB path.");
-      return;
-    }
-
     _isSyncing = true;
     _syncError = null;
     notifyListeners();
 
     try {
+      final dbPath = await _db.getDatabasePath();
+      print("DEBUG: Database path for sync: $dbPath");
+      if (dbPath == null) {
+        print("DEBUG ERROR: dbPath is NULL");
+        _syncError = "Could not find database path";
+        notifyListeners();
+        return;
+      }
+
       final driveService = DriveService();
+
+      print("DEBUG: Checking/Creating Drive folder...");
+      _googleDriveFolderId = await driveService.getOrCreateFolder(
+        accessToken: googleToken,
+        folderName: 'Pharmacy POS Backups',
+      );
+      print("DEBUG: Drive folder ID: $_googleDriveFolderId");
+      await saveSetting('googleDriveFolderId', _googleDriveFolderId!);
+
+      print(
+        "DEBUG: Starting Drive upload/update (fileId: $_googleDriveFileId)",
+      );
       final newFileId = await driveService.uploadDatabaseToDrive(
         accessToken: googleToken,
         dbFilePath: dbPath,
         fileId: _googleDriveFileId,
+        folderId: _googleDriveFolderId,
       );
+      print("DEBUG: Drive upload result fileId: $newFileId");
+
+      _googleDriveFileId = newFileId;
+      await saveSetting('googleDriveFileId', newFileId);
+
+      print("DEBUG: Starting local export...");
+      await _performLocalExport(dbPath);
+      print("DEBUG: Local export complete.");
 
       _lastSyncTime = DateTime.now();
-      _isSyncing = false;
-      
-      // If the file ID changed (or it was the first upload), save it
-      if (newFileId != _googleDriveFileId) {
-        _googleDriveFileId = newFileId;
-        await saveSetting('googleDriveFileId', newFileId);
-      }
-      
       await saveSetting('lastSyncTime', _lastSyncTime!.toIso8601String());
-      
-      notifyListeners();
-      developer.log("Drive sync completed successfully. File ID: $newFileId");
-    } catch (e) {
-      developer.log("Drive sync failed", error: e);
+      print("DEBUG: Sync success!");
+    } catch (e, stack) {
+      print("DEBUG ERROR: _performDriveSync exception: $e");
+      print(stack);
+      _syncError = e.toString();
+    } finally {
       _isSyncing = false;
-      final errorStr = e.toString();
-      if (errorStr.contains('401') || errorStr.contains('invalid_grant') ||
-          errorStr.contains('Invalid Credentials')) {
-        _syncError =
-            '401: Google session expired. Please sign out and sign back in with Google.';
-      } else {
-        _syncError = errorStr;
-      }
       notifyListeners();
+    }
+  }
 
-      // Retry after 5 minutes on failure
-      developer.log("Scheduling retry sync in 5 minutes...");
-      scheduleSync(immediate: false);
+  Future<void> _performLocalExport(String dbPath) async {
+    try {
+      final File dbFile = File(dbPath);
+      if (!await dbFile.exists()) {
+        print("DEBUG ERROR: DB file not found for local export: $dbPath");
+        return;
+      }
+
+      final Uint8List bytes = await dbFile.readAsBytes();
+      final String fileName = "pharmacy_backup";
+
+      // Save using FileSaver to the public Downloads folder on Android
+      final savedPath = await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: bytes,
+        fileExtension: 'db',
+        mimeType: MimeType.other,
+      );
+
+      print("DEBUG: Local export successful. Saved to (platform specific): $savedPath");
+    } catch (e, stack) {
+      print("DEBUG ERROR: Local export failed: $e");
+      print(stack);
     }
   }
 
@@ -413,8 +487,108 @@ class AdminProvider extends ChangeNotifier {
       await loadProducts();
       scheduleSync(); // Trigger backup
     } catch (e) {
-      developer.log("Failed to delete batch", error: e);
+      print("Failed to delete batch: $e");
       rethrow;
+    }
+  }
+
+  /// Manually imports a database file and replaces the current one.
+  Future<void> importDatabaseLocally(String filePath) async {
+    try {
+      final currentDbPath = await _db.getDatabasePath();
+      if (currentDbPath == null)
+        throw Exception("Could not find current DB path");
+
+      // Safety check - verify it's a valid sqlite file if possible or just proceed
+      final importFile = File(filePath);
+      if (!await importFile.exists()) throw Exception("Import file not found");
+
+      await importFile.copy(currentDbPath);
+
+      // Reload everything
+      await loadData();
+      print("Database imported successfully from $filePath");
+    } catch (e) {
+      print("Import failed: $e");
+      rethrow;
+    }
+  }
+
+  /// Searches for and downloads a backup from Drive after login.
+  Future<void> checkAndRestoreFromDrive() async {
+    final googleToken = _authSession?.googleAccessToken;
+    if (googleToken == null) return;
+
+    _isSyncing = true;
+    notifyListeners();
+
+    try {
+      final driveService = DriveService();
+
+      // 1. Find the folder
+      final folderId = await driveService.getOrCreateFolder(
+        accessToken: googleToken,
+        folderName: 'Pharmacy POS Backups',
+      );
+      _googleDriveFolderId = folderId;
+      await saveSetting('googleDriveFolderId', folderId);
+
+      // 2. Find the file in that folder
+      // We'll search for 'pharmacy.db' in that folder
+      final searchUri = Uri.parse(
+        'https://www.googleapis.com/drive/v3/files?q='
+        '\'$folderId\' in parents and name = \'pharmacy.db\' and trashed = false'
+        '&fields=files(id, name)',
+      );
+
+      final response = await http.get(
+        searchUri,
+        headers: {'Authorization': 'Bearer $googleToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List files = data['files'] ?? [];
+        if (files.isNotEmpty) {
+          final fileId = files.first['id'] as String;
+          _googleDriveFileId = fileId;
+          await saveSetting('googleDriveFileId', fileId);
+
+          // 3. Download the file
+          final dbPath = await _db.getDatabasePath();
+          if (dbPath != null) {
+            final downloadUri = Uri.parse(
+              'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
+            );
+            final downloadResponse = await http.get(
+              downloadUri,
+              headers: {'Authorization': 'Bearer $googleToken'},
+            );
+
+            if (downloadResponse.statusCode == 200) {
+              await File(dbPath).writeAsBytes(downloadResponse.bodyBytes);
+              await loadData();
+              print("DEBUG: Restored database from Google Drive successfully.");
+            } else {
+              print(
+                "DEBUG ERROR: Download failed with status ${downloadResponse.statusCode}",
+              );
+            }
+          }
+        } else {
+          print("DEBUG: No backup file 'pharmacy.db' found in Drive folder.");
+        }
+      } else {
+        print(
+          "DEBUG ERROR: Search failed with status ${response.statusCode} - ${response.body}",
+        );
+      }
+    } catch (e, stack) {
+      print("DEBUG ERROR: Restore from Drive failed: $e");
+      print(stack);
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
     }
   }
 
@@ -502,8 +676,9 @@ class AdminProvider extends ChangeNotifier {
               p.name.trim().toLowerCase() == imported.name.trim().toLowerCase();
           final sameGeneric =
               p.generic.trim().toLowerCase() ==
-                  imported.generic.trim().toLowerCase();
-          final sameType = (p.medType ?? 'Tablet') == (imported.medType ?? 'Tablet');
+              imported.generic.trim().toLowerCase();
+          final sameType =
+              (p.medType ?? 'Tablet') == (imported.medType ?? 'Tablet');
           if (sameName && sameGeneric && sameType) {
             existing = p;
             break;
@@ -520,8 +695,8 @@ class AdminProvider extends ChangeNotifier {
         newProducts.add(imported);
       }
 
-      final batchNumber = (record.batchNumber != null &&
-              record.batchNumber!.trim().isNotEmpty)
+      final batchNumber =
+          (record.batchNumber != null && record.batchNumber!.trim().isNotEmpty)
           ? record.batchNumber!.trim()
           : 'INIT-BULK-${now.millisecondsSinceEpoch}-$i';
 
@@ -559,11 +734,11 @@ class AdminProvider extends ChangeNotifier {
   InventoryAlertTier lowStockTierFor(Product p) => computeLowStockTier(p);
 
   InventoryAlertTier expiryTierFor(Product p) => computeExpiryTier(
-        daysUntilExpiry: p.daysUntilExpiry,
-        criticalExpiryDays: _criticalExpiryDays,
-        moderateExpiryDays: _moderateExpiryDays,
-        expiringSoonDays: _expiringSoonDays,
-      );
+    daysUntilExpiry: p.daysUntilExpiry,
+    criticalExpiryDays: _criticalExpiryDays,
+    moderateExpiryDays: _moderateExpiryDays,
+    expiringSoonDays: _expiringSoonDays,
+  );
 
   List<Product> get lowStockProducts {
     return _products.where((p) => isProductLowStock(p)).toList()
@@ -619,7 +794,7 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> updatePin(String oldPin, String newPin) async {
     if (oldPin != _currentPin) return false;
-    
+
     // 1. Update backend if logged in
     if (_authSession != null) {
       try {
@@ -629,7 +804,7 @@ class AdminProvider extends ChangeNotifier {
         );
       } catch (e) {
         developer.log("Failed to sync admin PIN to backend", error: e);
-        // We still proceed with local update for offline usability, 
+        // We still proceed with local update for offline usability,
         // but user might want to know it didn't sync.
       }
     }
@@ -638,6 +813,28 @@ class AdminProvider extends ChangeNotifier {
     _currentPin = newPin;
     await saveSetting('adminPin', newPin);
     return true;
+  }
+
+  /// Updates the user's display name on the backend, then persists and
+  /// refreshes the in-memory auth session so all UI rebuilds immediately.
+  Future<void> updateProfileName(String newName) async {
+    if (_authSession == null) throw Exception('Not authenticated.');
+
+    final updated = await const AuthService().updateProfile(
+      token: _authSession!.licenseToken,
+      fullName: newName,
+    );
+
+    final resolvedName = updated['name'] ?? newName;
+    final resolvedAvatar = updated['avatar'];
+
+    await const AuthStorage().updateNameAndAvatar(
+      resolvedName,
+      avatarUrl: resolvedAvatar,
+    );
+
+    _authSession = await const AuthStorage().loadAuth();
+    notifyListeners();
   }
 
   List<TopSellingProduct> getTopSellingProducts({
@@ -684,7 +881,7 @@ class AdminProvider extends ChangeNotifier {
   }
 
   // --- SUBSCRIPTION MONITORING ---
-  
+
   Future<void> checkSubscriptionStatus() async {
     final session = _authSession;
     if (session == null || session.subscriptionValidUntil.isEmpty) return;
@@ -692,10 +889,10 @@ class AdminProvider extends ChangeNotifier {
     try {
       final validUntil = DateTime.parse(session.subscriptionValidUntil);
       final now = DateTime.now();
-      
+
       // Calculate remaining days
       final remainingDays = validUntil.difference(now).inDays;
-      
+
       // 1. If expired, handle it
       if (remainingDays < 0) return;
 
@@ -704,7 +901,7 @@ class AdminProvider extends ChangeNotifier {
       if (thresholds.contains(remainingDays)) {
         final lastWarning = await TimeService().getLastWarningDate();
         final todayStr = DateFormat('yyyy-MM-dd').format(now);
-        
+
         if (lastWarning != todayStr) {
           _pendingSubWarningDays = remainingDays;
           await TimeService().saveWarningDate(todayStr);
@@ -712,7 +909,7 @@ class AdminProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      developer.log("Error checking subscription status", error: e);
+      print("DEBUG ERROR: Error checking subscription status: $e");
     }
   }
 

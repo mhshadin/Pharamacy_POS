@@ -9,7 +9,7 @@ This plan details the implementation of medicine types (Tablet, Syrup, etc.) acr
 ## Success Criteria
 - [ ] Database Migration (v10) adds `medType` to `products` and `sales`.
 - [ ] `SettingsScreen` allows Adding/Removing custom medicine types.
-- [ ] `StockInScreen` defaults to "Tablet" in a premium selection dropdown.
+- [ ] `AddProductScreen` defaults to "Tablet" in a premium selection dropdown.
 - [ ] `ManualAddScreen` (POS) features horizontal filter chips and iconic badges.
 - [ ] `PosCartItemCard` includes a dropdown to change type post-scan.
 - [ ] Exported reports (CSV/Excel) include the `MedType` column.
@@ -48,7 +48,7 @@ This plan details the implementation of medicine types (Tablet, Syrup, etc.) acr
     *   **INPUT**: `lib/screens/admin/settings_screen.dart`
     *   **OUTPUT**: List of chips with add/delete interaction.
     *   **VERIFY**: Add "Spray", verify it persists.
-2.  **[T2.2] Entry Forms**: Update `StockInScreen` and `EditProductScreen`.
+2.  **[T2.2] Entry Forms**: Update `AddProductScreen` and `EditProductScreen`.
     *   **INPUT**: `lib/screens/admin/*_screen.dart`
     *   **OUTPUT**: Dropdown selectors with "Tablet" default.
     *   **VERIFY**: Dropdown shows all Types from `AdminProvider`.

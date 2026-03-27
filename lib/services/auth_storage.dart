@@ -13,6 +13,7 @@ class AuthSession {
     required this.planName,
     required this.userEmail,
     this.googleAccessToken,
+    this.userAvatarUrl,
   });
 
   final String licenseToken;
@@ -24,6 +25,7 @@ class AuthSession {
   final String subscriptionValidUntil;
   final String planName;
   final String? googleAccessToken;
+  final String? userAvatarUrl;
 
   bool get hasValidToken => licenseToken.isNotEmpty;
 }
@@ -39,6 +41,7 @@ class AuthStorage {
   static const _keyUserEmail = 'auth_user_email';
   static const _keyHardwareUid = 'hardware_uid';
   static const _keyGoogleAccessToken = 'auth_google_access_token';
+  static const _keyUserAvatarUrl = 'auth_user_avatar_url';
 
   const AuthStorage();
 
@@ -54,6 +57,9 @@ class AuthStorage {
     await prefs.setString(_keyPlanName, result.planName);
     if (googleAccessToken != null) {
       await prefs.setString(_keyGoogleAccessToken, googleAccessToken);
+    }
+    if (result.userAvatarUrl != null) {
+      await prefs.setString(_keyUserAvatarUrl, result.userAvatarUrl!);
     }
   }
 
@@ -72,6 +78,7 @@ class AuthStorage {
       subscriptionValidUntil: prefs.getString(_keySubValidUntil) ?? '',
       planName: prefs.getString(_keyPlanName) ?? 'N/A',
       googleAccessToken: prefs.getString(_keyGoogleAccessToken),
+      userAvatarUrl: prefs.getString(_keyUserAvatarUrl),
     );
   }
 
@@ -92,6 +99,18 @@ class AuthStorage {
     await prefs.remove(_keyPlanName);
     await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyGoogleAccessToken);
+    await prefs.remove(_keyUserAvatarUrl);
+  }
+
+  /// Persists only the updated name and avatar without touching other session fields.
+  Future<void> updateNameAndAvatar(String name, {String? avatarUrl}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUserName, name);
+    if (avatarUrl != null) {
+      await prefs.setString(_keyUserAvatarUrl, avatarUrl);
+    } else {
+      await prefs.remove(_keyUserAvatarUrl);
+    }
   }
 
   Future<String> getOrCreateHardwareUid() async {

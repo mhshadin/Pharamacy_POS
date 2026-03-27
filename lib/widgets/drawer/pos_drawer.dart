@@ -39,6 +39,13 @@ class _PosDrawerState extends State<PosDrawer> {
     _loadAuthSession();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh session when returning from profile edits so name/avatar update immediately.
+    _loadAuthSession();
+  }
+
   Future<void> _loadAuthSession() async {
     final session = await _authStorage.loadAuth();
     if (mounted) setState(() => _authSession = session);
@@ -119,6 +126,8 @@ class _PosDrawerState extends State<PosDrawer> {
             .toUpperCase()
         : 'U';
 
+    final avatarUrl = _authSession?.userAvatarUrl;
+
     // Check if google user for badge
     final isGoogleUser = _authSession?.googleAccessToken != null;
 
@@ -186,16 +195,34 @@ class _PosDrawerState extends State<PosDrawer> {
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(
-                              userInitials,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
+                          child: ClipOval(
+                            child: avatarUrl != null && avatarUrl.isNotEmpty
+                                ? Image.network(
+                                    avatarUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Center(
+                                      child: Text(
+                                        userInitials,
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          decoration: TextDecoration.none,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Center(
+                                    child: Text(
+                                      userInitials,
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                         if (isGoogleUser)
@@ -289,20 +316,26 @@ class _PosDrawerState extends State<PosDrawer> {
                       icon: LucideIcons.package,
                       label: 'Product List',
                       onTap: () => _go((nav) async {
-                        await nav.push(MaterialPageRoute(
-                          builder: (_) =>
-                              const ProductListScreen(isAdmin: false),
-                        ));
+                        await nav.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ProductListScreen(isAdmin: false),
+                          ),
+                          (route) => route.isFirst,
+                        );
                       }),
                     ),
                     DrawerMenuItem(
                       icon: LucideIcons.rotateCcw,
                       label: 'Returns',
                       onTap: () => _go((nav) async {
-                        await nav.push(MaterialPageRoute(
-                          builder: (_) =>
-                              const ReturnsScreen(isStandalone: true),
-                        ));
+                        await nav.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ReturnsScreen(isStandalone: true),
+                          ),
+                          (route) => route.isFirst,
+                        );
                       }),
                     ),
 
@@ -311,19 +344,25 @@ class _PosDrawerState extends State<PosDrawer> {
                       icon: LucideIcons.alertTriangle,
                       label: 'Low Stock',
                       onTap: () => _go((nav) async {
-                        await nav.push(MaterialPageRoute(
-                          builder: (_) => const LowStockStandaloneScreen(),
-                        ));
+                        await nav.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const LowStockStandaloneScreen(),
+                          ),
+                          (route) => route.isFirst,
+                        );
                       }),
                     ),
                     DrawerMenuItem(
                       icon: LucideIcons.clock,
                       label: 'Expiring Soon',
                       onTap: () => _go((nav) async {
-                        await nav.push(MaterialPageRoute(
-                          builder: (_) =>
-                              const ExpiringSoonStandaloneScreen(),
-                        ));
+                        await nav.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ExpiringSoonStandaloneScreen(),
+                          ),
+                          (route) => route.isFirst,
+                        );
                       }),
                     ),
 
@@ -338,9 +377,12 @@ class _PosDrawerState extends State<PosDrawer> {
                           builder: (_) => const AdminLoginDialog(),
                         );
                         if (result == true) {
-                          await nav.push(MaterialPageRoute(
-                            builder: (_) => const AdminDashboardScreen(),
-                          ));
+                          await nav.pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) => const AdminDashboardScreen(),
+                            ),
+                            (route) => route.isFirst,
+                          );
                         }
                       }),
                     ),

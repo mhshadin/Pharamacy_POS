@@ -19,4 +19,8 @@ class AppColors {
   static const Color surfaceLight = Color(0xFFF1F5F9); // slate-100
   static const Color divider = Color(0xFFE2E8F0); // slate-200
   static const Color cardBorder = Color(0xFFCBD5E1); // slate-300
+
+  // POS home screen only
+  static const Color posBackground = Color(0xFFF0F5FA); // cool blue-grey scaffold
+  static const Color posButtonIdle = Color(0xFFDEECF8); // light blue fill, inactive quick-action buttons
 }

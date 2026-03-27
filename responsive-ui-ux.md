@@ -52,7 +52,7 @@ lib/
 ├── screens/
 │   ├── home_screen.dart              ← Fix scanner section height
 │   ├── admin/
-│   │   ├── stock_in_screen.dart      ← MAJOR: responsive form rows
+│   │   ├── add_product_screen.dart    ← MAJOR: responsive form rows
 │   │   ├── edit_product_screen.dart  ← MAJOR: responsive form rows
 │   │   ├── product_list_screen.dart  ← MAJOR: search bar + filter row
 │   │   ├── sales_report_screen.dart  ← chart heights + summary cards
@@ -125,7 +125,7 @@ class ResponsiveHelper {
 
 ---
 
-#### Task 1.1 — Fix `stock_in_screen.dart` Form Layout
+#### Task 1.1 — Fix `add_product_screen.dart` Form Layout
 **Agent:** `mobile-developer`  
 **Skill:** `mobile-design`  
 **Priority:** P1 — Critical  
@@ -133,7 +133,7 @@ class ResponsiveHelper {
 
 **Problem:** Row-based field pairs (e.g., Price/Box + Price/Strip in one Row) collapse badly on <360dp screens. The barcode field + scan button uses hardcoded `flex: 6:4` which makes the barcode field too narrow on small phones.
 
-**INPUT:** `lib/screens/admin/stock_in_screen.dart`  
+**INPUT:** `lib/screens/admin/add_product_screen.dart`  
 **OUTPUT:**
 - Wrap all side-by-side field rows in `LayoutBuilder` — use single column when `constraints.maxWidth < 380`, two columns otherwise
 - Replace hardcoded `EdgeInsets.all(16)` padding with `ResponsiveHelper.screenPadding(context)`
@@ -141,7 +141,7 @@ class ResponsiveHelper {
 - The stock quantity row (Boxes / Strips / Pieces) should stack vertically on small phones
 
 **VERIFY:** 
-1. Run `flutter analyze lib/screens/admin/stock_in_screen.dart` → 0 errors
+1. Run `flutter analyze lib/screens/admin/add_product_screen.dart` → 0 errors
 2. Test on emulator at 320dp width — all fields visible, no overflow
 
 ---
@@ -152,7 +152,7 @@ class ResponsiveHelper {
 **Priority:** P1 — Critical  
 **Dependencies:** Task 0.1
 
-**Problem:** Same form structure as `stock_in_screen.dart`. Two-column field rows collapse on narrow screens.
+**Problem:** Same form structure as `add_product_screen.dart`. Two-column field rows collapse on narrow screens.
 
 **INPUT:** `lib/screens/admin/edit_product_screen.dart`  
 **OUTPUT:** Apply identical `LayoutBuilder` pattern as Task 1.1. Same padding/font fixes.  
@@ -342,7 +342,7 @@ flutter build apk --debug
 ```
 
 #### Manual Device Testing
-1. **320dp (very small):** Open Stock In screen → verify all fields visible, single column layout
+1. **320dp (very small):** Open Add Product screen → verify all fields visible, single column layout
 2. **360dp (standard):** Open Product List → verify search bar full width + filter buttons on same row  
 3. **412dp (large phone):** Open Sales Report → verify chart proportional height
 4. **600dp+ (tablet):** Open Admin Dashboard → verify sidebar navigation appears
@@ -367,7 +367,7 @@ flutter build apk --debug
 ```
 Task 0.1 → ResponsiveHelper (FOUNDATION)
      ↓
-Task 1.1 → stock_in_screen   ──┐
+Task 1.1 → add_product_screen ──┐
 Task 1.2 → edit_product      ──┤ (parallel)
 Task 1.3 → product_list      ──┘
      ↓

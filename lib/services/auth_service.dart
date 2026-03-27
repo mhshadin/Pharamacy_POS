@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -15,6 +14,7 @@ class AuthResult {
     required this.subscriptionValidUntil,
     required this.planName,
     required this.userEmail,
+    this.userAvatarUrl,
   });
 
   final String licenseToken;
@@ -25,6 +25,7 @@ class AuthResult {
   final String subscriptionStatus;
   final String subscriptionValidUntil;
   final String planName;
+  final String? userAvatarUrl;
 }
 
 class AuthException implements Exception {
@@ -45,9 +46,7 @@ class AuthService {
   }
 
   Map<String, String> _jsonHeaders({String? token}) {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
+    final headers = <String, String>{'Content-Type': 'application/json'};
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
@@ -81,10 +80,7 @@ class AuthService {
     final response = await http.post(
       uri,
       headers: _jsonHeaders(),
-      body: jsonEncode({
-        'idToken': idToken,
-        'hardware_uid': hardwareUid,
-      }),
+      body: jsonEncode({'idToken': idToken, 'hardware_uid': hardwareUid}),
     );
 
     return _handleAuthResponse(response);
@@ -121,9 +117,7 @@ class AuthService {
     final response = await http.post(
       uri,
       headers: _jsonHeaders(token: token),
-      body: jsonEncode({
-        'new_password': newPassword,
-      }),
+      body: jsonEncode({'new_password': newPassword}),
     );
 
     if (response.statusCode != 200) {
@@ -133,10 +127,7 @@ class AuthService {
 
   Future<String> getAdminPin(String token) async {
     final uri = _buildUri('admin_pin.php');
-    final response = await http.get(
-      uri,
-      headers: _jsonHeaders(token: token),
-    );
+    final response = await http.get(uri, headers: _jsonHeaders(token: token));
 
     if (response.statusCode != 200) {
       throw _buildException(response);
@@ -154,9 +145,7 @@ class AuthService {
     final response = await http.post(
       uri,
       headers: _jsonHeaders(token: token),
-      body: jsonEncode({
-        'new_pin': newPin,
-      }),
+      body: jsonEncode({'new_pin': newPin}),
     );
 
     if (response.statusCode != 200) {
@@ -164,9 +153,40 @@ class AuthService {
     }
   }
 
+  /// Updates the user's display name (and optionally avatar URL) on the backend.
+  /// Returns a map with updated `name` and `avatar` keys on success.
+  Future<Map<String, String?>> updateProfile({
+    required String token,
+    required String fullName,
+    String? avatarUrl,
+  }) async {
+    final uri = _buildUri('update_profile.php');
+    final body = <String, dynamic>{'full_name': fullName};
+    if (avatarUrl != null) body['avatar_url'] = avatarUrl;
+
+    final response = await http.post(
+      uri,
+      headers: _jsonHeaders(token: token),
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw _buildException(response);
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final user = (data['user'] as Map?) ?? {};
+    return {
+      'name': (user['name'] ?? '').toString(),
+      'avatar': user['avatar']?.toString(),
+    };
+  }
+
   AuthResult _handleAuthResponse(http.Response response) {
     if (response.statusCode != 200 && response.statusCode != 201) {
-      developer.log('[AuthService] Non-success status=${response.statusCode} body=${response.body}');
+      print(
+        'DEBUG ERROR: [AuthService] Non-success status=${response.statusCode} body=${response.body}',
+      );
       throw _buildException(response);
     }
 
@@ -192,14 +212,16 @@ class AuthService {
       subscriptionStatus: (subscription['status'] ?? '').toString(),
       subscriptionValidUntil: (subscription['valid_until'] ?? '').toString(),
       planName: (subscription['plan_name'] ?? 'N/A').toString(),
+      userAvatarUrl: user['avatar']?.toString(),
     );
   }
 
   AuthException _buildException(http.Response response) {
     try {
       final Map<String, dynamic> data = jsonDecode(response.body);
-      final message = (data['error'] ?? data['message'] ?? 'Authentication failed.')
-          .toString();
+      final message =
+          (data['error'] ?? data['message'] ?? 'Authentication failed.')
+              .toString();
       return AuthException(message, statusCode: response.statusCode);
     } catch (_) {
       return AuthException(
@@ -209,4 +231,3 @@ class AuthService {
     }
   }
 }
-

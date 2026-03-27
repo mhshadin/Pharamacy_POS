@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../utils/colors.dart';
+import '../utils/api_error_mapper.dart';
 import '../services/eps_service.dart';
 import '../widgets/plan_card.dart';
 import 'home_screen.dart';
@@ -50,8 +51,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading plans: $e')),
+          SnackBar(
+            content: Text(ApiErrorMapper.forPlanLoad()),
+            backgroundColor: Colors.red.shade700,
+          ),
         );
       }
     }
@@ -92,7 +97,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment initialization failed: $e')),
+          SnackBar(
+            content: Text(ApiErrorMapper.forPaymentInit()),
+            backgroundColor: Colors.red.shade700,
+          ),
         );
       }
     } finally {

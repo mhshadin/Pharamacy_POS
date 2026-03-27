@@ -15,7 +15,8 @@ class ManualAddScreen extends StatefulWidget {
   @override
   State<ManualAddScreen> createState() => _ManualAddScreenState();
 }
-class _ManualAddScreenState extends State<ManualAddScreen> {
+class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderStateMixin {
+  late AnimationController _pulseController;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _isListening = false;
@@ -28,6 +29,11 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     _searchController.addListener(() {
       context.read<POSProvider>().setSearchQuery(_searchController.text);
     });
+    
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AdminProvider>().refreshSales();
@@ -38,6 +44,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -45,6 +52,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     setState(() {
       _isListening = true;
     });
+    _pulseController.repeat(reverse: true);
 
     final service = SpeechService.instance;
 
@@ -64,6 +72,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
           setState(() {
             _isListening = false;
           });
+          _pulseController.stop();
         }
       },
       onError: (error) {
@@ -71,6 +80,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
         setState(() {
           _isListening = false;
         });
+        _pulseController.stop();
         if (error.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -92,6 +102,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
     setState(() {
       _isListening = false;
     });
+    _pulseController.stop();
   }
 
   void _handleFinalSpeechResult(POSProvider posProvider, String text) {
@@ -262,15 +273,29 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
                   fontWeight: FontWeight.w500,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Search product or generic name...',
+                  hintText: _isListening ? 'Listening...' : 'Search product or generic name...',
                   hintStyle: TextStyle(
-                    color: AppColors.secondaryAccent.withOpacity(0.7),
-                    fontWeight: FontWeight.w500,
+                    color: _isListening 
+                      ? AppColors.highlightActive 
+                      : AppColors.secondaryAccent.withOpacity(0.7),
+                    fontWeight: FontWeight.bold,
                   ),
-                  prefixIcon: const Icon(
-                    LucideIcons.search,
-                    color: AppColors.primaryDark,
-                  ),
+                  prefixIcon: _isListening 
+                    ? const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.highlightActive),
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        LucideIcons.search,
+                        color: AppColors.primaryDark,
+                      ),
                   suffixIcon: _buildSuffixIcon(posProvider),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -562,13 +587,23 @@ class _ManualAddScreenState extends State<ManualAddScreen> {
 
   Widget? _buildSuffixIcon(POSProvider posProvider) {
     if (_isListening) {
-      return IconButton(
-        icon: const Icon(
-          LucideIcons.micOff,
-          color: AppColors.highlightActive,
-          size: 18,
+      return AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final double scale = 1.0 + (_pulseController.value * 0.2);
+          return Transform.scale(
+            scale: scale,
+            child: child,
+          );
+        },
+        child: IconButton(
+          icon: const Icon(
+            LucideIcons.micOff,
+            color: AppColors.highlightActive,
+            size: 18,
+          ),
+          onPressed: _stopListening,
         ),
-        onPressed: _stopListening,
       );
     }
 

@@ -8,6 +8,7 @@ import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../widgets/drawer/pos_drawer.dart';
 import 'edit_product_screen.dart';
+import 'restock_screen.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/shared/empty_state_widget.dart';
@@ -1073,9 +1074,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                   isTaka: true,
                                   lowStockAccent: null,
                                 ),
-                                const Spacer(),
-                                if (widget.isAdmin)
-                                  IconButton(
+                              ],
+                            ),
+                            if (widget.isAdmin) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  ElevatedButton.icon(
                                     onPressed: () {
                                       Navigator.push(
                                         context,
@@ -1088,13 +1094,69 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     },
                                     icon: const Icon(
                                       LucideIcons.edit,
-                                      color: AppColors.secondaryAccent,
-                                      size: 20,
+                                      size: 16,
+                                      color: AppColors.white,
                                     ),
-                                    tooltip: 'Edit Stock',
+                                    label: const Text(
+                                      'Edit',
+                                      style: TextStyle(
+                                        color: AppColors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.secondaryAccent,
+                                      elevation: 2,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
                                   ),
-                              ],
-                            ),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => RestockScreen(
+                                            product: product,
+                                          ),
+                                        ),
+                                      ).then((_) => setState(() {}));
+                                    },
+                                    icon: const Icon(
+                                      LucideIcons.packagePlus,
+                                      size: 16,
+                                      color: AppColors.white,
+                                    ),
+                                    label: const Text(
+                                      'Restock',
+                                      style: TextStyle(
+                                        color: AppColors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryDark,
+                                      elevation: 4,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
