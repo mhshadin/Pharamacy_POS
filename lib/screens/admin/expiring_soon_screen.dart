@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
 import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/med_type_icons.dart';
+import '../../providers/language_provider.dart';
+import '../../utils/med_type_units.dart';
 import '../../utils/phone_launcher.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
@@ -458,6 +460,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     required bool isPdf,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.read<LanguageProvider>().strings;
     String? path;
     try {
       if (isPdf) {
@@ -465,6 +468,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           products: products,
           orderQtys: orderQtys,
           title: 'Expiring Soon',
+          l10n: l10n,
         );
       } else {
         path = await ExportService.exportOrderListToCsv(
@@ -858,7 +862,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, idx) {
+                      final l10n = context.read<LanguageProvider>().strings;
                       final product = filtered[idx];
+                      final unitLabels = MedTypeUnits.getLabels(product.medType, l10n);
                       final days = product.daysUntilExpiry;
                       final tier = admin.expiryTierFor(product);
                       final accent = tier.accentColor;
@@ -971,7 +977,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                       ),
                                     ),
                                   Text(
-                                    'Stock: ${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs',
+                                    '${l10n.inventory}: ${product.stockBoxes} ${unitLabels['unit1']?.toLowerCase() ?? 'boxes'} • ${product.remainingStrips} ${unitLabels['unit2']?.toLowerCase() ?? 'strips'} • ${product.totalPieces} ${unitLabels['unit3']?.toLowerCase() ?? 'pcs'}',
                                     style: const TextStyle(
                                       color: AppColors.secondaryAccent,
                                       fontSize: 11,

@@ -37,9 +37,6 @@ Future<GoogleDesktopTokens> signInWithGoogleDesktop() async {
   final codeVerifier = _generateCodeVerifier();
   final codeChallenge = _generateCodeChallenge(codeVerifier);
   final state = _randomString(16);
-  _logOAuth(
-    'Starting desktop OAuth. client_id=$_kClientId redirect_uri=$_kRedirectUri state=$state verifier_len=${codeVerifier.length}',
-  );
 
   final authUrl = Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
     'client_id': _kClientId,
@@ -53,14 +50,11 @@ Future<GoogleDesktopTokens> signInWithGoogleDesktop() async {
     'state': state,
     'prompt': 'select_account',
   });
-  _logOAuth('Auth URL prepared: $authUrl');
 
   HttpServer? server;
   try {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, _kRedirectPort);
-    _logOAuth('Local callback server listening on 127.0.0.1:$_kRedirectPort');
-  } on SocketException catch (e) {
-    _logOAuth('Failed to start local callback server: $e');
+  } on SocketException catch (_) {
     throw GoogleDesktopAuthException(
         'Could not start Google sign-in. Port $_kRedirectPort may be in use. Please close other apps and try again.');
   }
@@ -68,21 +62,14 @@ Future<GoogleDesktopTokens> signInWithGoogleDesktop() async {
   final completer = Completer<Map<String, String>>();
 
   server.listen((HttpRequest request) async {
-    _logOAuth(
-      'Received callback request path=${request.uri.path} query=${request.uri.query}',
-    );
     if (request.uri.path != _kRedirectPath) {
       request.response
         ..statusCode = HttpStatus.notFound
         ..close();
-      _logOAuth('Ignored callback on unexpected path: ${request.uri.path}');
       return;
     }
 
     final params = request.uri.queryParameters;
-    _logOAuth(
-      'Callback params keys=${params.keys.join(",")} has_code=${params.containsKey("code")} error=${params["error"]}',
-    );
 
     // Always respond to the browser first.
     request.response
@@ -98,45 +85,37 @@ Future<GoogleDesktopTokens> signInWithGoogleDesktop() async {
 
   if (!await launchUrl(authUrl, mode: LaunchMode.externalApplication)) {
     await server.close(force: true);
-    _logOAuth('launchUrl failed for auth URL.');
     throw GoogleDesktopAuthException('Failed to open browser for Google sign-in.');
   }
-  _logOAuth('Browser launched successfully.');
 
   late Map<String, String> params;
   try {
     params = await completer.future.timeout(_kOAuthCallbackTimeout);
   } on TimeoutException {
     await server.close(force: true);
-    _logOAuth('OAuth flow timed out waiting for callback.');
     throw GoogleDesktopAuthCancelled();
   } finally {
     await server.close(force: true);
-    _logOAuth('Local callback server closed.');
   }
 
   if (params['error'] != null) {
     if (params['error'] == 'access_denied') {
       throw GoogleDesktopAuthCancelled();
     }
-    _logOAuth('Google OAuth callback error: ${params['error']}');
     throw GoogleDesktopAuthException(
         'Google sign-in failed. Please try again.');
   }
 
   final returnedState = params['state'];
   if (returnedState != state) {
-    _logOAuth('State mismatch. expected=$state got=$returnedState');
     throw GoogleDesktopAuthException(
         'OAuth state mismatch – possible CSRF attempt.');
   }
 
   final code = params['code'];
   if (code == null || code.isEmpty) {
-    _logOAuth('No authorization code found in callback.');
     throw GoogleDesktopAuthException('No authorization code received from Google.');
   }
-  _logOAuth('Authorization code received. len=${code.length}');
 
   return _exchangeCodeForTokens(code: code, codeVerifier: codeVerifier);
 }
@@ -146,9 +125,6 @@ Future<GoogleDesktopTokens> _exchangeCodeForTokens({
   required String codeVerifier,
 }) async {
   final clientSecret = await _readDesktopClientSecret();
-  _logOAuth(
-    'Token exchange start. client_id=$_kClientId redirect_uri=$_kRedirectUri code_len=${code.length} verifier_len=${codeVerifier.length}',
-  );
   final includeClientSecret = clientSecret.isNotEmpty;
   final tokenBody = <String, String>{
     'client_id': _kClientId,
@@ -158,16 +134,10 @@ Future<GoogleDesktopTokens> _exchangeCodeForTokens({
     'grant_type': 'authorization_code',
     if (includeClientSecret) 'client_secret': clientSecret,
   };
-  _logOAuth(
-    'Token request payload prepared. includes_client_secret=$includeClientSecret keys=${tokenBody.keys.join(",")}',
-  );
   final response = await http.post(
     Uri.https('oauth2.googleapis.com', '/token'),
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
     body: tokenBody,
-  );
-  _logOAuth(
-    'Token exchange response status=${response.statusCode} body=${response.body}',
   );
 
   if (response.statusCode != 200) {
@@ -180,9 +150,6 @@ Future<GoogleDesktopTokens> _exchangeCodeForTokens({
 
   final idToken = data['id_token'] as String?;
   final accessToken = data['access_token'] as String?;
-  _logOAuth(
-    'Token JSON parsed. keys=${data.keys.join(",")} id_token_len=${idToken?.length ?? 0} access_token_len=${accessToken?.length ?? 0}',
-  );
 
   if (idToken == null || idToken.isEmpty) {
     throw GoogleDesktopAuthException('Token exchange did not return an id_token.');
@@ -192,10 +159,6 @@ Future<GoogleDesktopTokens> _exchangeCodeForTokens({
   }
 
   return GoogleDesktopTokens(idToken: idToken, accessToken: accessToken);
-}
-
-void _logOAuth(String message) {
-  print('DEBUG OAUTH DESKTOP: $message');
 }
 
 Future<void> saveGoogleDesktopClientSecret(String secret) async {
@@ -241,7 +204,6 @@ String _buildTokenExchangeErrorMessage(int statusCode, String responseBody) {
   }
 
   // Never surface raw response body or HTTP status codes to the user.
-  // Raw details are already logged by _logOAuth before this is called.
   return 'Google authentication failed. Please try signing in again.';
 }
 

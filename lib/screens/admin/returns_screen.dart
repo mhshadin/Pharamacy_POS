@@ -10,6 +10,7 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../widgets/drawer/pos_drawer.dart';
+import '../../providers/language_provider.dart';
 import '../home_screen.dart';
 
 class ReturnsScreen extends StatefulWidget {
@@ -119,8 +120,10 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     }
 
     final grouped = <String, List<SaleRecord>>{};
+    if (!mounted) return;
+    final l10n = context.read<LanguageProvider>().strings;
     for (var s in filtered) {
-      final key = s.invoiceNumber ?? 'Unknown Invoice';
+      final key = s.invoiceNumber ?? l10n.unknownInvoice;
       grouped.putIfAbsent(key, () => []).add(s);
     }
 
@@ -147,6 +150,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     DateTime tempEnd = _endDate ?? DateTime.now();
     TimeOfDay? tempStartTime = _startTime;
     TimeOfDay? tempEndTime = _endTime;
+    final l10n = context.read<LanguageProvider>().strings;
     TextEditingController minAmountCtrl = TextEditingController(
       text: _minAmount?.toStringAsFixed(0) ?? '',
     );
@@ -161,9 +165,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: AppColors.background,
-              title: const Text(
-                'Filter Returns',
-                style: TextStyle(
+              title: Text(
+                l10n.filterReturns,
+                style: const TextStyle(
                   color: AppColors.primaryDark,
                   fontWeight: FontWeight.bold,
                 ),
@@ -172,9 +176,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Date Range',
-                    style: TextStyle(
+                  Text(
+                    l10n.dateRange,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primaryDark,
                     ),
@@ -225,9 +229,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Amount Range (৳) (Optional)',
-                    style: TextStyle(
+                   Text(
+                    l10n.amountRange,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primaryDark,
                     ),
@@ -239,34 +243,34 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                         child: TextField(
                           controller: minAmountCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            hintText: 'Min ৳',
+                          decoration: InputDecoration(
+                            hintText: l10n.minAmount,
                             isDense: true,
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('to'),
+                       Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(l10n.toLabel),
                       ),
                       Expanded(
                         child: TextField(
                           controller: maxAmountCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            hintText: 'Max ৳',
+                          decoration: InputDecoration(
+                            hintText: l10n.maxAmount,
                             isDense: true,
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Time Range (Optional)',
-                    style: TextStyle(
+                   Text(
+                    l10n.timeRange,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primaryDark,
                     ),
@@ -285,7 +289,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           },
                           icon: const Icon(LucideIcons.clock, size: 16),
                           label: Text(
-                            tempStartTime?.format(context) ?? 'Any time',
+                            tempStartTime?.format(context) ?? l10n.anyTime,
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
@@ -305,7 +309,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           },
                           icon: const Icon(LucideIcons.clock, size: 16),
                           label: Text(
-                            tempEndTime?.format(context) ?? 'Any time',
+                            tempEndTime?.format(context) ?? l10n.anyTime,
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
@@ -315,11 +319,11 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                 ],
               ),
               actions: [
-                TextButton(
+                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: AppColors.secondaryAccent),
+                  child: Text(
+                    l10n.cancelBtn,
+                    style: const TextStyle(color: AppColors.secondaryAccent),
                   ),
                 ),
                 TextButton(
@@ -329,19 +333,18 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                       tempEndTime = null;
                     });
                   },
-                  child: const Text(
-                    'Clear Time',
-                    style: TextStyle(color: AppColors.error),
+                  child: Text(
+                    l10n.clearTime,
+                    style: const TextStyle(color: AppColors.error),
                   ),
-                ),
-                ElevatedButton(
+                ),                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryDark,
                   ),
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text(
-                    'Apply',
-                    style: TextStyle(color: AppColors.white),
+                  child: Text(
+                    l10n.apply,
+                    style: const TextStyle(color: AppColors.white),
                   ),
                 ),
               ],
@@ -444,6 +447,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
   /// Loads invoice line items into the POS cart and opens the home screen so
   /// the user can adjust quantities or complete a new sale.
   Future<void> _loadInvoiceIntoCart(List<SaleRecord> sales) async {
+    final l10n = context.read<LanguageProvider>().strings;
     final qtyByName = <String, int>{};
     for (final s in sales) {
       final q = s.effectiveQuantity;
@@ -452,9 +456,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     }
     if (qtyByName.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No items to load from this invoice.'),
+         ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.noItemsInvoice),
             backgroundColor: AppColors.error,
           ),
         );
@@ -487,26 +491,26 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     if (!mounted) return;
 
     if (!addedAny) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not find product(s): ${missing.join(', ')}',
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${l10n.couldNotFindProducts}: ${missing.join(', ')}',
+            ),
+            backgroundColor: AppColors.error,
           ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+        );
       return;
     }
 
     if (missing.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Some products were skipped: ${missing.join(', ')}',
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${l10n.someProductsSkipped}: ${missing.join(', ')}',
+            ),
+            backgroundColor: AppColors.error,
           ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+        );
     }
 
     Navigator.of(context).pushAndRemoveUntil(
@@ -519,17 +523,19 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     String invoiceNumber,
     List<SaleRecord> sales,
   ) async {
-    final returnableSales = sales
-        .where((s) => (s.quantity - s.returnedQuantity) > 0)
-        .toList();
+    final l10n = context.read<LanguageProvider>().strings;
+    final returnableSales = 
+        sales.where((s) => (s.quantity - s.returnedQuantity) > 0).toList();
 
     if (returnableSales.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All items in this invoice are already returned.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.allItemsReturned),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
       return;
     }
 
@@ -595,7 +601,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                             child: Text(
-                              'Return items for $invoiceNumber',
+                              '${l10n.returnItemsFor} $invoiceNumber',
                               style: const TextStyle(
                                 color: AppColors.primaryDark,
                                 fontWeight: FontWeight.bold,
@@ -652,14 +658,14 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          canUseStrips
-                                              ? 'Max returnable: $maxQty pcs • 1 strip = $pcsPerStrip pcs'
-                                              : 'Max returnable: $maxQty pcs',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.secondaryAccent,
+                                            canUseStrips
+                                                ? '${l10n.maxReturnable}: $maxQty ${l10n.pcs} • 1 ${l10n.strips} = $pcsPerStrip ${l10n.pcs}'
+                                                : '${l10n.maxReturnable}: $maxQty ${l10n.pcs}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.secondaryAccent,
+                                            ),
                                           ),
-                                        ),
                                         const Padding(
                                           padding: EdgeInsets.symmetric(
                                             vertical: 10,
@@ -668,7 +674,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                         ),
                                         if (canUseStrips)
                                           _buildReturnStepperRow(
-                                            label: 'Strips',
+                                            label: l10n.strips,
                                             value: currentStrips,
                                             minusEnabled: currentStrips > 0,
                                             plusEnabled: totalRequestedPcs +
@@ -694,7 +700,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                             },
                                           ),
                                         _buildReturnStepperRow(
-                                          label: 'Pcs',
+                                          label: l10n.pcs,
                                           value: currentPcs,
                                           minusEnabled: currentPcs > 0,
                                           plusEnabled:
@@ -723,7 +729,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                               top: 6,
                                             ),
                                             child: Text(
-                                              'Selected: $totalRequestedPcs pcs',
+                                              '${l10n.selected}: $totalRequestedPcs ${l10n.pcs}',
                                               style: const TextStyle(
                                                 fontSize: 12,
                                                 color: AppColors.primaryDark,
@@ -767,9 +773,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                               BorderRadius.circular(10),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Confirm Return',
-                                        style: TextStyle(
+                                      child: Text(
+                                        l10n.confirmReturn,
+                                        style: const TextStyle(
                                           color: AppColors.white,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -791,9 +797,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                               BorderRadius.circular(10),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Cancel',
-                                        style: TextStyle(
+                                      child: Text(
+                                        l10n.cancelBtn,
+                                        style: const TextStyle(
                                           color: AppColors.secondaryAccent,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -834,8 +840,8 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Returns processed successfully!'),
+        SnackBar(
+          content: Text(l10n.returnsProcessed),
           backgroundColor: AppColors.success,
         ),
       );
@@ -844,6 +850,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isPhoneNarrow = screenWidth < 420;
     final body = Column(
@@ -863,7 +870,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                         controller: _searchController,
                         onSubmitted: (_) => _searchInvoice(),
                         decoration: InputDecoration(
-                          hintText: 'Search Invoice No. or Product Name...',
+                          hintText: l10n.searchHint,
                           prefixIcon: const Icon(
                             LucideIcons.search,
                             color: AppColors.primaryDark,
@@ -891,9 +898,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'Search',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.searchBtn,
+                          style: const TextStyle(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -916,7 +923,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           controller: _searchController,
                           onSubmitted: (_) => _searchInvoice(),
                           decoration: InputDecoration(
-                            hintText: 'Search Invoice No. or Product Name...',
+                            hintText: l10n.searchHint,
                             prefixIcon: const Icon(
                               LucideIcons.search,
                               color: AppColors.primaryDark,
@@ -941,9 +948,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: const Text(
-                        'Search',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.searchBtn,
+                        style: const TextStyle(
                           color: AppColors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -972,20 +979,20 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                   child: InkWell(
                     borderRadius: controlRadius,
                     onTap: _showFilterDialog,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          const Icon(
                             LucideIcons.calendar,
                             size: 14,
                             color: AppColors.secondaryAccent,
                           ),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            'Filters',
-                            style: TextStyle(
+                            l10n.filters,
+                            style: const TextStyle(
                               color: AppColors.secondaryAccent,
                               fontWeight: FontWeight.w500,
                               fontSize: 13,
@@ -1001,9 +1008,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
               final sortControl = Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Text(
-                    'Sort By:',
-                    style: TextStyle(
+                  Text(
+                    '${l10n.sortBy}:',
+                    style: const TextStyle(
                       color: AppColors.secondaryAccent,
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
@@ -1035,22 +1042,22 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                             });
                           }
                         },
-                        items: const [
+                        items: [
                           DropdownMenuItem(
                             value: ReturnSortOption.newest,
-                            child: Text('Date : Newest'),
+                            child: Text(l10n.sortNewest),
                           ),
                           DropdownMenuItem(
                             value: ReturnSortOption.oldest,
-                            child: Text('Date : Oldest'),
+                            child: Text(l10n.sortOldest),
                           ),
                           DropdownMenuItem(
                             value: ReturnSortOption.amountHighToLow,
-                            child: Text('Price : High'),
+                            child: Text(l10n.sortAmountHigh),
                           ),
                           DropdownMenuItem(
                             value: ReturnSortOption.amountLowToHigh,
-                            child: Text('Price : Low'),
+                            child: Text(l10n.sortAmountLow),
                           ),
                         ],
                       ),
@@ -1074,28 +1081,28 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : !_hasSearched
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         LucideIcons.receipt,
                         size: 48,
                         color: AppColors.divider,
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
-                        'Search by Invoice No. or Product Name',
-                        style: TextStyle(color: AppColors.secondaryAccent),
+                        l10n.searchHelpText,
+                        style: const TextStyle(color: AppColors.secondaryAccent),
                       ),
                     ],
                   ),
                 )
               : _groupedSales.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    'No results found',
-                    style: TextStyle(
+                    l10n.noResults,
+                    style: const TextStyle(
                       color: AppColors.error,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1221,9 +1228,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                             .withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Text(
-                                        'Fully Returned',
-                                        style: TextStyle(
+                                      child: Text(
+                                        l10n.fullyReturned,
+                                        style: const TextStyle(
                                           color: AppColors.success,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 11,
@@ -1256,9 +1263,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                                       BorderRadius.circular(8),
                                                 ),
                                               ),
-                                              child: const Text(
-                                                'Change',
-                                                style: TextStyle(
+                                              child: Text(
+                                                l10n.changeBtn,
+                                                style: const TextStyle(
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 13,
                                                 ),
@@ -1286,9 +1293,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                                       BorderRadius.circular(8),
                                                 ),
                                               ),
-                                              child: const Text(
-                                                'Return Items',
-                                                style: TextStyle(
+                                              child: Text(
+                                                l10n.returnItems,
+                                                style: const TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 13,
                                                 ),
@@ -1327,9 +1334,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                                 BorderRadius.circular(8),
                                           ),
                                         ),
-                                        child: const Text(
-                                          'Change',
-                                          style: TextStyle(
+                                        child: Text(
+                                          l10n.changeBtn,
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -1355,9 +1362,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                                 BorderRadius.circular(8),
                                           ),
                                         ),
-                                        child: const Text(
-                                          'Return Items',
-                                          style: TextStyle(
+                                        child: Text(
+                                          l10n.returnItems,
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -1392,7 +1399,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                           ),
                                           if (sale.batchNumber != null)
                                             Text(
-                                              'Batch: ${sale.batchNumber}',
+                                              '${l10n.batchLabel}: ${sale.batchNumber}',
                                               style: const TextStyle(
                                                 fontSize: 10,
                                                 color: AppColors.secondaryAccent,
@@ -1404,7 +1411,7 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                                 top: 4,
                                               ),
                                               child: Text(
-                                                'Fully returned',
+                                                l10n.fullyReturned,
                                                 style: TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.w600,
@@ -1419,8 +1426,8 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                     Expanded(
                                       child: Text(
                                         sale.returnedQuantity > 0
-                                            ? 'Qty: ${sale.effectiveQuantity}\n(Ret: ${sale.returnedQuantity})'
-                                            : 'Qty: ${sale.effectiveQuantity}',
+                                            ? '${l10n.qtyLabel}: ${sale.effectiveQuantity}\n(${l10n.retLabel}: ${sale.returnedQuantity})'
+                                            : '${l10n.qtyLabel}: ${sale.effectiveQuantity}',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: sale.effectiveQuantity <= 0
@@ -1486,9 +1493,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
             ),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          title: const Text(
-            'Returns',
-            style: TextStyle(
+          title: Text(
+            l10n.returns,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
             ),

@@ -9,6 +9,8 @@ import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
 import '../models/sale_record.dart';
 import '../models/product.dart';
+import '../l10n/app_strings.dart';
+import '../utils/med_type_units.dart';
 
 class ExportService {
   static Future<String?> exportToCsv(
@@ -243,6 +245,7 @@ class ExportService {
   static Future<String?> exportProductsToPdf({
     required List<Product> products,
     required String title,
+    required AppStrings l10n,
   }) async {
     final regularFontData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -252,6 +255,7 @@ class ExportService {
     final args = {
       'products': products,
       'title': title,
+      'l10n': l10n,
       'regularFont': regularFontData.buffer.asUint8List(),
       'boldFont': boldFontData.buffer.asUint8List(),
     };
@@ -275,6 +279,7 @@ class ExportService {
   ) async {
     final List<Product> products = args['products'];
     final String title = args['title'];
+    final AppStrings l10n = args['l10n'];
     final Uint8List regularFontBytes = args['regularFont'];
     final Uint8List boldFontBytes = args['boldFont'];
 
@@ -317,7 +322,7 @@ class ExportService {
                   p.name,
                   p.generic,
                   p.medType ?? 'Tablet',
-                  '${p.stockStrips} ${p.unitLabels['unit2'] ?? 'Str'} / ${p.stockPcs} ${p.unitLabels['unit3'] ?? 'Pcs'}',
+                  '${p.stockStrips} ${MedTypeUnits.getLabels(p.medType, l10n)['unit2']?.toLowerCase() ?? 'str'} / ${p.stockPcs} ${MedTypeUnits.getLabels(p.medType, l10n)['unit3']?.toLowerCase() ?? 'pcs'}',
                   p.expiryDate != null
                       ? dateFormat.format(p.expiryDate!)
                       : 'N/A',
@@ -402,6 +407,7 @@ class ExportService {
     required List<Product> products,
     required Map<String, int> orderQtys,
     required String title,
+    required AppStrings l10n,
   }) async {
     final regularFontData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -412,6 +418,7 @@ class ExportService {
       'products': products,
       'orderQtys': orderQtys,
       'title': title,
+      'l10n': l10n,
       'regularFont': regularFontData.buffer.asUint8List(),
       'boldFont': boldFontData.buffer.asUint8List(),
     };
@@ -437,6 +444,7 @@ class ExportService {
     final List<Product> products = args['products'];
     final Map<String, int> orderQtys = args['orderQtys'];
     final String title = args['title'];
+    final AppStrings l10n = args['l10n'];
     final Uint8List regularFontBytes = args['regularFont'];
     final Uint8List boldFontBytes = args['boldFont'];
 
@@ -481,12 +489,13 @@ class ExportService {
                 'Boxes/Units to Order',
               ],
               data: products.map((p) {
+                final unitLabels = MedTypeUnits.getLabels(p.medType, l10n);
                 return [
                   p.name,
                   p.generic,
                   p.companyName ?? '-',
-                  '${p.stockStrips} ${p.unitLabels['unit2']?.toLowerCase() ?? 'str'} / ${p.totalPieces} pcs',
-                  '${orderQtys[p.id] ?? 0} ${p.unitLabels['unit1']?.toLowerCase() ?? 'bx'}',
+                  '${p.stockStrips} ${unitLabels['unit2']?.toLowerCase() ?? 'str'} / ${p.totalPieces} pcs',
+                  '${orderQtys[p.id] ?? 0} ${unitLabels['unit1']?.toLowerCase() ?? 'bx'}',
                 ];
               }).toList(),
               border: pw.TableBorder.all(width: 0.5),

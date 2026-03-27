@@ -142,7 +142,7 @@ class _PosDrawerState extends State<PosDrawer> {
     
     if (isSyncing) {
       syncText = 'Drive Backup: Syncing...';
-      syncColor = AppColors.primaryDark.withOpacity(0.5);
+      syncColor = AppColors.primaryDark.withValues(alpha: 0.5);
       syncIcon = LucideIcons.loader;
     } else if (syncError != null) {
       syncText = 'Drive Backup: Failed';
@@ -184,7 +184,7 @@ class _PosDrawerState extends State<PosDrawer> {
                               end: Alignment.bottomRight,
                             ),
                             border: Border.all(
-                              color: Colors.white.withAlpha(80),
+                              color: AppColors.white.withValues(alpha: 0.1),
                               width: 2,
                             ),
                             boxShadow: [
@@ -200,7 +200,7 @@ class _PosDrawerState extends State<PosDrawer> {
                                 ? Image.network(
                                     avatarUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Center(
+                                    errorBuilder: (context, error, stackTrace) => Center(
                                       child: Text(
                                         userInitials,
                                         style: const TextStyle(
@@ -236,7 +236,7 @@ class _PosDrawerState extends State<PosDrawer> {
                                 shape: BoxShape.circle,
                               ),
                               child: Image.network(
-                                'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_logo.svg',
+                                'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_G_logo.svg',
                                 width: 14,
                                 height: 14,
                                 errorBuilder: (context, error, stackTrace) => 

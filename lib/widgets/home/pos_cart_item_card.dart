@@ -6,6 +6,8 @@ import '../../providers/pos_provider.dart';
 import '../taka_symbol.dart';
 import '../../utils/med_type_icons.dart';
 import 'package:provider/provider.dart';
+import '../../providers/language_provider.dart';
+import '../../utils/med_type_units.dart';
 
 class PosCartItemCard extends StatelessWidget {
   final CartItem item;
@@ -23,6 +25,8 @@ class PosCartItemCard extends StatelessWidget {
     final isNarrow = screenWidth < 380;
     final nameFontSize = isNarrow ? 15.0 : 18.0;
     final totalFontSize = isNarrow ? 16.0 : 19.0;
+    final l10n = context.read<LanguageProvider>().strings;
+    final unitLabels = MedTypeUnits.getLabels(item.product.medType, l10n);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -94,14 +98,14 @@ class PosCartItemCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 2),
                         Text(
-                          (item.product.unitLabels['unit2'] ?? 'strip').toLowerCase(),
+                          (unitLabels['unit2'] ?? 'strip').toLowerCase(),
                           style: const TextStyle(
                             fontSize: 10,
                             color: AppColors.secondaryAccent,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (item.product.unitLabels['unit3'] != null) ...[
+                        if (unitLabels['unit3'] != null) ...[
                           const SizedBox(width: 10),
                           TakaSymbol(
                             size: isNarrow ? 10.0 : 11.0,
@@ -118,7 +122,7 @@ class PosCartItemCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            item.product.unitLabels['unit3']!.toLowerCase(),
+                            unitLabels['unit3']!.toLowerCase(),
                             style: const TextStyle(
                               fontSize: 10,
                               color: AppColors.secondaryAccent,
@@ -179,20 +183,20 @@ class PosCartItemCard extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      if (item.product.unitLabels['unit2'] != null)
+                      if (unitLabels['unit2'] != null)
                         _QuantityBox(
-                          label: item.product.unitLabels['unit2']!.toUpperCase(),
+                          label: unitLabels['unit2']!.toUpperCase(),
                           quantity: item.stripQuantity,
                           onDecrement: () =>
                               provider.updateStripQuantity(item.product, -1),
                           onIncrement: () =>
                               provider.updateStripQuantity(item.product, 1),
                         ),
-                      if (item.product.unitLabels['unit2'] != null && item.product.unitLabels['unit3'] != null)
+                      if (unitLabels['unit2'] != null && unitLabels['unit3'] != null)
                         const SizedBox(width: 12),
-                      if (item.product.unitLabels['unit3'] != null)
+                      if (unitLabels['unit3'] != null)
                         _QuantityBox(
-                          label: item.product.unitLabels['unit3']!.toUpperCase(),
+                          label: unitLabels['unit3']!.toUpperCase(),
                           quantity: item.pcQuantity,
                           onDecrement: () =>
                               provider.updatePcQuantity(item.product, -1),

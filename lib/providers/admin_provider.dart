@@ -75,6 +75,11 @@ class AdminProvider extends ChangeNotifier {
   bool _isSyncing = false;
   String? _syncError;
   Timer? _syncDebounce;
+  String _productSearchQuery = '';
+  String _productSortBy = 'Name (A-Z)';
+  final Set<String> _selectedCompanies = {};
+  final Set<String> _selectedGenerics = {};
+  final Set<String> _selectedTypes = {};
 
   // Track notified products to avoid redundant alerts
   final Set<String> _notifiedLowStockIds = {};
@@ -104,6 +109,26 @@ class AdminProvider extends ChangeNotifier {
   DateTime? get lastSyncTime => _lastSyncTime;
   bool get isSyncing => _isSyncing;
   String? get syncError => _syncError;
+
+  // Product Filtering & Sorting Getters
+  String get searchQuery => _productSearchQuery;
+  String get sortBy => _productSortBy;
+  Set<String> get selectedCompanies => _selectedCompanies;
+  Set<String> get selectedGenerics => _selectedGenerics;
+  Set<String> get selectedTypes => _selectedTypes;
+
+  bool get isFilterEmpty =>
+      _productSearchQuery.isEmpty &&
+      _selectedCompanies.isEmpty &&
+      _selectedGenerics.isEmpty &&
+      _selectedTypes.isEmpty;
+
+  List<String> get allCompanies =>
+      _products.map((p) => p.companyName ?? 'Unknown').toSet().toList()..sort();
+  List<String> get allGenerics =>
+      _products.map((p) => p.generic).toSet().toList()..sort();
+  List<String> get allTypes =>
+      _products.map((p) => p.medType ?? 'Tablet').toSet().toList()..sort();
 
   bool login(String pin) {
     if (pin == _currentPin) {
@@ -335,9 +360,7 @@ class AdminProvider extends ChangeNotifier {
 
     try {
       final dbPath = await _db.getDatabasePath();
-      print("DEBUG: Database path for sync: $dbPath");
       if (dbPath == null) {
-        print("DEBUG ERROR: dbPath is NULL");
         _syncError = "Could not find database path";
         notifyListeners();
         return;
@@ -345,38 +368,28 @@ class AdminProvider extends ChangeNotifier {
 
       final driveService = DriveService();
 
-      print("DEBUG: Checking/Creating Drive folder...");
       _googleDriveFolderId = await driveService.getOrCreateFolder(
         accessToken: googleToken,
         folderName: 'Pharmacy POS Backups',
       );
-      print("DEBUG: Drive folder ID: $_googleDriveFolderId");
       await saveSetting('googleDriveFolderId', _googleDriveFolderId!);
 
-      print(
-        "DEBUG: Starting Drive upload/update (fileId: $_googleDriveFileId)",
-      );
       final newFileId = await driveService.uploadDatabaseToDrive(
         accessToken: googleToken,
         dbFilePath: dbPath,
         fileId: _googleDriveFileId,
         folderId: _googleDriveFolderId,
       );
-      print("DEBUG: Drive upload result fileId: $newFileId");
 
       _googleDriveFileId = newFileId;
       await saveSetting('googleDriveFileId', newFileId);
 
-      print("DEBUG: Starting local export...");
       await _performLocalExport(dbPath);
-      print("DEBUG: Local export complete.");
 
       _lastSyncTime = DateTime.now();
       await saveSetting('lastSyncTime', _lastSyncTime!.toIso8601String());
-      print("DEBUG: Sync success!");
     } catch (e, stack) {
-      print("DEBUG ERROR: _performDriveSync exception: $e");
-      print(stack);
+      developer.log("Drive Sync Exception", error: e, stackTrace: stack);
       _syncError = e.toString();
     } finally {
       _isSyncing = false;
@@ -388,7 +401,6 @@ class AdminProvider extends ChangeNotifier {
     try {
       final File dbFile = File(dbPath);
       if (!await dbFile.exists()) {
-        print("DEBUG ERROR: DB file not found for local export: $dbPath");
         return;
       }
 
@@ -396,17 +408,16 @@ class AdminProvider extends ChangeNotifier {
       final String fileName = "pharmacy_backup";
 
       // Save using FileSaver to the public Downloads folder on Android
-      final savedPath = await FileSaver.instance.saveFile(
+      await FileSaver.instance.saveFile(
         name: fileName,
         bytes: bytes,
         fileExtension: 'db',
         mimeType: MimeType.other,
       );
 
-      print("DEBUG: Local export successful. Saved to (platform specific): $savedPath");
+      // Saved to $savedPath
     } catch (e, stack) {
-      print("DEBUG ERROR: Local export failed: $e");
-      print(stack);
+      developer.log("Local export failed", error: e, stackTrace: stack);
     }
   }
 
@@ -487,7 +498,6 @@ class AdminProvider extends ChangeNotifier {
       await loadProducts();
       scheduleSync(); // Trigger backup
     } catch (e) {
-      print("Failed to delete batch: $e");
       rethrow;
     }
   }
@@ -496,8 +506,9 @@ class AdminProvider extends ChangeNotifier {
   Future<void> importDatabaseLocally(String filePath) async {
     try {
       final currentDbPath = await _db.getDatabasePath();
-      if (currentDbPath == null)
+      if (currentDbPath == null) {
         throw Exception("Could not find current DB path");
+      }
 
       // Safety check - verify it's a valid sqlite file if possible or just proceed
       final importFile = File(filePath);
@@ -507,9 +518,7 @@ class AdminProvider extends ChangeNotifier {
 
       // Reload everything
       await loadData();
-      print("Database imported successfully from $filePath");
     } catch (e) {
-      print("Import failed: $e");
       rethrow;
     }
   }
@@ -568,24 +577,14 @@ class AdminProvider extends ChangeNotifier {
             if (downloadResponse.statusCode == 200) {
               await File(dbPath).writeAsBytes(downloadResponse.bodyBytes);
               await loadData();
-              print("DEBUG: Restored database from Google Drive successfully.");
             } else {
-              print(
-                "DEBUG ERROR: Download failed with status ${downloadResponse.statusCode}",
-              );
+              developer.log("Download failed with status ${downloadResponse.statusCode}");
             }
           }
-        } else {
-          print("DEBUG: No backup file 'pharmacy.db' found in Drive folder.");
         }
-      } else {
-        print(
-          "DEBUG ERROR: Search failed with status ${response.statusCode} - ${response.body}",
-        );
       }
     } catch (e, stack) {
-      print("DEBUG ERROR: Restore from Drive failed: $e");
-      print(stack);
+      developer.log("Restore from Drive failed", error: e, stackTrace: stack);
     } finally {
       _isSyncing = false;
       notifyListeners();
@@ -792,6 +791,52 @@ class AdminProvider extends ChangeNotifier {
     await loadSales();
   }
 
+  // --- Product List State Management ---
+  void setSearchQuery(String query) {
+    _productSearchQuery = query;
+    notifyListeners();
+  }
+
+  void setSortBy(String sort) {
+    _productSortBy = sort;
+    notifyListeners();
+  }
+
+  void toggleCompanyFilter(String company) {
+    if (_selectedCompanies.contains(company)) {
+      _selectedCompanies.remove(company);
+    } else {
+      _selectedCompanies.add(company);
+    }
+    notifyListeners();
+  }
+
+  void toggleGenericFilter(String generic) {
+    if (_selectedGenerics.contains(generic)) {
+      _selectedGenerics.remove(generic);
+    } else {
+      _selectedGenerics.add(generic);
+    }
+    notifyListeners();
+  }
+
+  void toggleTypeFilter(String type) {
+    if (_selectedTypes.contains(type)) {
+      _selectedTypes.remove(type);
+    } else {
+      _selectedTypes.add(type);
+    }
+    notifyListeners();
+  }
+
+  void clearFilters() {
+    _productSearchQuery = '';
+    _selectedCompanies.clear();
+    _selectedGenerics.clear();
+    _selectedTypes.clear();
+    notifyListeners();
+  }
+
   Future<bool> updatePin(String oldPin, String newPin) async {
     if (oldPin != _currentPin) return false;
 
@@ -909,7 +954,7 @@ class AdminProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      print("DEBUG ERROR: Error checking subscription status: $e");
+      // Removed print statement as per instruction
     }
   }
 

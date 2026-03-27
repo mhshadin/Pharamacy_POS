@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/language_provider.dart';
 import 'package:file_picker/file_picker.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -64,6 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int defaultOrderBoxes = int.tryParse(_defaultOrderBoxesCtrl.text) ?? 100;
     if (defaultOrderBoxes <= 0) defaultOrderBoxes = 100;
 
+    final l10n = context.read<LanguageProvider>().strings;
     if (expiryCrit > expiryMod || expiryMod > expiryWarn) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -71,9 +73,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          content: const Text(
-            'Expiry days must be ordered: Critical (red) ≤ Moderate (amber) ≤ Expiring Soon window.',
-            style: TextStyle(fontWeight: FontWeight.w600),
+          content: Text(
+            l10n.expiryOrderError,
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       );
@@ -98,13 +100,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        content: const Row(
+        content: Row(
           children: [
-            Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
-            SizedBox(width: 8),
+            const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
+            const SizedBox(width: 8),
             Text(
-              'Settings saved successfully',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              l10n.settingsSaved,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -114,6 +116,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: _isLoading
@@ -124,69 +128,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSectionCard(
-                    title: 'Inventory Alerts',
+                    title: l10n.inventoryAlerts,
                     icon: LucideIcons.bell,
                     children: [
                       _buildTextField(
                         controller: _lowStockCtrl,
-                        label: 'Low Stock Threshold (Boxes)',
-                        helperText:
-                            'Default warning level in boxes. Individual products can override this.',
+                        label: l10n.lowStockThreshold,
+                        helperText: l10n.lowStockThresholdHelper,
                         icon: LucideIcons.packageMinus,
                       ),
                       const Divider(height: 32, color: AppColors.divider),
                       _buildTextField(
                         controller: _defaultOrderBoxesCtrl,
-                        label: 'Default Boxes to Order',
-                        helperText:
-                            'This is pre-filled when exporting an order list from Low Stock / Expiring Soon.',
+                        label: l10n.defaultBoxesToOrder,
+                        helperText: l10n.defaultBoxesHelper,
                         icon: LucideIcons.packagePlus,
                       ),
                       const Divider(height: 32, color: AppColors.divider),
                       _buildTextField(
                         controller: _expiryWarningCtrl,
-                        label: 'Expiring Soon Window (Days)',
-                        helperText:
-                            'Products expiring within this many days appear in Expiring Soon. Green tier uses the time range above Moderate (amber).',
+                        label: l10n.expiringSoonWindow,
+                        helperText: l10n.expiringSoonWindowHelper,
                         icon: LucideIcons.clock,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
                         controller: _expiryModerateCtrl,
-                        label: 'Moderate Expiry (Days, Amber)',
-                        helperText:
-                            'Amber highlight: expires within this many days but after the critical (red) range. Must be between Critical and the window above.',
+                        label: l10n.moderateExpiry,
+                        helperText: l10n.moderateExpiryHelper,
                         icon: LucideIcons.alertTriangle,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
                         controller: _expiryCriticalCtrl,
-                        label: 'Critical Expiry (Days, Red)',
-                        helperText:
-                            'Red highlight: expires within this many days (and expired stock). Use the lowest value of the three.',
+                        label: l10n.criticalExpiry,
+                        helperText: l10n.criticalExpiryHelper,
                         icon: LucideIcons.alertOctagon,
                       ),
                       const Divider(height: 32, color: AppColors.divider),
                       _buildTextField(
                         controller: _expiryDelayCtrl,
-                        label: 'Default Expiry Delay (Months)',
-                        helperText:
-                            'The initial date in the Add Product date picker will be set to this many months from today.',
+                        label: l10n.defaultExpiryDelay,
+                        helperText: l10n.defaultExpiryDelayHelper,
                         icon: LucideIcons.calendarDays,
                       ),
                       const SizedBox(height: 16),
                       SwitchListTile(
-                        title: const Text(
-                          'Show Supplier Info in Add Product',
-                          style: TextStyle(
+                        title: Text(
+                          l10n.showSupplierInfo,
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppColors.primaryDark,
                             fontSize: 14,
                           ),
                         ),
-                        subtitle: const Text(
-                          'Enable this to enter and track supplier name and phone number during stock in.',
-                          style: TextStyle(
+                        subtitle: Text(
+                          l10n.showSupplierInfoHelper,
+                          style: const TextStyle(
                             color: AppColors.secondaryAccent,
                             fontSize: 12,
                           ),
@@ -206,6 +204,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 24),
                   _buildMedicineTypesSection(context),
                   const SizedBox(height: 24),
+                  _buildLanguageSection(context),
+                  const SizedBox(height: 24),
                   _buildDriveSection(context),
                   const SizedBox(height: 24),
                   _buildLocalBackupSection(context),
@@ -218,9 +218,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         LucideIcons.save,
                         color: AppColors.white,
                       ),
-                      label: const Text(
-                        'Save Settings',
-                        style: TextStyle(
+                      label: Text(
+                        l10n.saveSettings,
+                        style: const TextStyle(
                           color: AppColors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -246,32 +246,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isSyncing = admin.isSyncing;
     final lastSync = admin.lastSyncTime;
     final syncError = admin.syncError;
-    
-    String statusText = 'Not synced yet';
+    final l10n = context.watch<LanguageProvider>().strings;
+
+    String statusText = l10n.notSyncedYet;
     if (isSyncing) {
-      statusText = 'Syncing now...';
+      statusText = l10n.syncingNow;
     } else if (syncError != null) {
-      statusText = 'Sync failed';
+      statusText = l10n.syncFailed;
     } else if (lastSync != null) {
-      statusText = 'Last sync: ${DateFormat('MMM dd, yyyy - HH:mm').format(lastSync)}';
+      statusText = '${l10n.lastSync}: ${DateFormat('MMM dd, yyyy - HH:mm').format(lastSync)}';
     }
 
     return _buildSectionCard(
-      title: 'Database Backup',
+      title: l10n.databaseBackup,
       icon: LucideIcons.uploadCloud,
       children: [
-        const Text(
-          'Google Drive Integration',
-          style: TextStyle(
+        Text(
+          l10n.googleDriveIntegration,
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: AppColors.primaryDark,
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Securely backup your database to Google Drive. Backups happen automatically after data changes.',
-          style: TextStyle(
+        Text(
+          l10n.googleDriveDesc,
+          style: const TextStyle(
             color: AppColors.secondaryAccent,
             fontSize: 12,
           ),
@@ -283,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: syncError != null ? Colors.red.shade50 : AppColors.surfaceLight,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: syncError != null ? Colors.red.shade200 : AppColors.secondaryAccent.withOpacity(0.5),
+              color: syncError != null ? Colors.red.shade200 : AppColors.secondaryAccent.withValues(alpha: 0.5),
             ),
           ),
           child: Row(
@@ -293,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? LucideIcons.loader 
                     : (syncError != null ? LucideIcons.alertCircle : LucideIcons.checkCircle2),
                 color: isSyncing 
-                    ? AppColors.primaryDark.withOpacity(0.7)
+                    ? AppColors.primaryDark.withValues(alpha: 0.7)
                     : (syncError != null ? Colors.red : AppColors.success),
                 size: 20,
               ),
@@ -314,8 +315,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 4),
                       Text(
                          syncError.contains('403') 
-                          ? 'Missing Drive scope. Please sign out and sign back in.'
-                          : 'Ensure you are signed in and have internet.',
+                          ? l10n.missingDriveScope
+                          : l10n.ensureSignedIn,
                         style: TextStyle(
                           color: Colors.red.shade700,
                           fontSize: 12,
@@ -331,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context.read<AdminProvider>().scheduleSync(immediate: true);
                   },
                   icon: const Icon(LucideIcons.refreshCw, size: 16),
-                  label: const Text('Sync Now'),
+                  label: Text(l10n.syncNow),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primaryDark,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -346,23 +347,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildLocalBackupSection(BuildContext context) {
     final admin = context.read<AdminProvider>();
+    final l10n = context.watch<LanguageProvider>().strings;
 
     return _buildSectionCard(
-      title: 'Phone Storage Backup',
+      title: l10n.phoneStorageBackup,
       icon: LucideIcons.smartphone,
       children: [
-        const Text(
-          'Offline Backup & Import',
-          style: TextStyle(
+        Text(
+          l10n.offlineBackupImport,
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: AppColors.primaryDark,
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Export a backup file to your phone storage or import an existing .db file if you lost access to Google.',
-          style: TextStyle(
+        Text(
+          l10n.offlineBackupDesc,
+          style: const TextStyle(
             color: AppColors.secondaryAccent,
             fontSize: 12,
           ),
@@ -374,20 +376,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: OutlinedButton.icon(
                 onPressed: () async {
                   setState(() => _isLoading = true);
-                  // Trigger a sync which includes local export
                   await admin.scheduleSync(immediate: true);
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => _isLoading = false);
                   
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Database exported to phone storage (Documents/backups)'),
+                    SnackBar(
+                      content: Text(l10n.exportedSuccess),
                       backgroundColor: AppColors.success,
                     ),
                   );
                 },
                 icon: const Icon(LucideIcons.download),
-                label: const Text('Export Now'),
+                label: Text(l10n.exportNow),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primaryDark,
                   side: const BorderSide(color: AppColors.primaryDark),
@@ -401,7 +402,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => _showImportConfirm(context),
                 icon: const Icon(LucideIcons.fileInput, color: AppColors.white),
-                label: const Text('Import DB', style: TextStyle(color: AppColors.white)),
+                label: Text(l10n.importDb, style: const TextStyle(color: AppColors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.error,
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -416,6 +417,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showImportConfirm(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -428,25 +430,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
+                  color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(LucideIcons.alertTriangle, color: AppColors.error, size: 32),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Import Database?',
-                style: TextStyle(
+              Text(
+                l10n.importDatabase,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                   color: AppColors.primaryDark,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'This will REPLACE all your current data (medicines, sales, stock) with the selected file. This action cannot be undone. The app will refresh after import.',
+              Text(
+                l10n.importDatabaseWarning,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.secondaryAccent,
                   fontSize: 14,
                   height: 1.5,
@@ -462,9 +464,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
+                      child: Text(
+                        l10n.cancelBtn,
+                        style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -480,15 +482,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         if (result != null && result.files.single.path != null) {
                           setState(() => _isLoading = true);
                           try {
+                            if (!context.mounted) return;
                             await context.read<AdminProvider>().importDatabaseLocally(result.files.single.path!);
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Import successful!'), backgroundColor: AppColors.success),
+                              SnackBar(content: Text(l10n.importSuccess), backgroundColor: AppColors.success),
                             );
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Import failed: $e'), backgroundColor: AppColors.error),
+                              SnackBar(content: Text('${l10n.importFailed}: $e'), backgroundColor: AppColors.error),
                             );
                           } finally {
                             if (mounted) setState(() => _isLoading = false);
@@ -502,7 +505,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Import & Replace', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(l10n.importReplace, style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -516,16 +519,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildMedicineTypesSection(BuildContext context) {
     final admin = context.watch<AdminProvider>();
+    final l10n = context.watch<LanguageProvider>().strings;
     final types = admin.medicineTypes;
     final addCtrl = TextEditingController();
 
     return _buildSectionCard(
-      title: 'Medicine Categories',
+      title: l10n.medicineCategories,
       icon: LucideIcons.layers,
       children: [
-        const Text(
-          'Manage types like Tablet, Syrup, etc. These appear in Add Product and POS filters.',
-          style: TextStyle(
+        Text(
+          l10n.medicineCategoriesDesc,
+          style: const TextStyle(
             color: AppColors.secondaryAccent,
             fontSize: 12,
           ),
@@ -577,7 +581,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: TextField(
                 controller: addCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Add new type (e.g. Inhaler)',
+                  hintText: l10n.addNewType,
                   hintStyle: const TextStyle(fontSize: 13, color: AppColors.secondaryAccent),
                   filled: true,
                   fillColor: AppColors.surfaceLight,
@@ -625,6 +629,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showDeleteConfirm(BuildContext context, String type) {
+    final l10n = context.read<LanguageProvider>().strings;
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -637,15 +642,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
+                  color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(LucideIcons.trash2, color: AppColors.error, size: 32),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Remove Category?',
-                style: TextStyle(
+              Text(
+                l10n.removeCategory,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                   color: AppColors.primaryDark,
@@ -653,7 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Are you sure you want to remove "$type"? Existing products with this category will keep it until they are edited.',
+                '${l10n.removeCategoryConfirm} "$type"? ${l10n.removeCategoryWarning}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.secondaryAccent,
@@ -671,9 +676,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
+                      child: Text(
+                        l10n.cancelBtn,
+                        style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -691,12 +696,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Remove', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(l10n.removeBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageSection(BuildContext context) {
+    final langProvider = context.watch<LanguageProvider>();
+    final l10n = langProvider.strings;
+
+    return _buildSectionCard(
+      title: l10n.languageSetting,
+      icon: LucideIcons.languages,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildLanguageOption(
+                context,
+                title: 'English',
+                isSelected: !langProvider.isBangla,
+                onTap: () => langProvider.setLanguage('en'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildLanguageOption(
+                context,
+                title: 'বাংলা',
+                isSelected: langProvider.isBangla,
+                onTap: () => langProvider.setLanguage('bn'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLanguageOption(
+    BuildContext context, {
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryDark : AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryDark : AppColors.divider,
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isSelected ? AppColors.white : AppColors.primaryDark,
+            ),
           ),
         ),
       ),
@@ -710,12 +780,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.9),
+        color: AppColors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryDark.withOpacity(0.05),
+            color: AppColors.primaryDark.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -805,14 +875,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: 2,
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          helperText,
-          style: const TextStyle(
-            color: AppColors.secondaryAccent,
-            fontSize: 12,
+            helperText: helperText,
+            helperMaxLines: 3,
+            helperStyle: const TextStyle(
+              color: AppColors.secondaryAccent,
+              fontSize: 11,
+            ),
           ),
         ),
       ],

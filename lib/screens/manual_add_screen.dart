@@ -8,6 +8,8 @@ import '../models/product.dart';
 import '../services/speech_service.dart';
 import '../utils/product_matcher.dart';
 import '../utils/med_type_icons.dart';
+import '../providers/language_provider.dart';
+import '../utils/med_type_units.dart';
 
 class ManualAddScreen extends StatefulWidget {
   const ManualAddScreen({super.key});
@@ -277,7 +279,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                   hintStyle: TextStyle(
                     color: _isListening 
                       ? AppColors.highlightActive 
-                      : AppColors.secondaryAccent.withOpacity(0.7),
+                      : AppColors.secondaryAccent.withValues(alpha: 0.7),
                     fontWeight: FontWeight.bold,
                   ),
                   prefixIcon: _isListening 
@@ -399,6 +401,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                               (p) => p.id == activeVariantId,
                               orElse: () => product,
                             );
+
+                      final l10n = context.read<LanguageProvider>().strings;
+                      final unitLabels = MedTypeUnits.getLabels(activeProduct.medType, l10n);
 
                       final availableVariants = posProvider.products
                           .where((p) => p.name.toLowerCase() == product.name.toLowerCase())
@@ -529,7 +534,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                       ],
                                     ),
                                     Text(
-                                      '${(activeProduct.unitLabels['unit2'] ?? 'STRIP').toUpperCase()} PRICE',
+                                      '${(unitLabels['unit2'] ?? 'STRIP').toUpperCase()} PRICE',
                                       style: const TextStyle(
                                         fontSize: 9,
                                         color: AppColors.secondaryAccent,
@@ -555,21 +560,21 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  if (activeProduct.unitLabels['unit2'] != null)
+                                  if (unitLabels['unit2'] != null)
                                     _ManualQuantityBox(
-                                      label: activeProduct.unitLabels['unit2']!.toUpperCase(),
+                                      label: unitLabels['unit2']!.toUpperCase(),
                                       quantity: stripQty,
                                       onDecrement: () => posProvider.updateStripQuantity(activeProduct, -1),
                                       onIncrement: () => posProvider.updateStripQuantity(activeProduct, 1),
-                                      onTap: () => _editQuantity(context, activeProduct, activeProduct.unitLabels['unit2']!.toUpperCase(), stripQty),
+                                      onTap: () => _editQuantity(context, activeProduct, unitLabels['unit2']!.toUpperCase(), stripQty),
                                     ),
-                                  if (activeProduct.unitLabels['unit3'] != null)
+                                  if (unitLabels['unit3'] != null)
                                     _ManualQuantityBox(
-                                      label: activeProduct.unitLabels['unit3']!.toUpperCase(),
+                                      label: unitLabels['unit3']!.toUpperCase(),
                                       quantity: pcQty,
                                       onDecrement: () => posProvider.updatePcQuantity(activeProduct, -1),
                                       onIncrement: () => posProvider.updatePcQuantity(activeProduct, 1),
-                                      onTap: () => _editQuantity(context, activeProduct, activeProduct.unitLabels['unit3']!.toUpperCase(), pcQty),
+                                      onTap: () => _editQuantity(context, activeProduct, unitLabels['unit3']!.toUpperCase(), pcQty),
                                     ),
                                 ],
                               ),

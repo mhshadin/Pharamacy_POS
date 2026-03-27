@@ -246,7 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? Image.network(
                       avatarUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(
+                      errorBuilder: (_, _, _) => Center(
                         child: Text(
                           initials,
                           style: const TextStyle(

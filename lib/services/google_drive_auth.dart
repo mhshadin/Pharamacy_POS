@@ -1,5 +1,6 @@
 import 'package:google_sign_in/google_sign_in.dart';
 import 'auth_storage.dart';
+import 'dart:developer' as developer;
 
 /// Shared Google Sign-In configuration for the whole app.
 ///
@@ -23,28 +24,23 @@ final googleSignInClient = GoogleSignIn(
 /// helper is not called again first.
 Future<String?> refreshGoogleAccessToken() async {
   try {
-    print("DEBUG: Refreshing Google access token silently...");
     final account =
         googleSignInClient.currentUser ??
         await googleSignInClient.signInSilently();
     if (account == null) {
-      print("DEBUG: No current user or silent sign-in failed.");
       return null;
     }
 
     final auth = await account.authentication;
     final token = auth.accessToken;
     if (token == null || token.isEmpty) {
-      print("DEBUG: Access token is null or empty.");
       return null;
     }
 
-    print("DEBUG: Google access token refreshed successfully.");
     await const AuthStorage().setGoogleAccessToken(token);
     return token;
   } catch (e, stack) {
-    print("DEBUG ERROR: refreshGoogleAccessToken failed: $e");
-    print(stack);
+    developer.log("refreshGoogleAccessToken failed", error: e, stackTrace: stack);
     return null;
   }
 }

@@ -3,8 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:pharmacy_pos/screens/admin/bulk_import_screen.dart';
 import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
-import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/responsive_helper.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
@@ -38,7 +38,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
 
-  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(_selectedMedType);
+  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(_selectedMedType, context.read<LanguageProvider>().strings);
 
   @override
   void initState() {
@@ -126,12 +126,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_expiryDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an expiry date for trackable stock.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(
+           content: Text(context.read<LanguageProvider>().strings.selectExpiryDate),
+           backgroundColor: AppColors.error,
+         ),
+       );
       return;
     }
 
@@ -255,11 +255,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save product. Please try again.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+         SnackBar(
+           content: Text(context.read<LanguageProvider>().strings.failedToSaveProduct),
+           backgroundColor: AppColors.error,
+         ),
+       );
       return;
     }
 
@@ -295,13 +295,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
-          children: const [
-            Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Product added successfully!',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+          children: [
+             const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
+             const SizedBox(width: 8),
+             Text(
+               existingProduct != null
+                ? context.read<LanguageProvider>().strings.productUpdated
+                : context.read<LanguageProvider>().strings.productSaved,
+               style: const TextStyle(fontWeight: FontWeight.bold),
+             ),
           ],
         ),
       ),
@@ -348,21 +350,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: ResponsiveHelper.screenPadding(context),
-      child: Form(
-        key: _formKey,
-        child: Column(
+   @override
+   Widget build(BuildContext context) {
+     final l10n = context.read<LanguageProvider>().strings;
+     return SingleChildScrollView(
+       padding: ResponsiveHelper.screenPadding(context),
+       child: Form(
+         key: _formKey,
+         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TITLE
-            const Padding(
-              padding: EdgeInsets.only(left: 4, bottom: 16),
-              child: Text(
-                'Add New Product',
-                style: TextStyle(
+             Padding(
+               padding: const EdgeInsets.only(left: 4, bottom: 16),
+               child: Text(
+                 l10n.addProduct,
+                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   color: AppColors.primaryDark,
@@ -370,10 +372,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
             ),
 
-            // SECTION 1: GENERAL INFORMATION
-            _buildSection(
-              title: 'General Information',
-              icon: LucideIcons.info,
+             // SECTION 1: GENERAL INFORMATION
+             _buildSection(
+               title: l10n.generalInfo,
+               icon: LucideIcons.info,
               child: Column(
                 children: [
                   LayoutBuilder(
@@ -407,10 +409,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               onEditingComplete,
                             ) {
                               _nameCtrl = controller;
-                              return _buildField(
-                                controller: controller,
-                                label: 'Product Name',
-                                icon: LucideIcons.pill,
+                               return _buildField(
+                                 controller: controller,
+                                 label: l10n.productName,
+                                 icon: LucideIcons.pill,
                                 focusNode: focusNode,
                                 onEditingComplete: onEditingComplete,
                                 validator: (v) =>
@@ -491,10 +493,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               onEditingComplete,
                             ) {
                               _genericCtrl = controller;
-                              return _buildField(
-                                controller: controller,
-                                label: 'Generic / Description',
-                                icon: LucideIcons.fileText,
+                               return _buildField(
+                                 controller: controller,
+                                 label: l10n.genericName,
+                                 icon: LucideIcons.fileText,
                                 focusNode: focusNode,
                                 onEditingComplete: onEditingComplete,
                                 validator: (v) =>
@@ -575,13 +577,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           onEditingComplete,
                         ) {
                           _companyCtrl = controller;
-                          return _buildField(
-                            controller: controller,
-                            label: 'Company Name (optional)',
-                            icon: LucideIcons.building2,
-                            focusNode: focusNode,
-                            onEditingComplete: onEditingComplete,
-                          );
+                           return _buildField(
+                             controller: controller,
+                             label: l10n.companyName,
+                             icon: LucideIcons.building2,
+                             focusNode: focusNode,
+                             onEditingComplete: onEditingComplete,
+                           );
                         },
                         optionsViewBuilder: (context, onSelected, options) {
                           return Align(
@@ -661,14 +663,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             color: AppColors.white,
                             size: 20,
                           ),
-                          label: const Text(
-                            'Scan',
-                            style: TextStyle(
-                              color: AppColors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                           label: Text(
+                             l10n.scanBtn,
+                             style: const TextStyle(
+                               color: AppColors.white,
+                               fontWeight: FontWeight.bold,
+                               fontSize: 16,
+                             ),
+                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primaryDark,
                             shape: RoundedRectangleBorder(
@@ -680,7 +682,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       );
                       final barcodeField = _buildField(
                         controller: _barcodeCtrl,
-                        label: 'Barcode (optional)',
+                        label: l10n.barcodeLabel,
                         icon: LucideIcons.scanLine,
                         keyboardType: TextInputType.number,
                       );
@@ -710,7 +712,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
             // SECTION 2a: PACKAGING
             _buildSection(
-              title: 'Packaging',
+              title: l10n.packaging,
               icon: LucideIcons.package,
               child: LayoutBuilder(
                 builder: (context, constraints) =>
@@ -720,11 +722,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       Expanded(
                         child: _buildField(
                           controller: _stripsPerBoxCtrl,
-                          label: '${_unitLabels['unit2'] ?? 'Strips'} per ${_unitLabels['unit1'] ?? 'Box'}',
+                          label: l10n.stripsPerBox,
                           icon: LucideIcons.package,
                           keyboardType: TextInputType.number,
                           validator: (v) =>
-                              v == null || v.isEmpty ? 'Required' : null,
+                              v == null || v.isEmpty ? l10n.requiredField : null,
                           onChanged: (val) {
                             if (val.isEmpty) return;
                             final spb = int.tryParse(val) ?? 1;
@@ -747,12 +749,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       Expanded(
                         child: _buildField(
                           controller: _pcsPerStripCtrl,
-                          label: '${_unitLabels['unit3'] ?? 'Pcs'} per ${_unitLabels['unit2'] ?? 'Strip'}',
+                          label: l10n.pcsPerStrip,
                           icon: LucideIcons.boxes,
                           keyboardType: TextInputType.number,
-                          hintText: _selectedMedType?.toLowerCase() == 'syrup' ? 'e.g. 100 ml per bottle' : null,
+                           hintText: _selectedMedType?.toLowerCase() == 'syrup' ? l10n.syrupHint : null,
                           validator: (v) =>
-                              v == null || v.isEmpty ? 'Required' : null,
+                              v == null || v.isEmpty ? l10n.requiredField : null,
                         ),
                       ),
                   ],
@@ -762,7 +764,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
             // SECTION 2b: PRICING
             _buildSection(
-              title: 'Pricing',
+              title: l10n.pricing,
               icon: LucideIcons.circleDollarSign,
               child: LayoutBuilder(
                 builder: (context, constraints) =>
@@ -772,7 +774,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       Expanded(
                         child: _buildField(
                           controller: _priceBoxCtrl,
-                          label: 'Price / ${_unitLabels['unit1'] ?? 'Box'}',
+                          label: '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
                           icon: LucideIcons.shoppingCart,
                           keyboardType: TextInputType.number,
                           onChanged: (val) {
@@ -791,7 +793,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     Expanded(
                       child: _buildField(
                         controller: _priceStripCtrl,
-                        label: 'Price / ${_unitLabels['unit2'] ?? 'Strip'}',
+                        label: '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
                         icon: LucideIcons.dollarSign,
                         keyboardType: TextInputType.number,
                         validator: (v) =>
@@ -814,7 +816,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
             // SECTION 3: INVENTORY TRACKING
             _buildSection(
-              title: 'Inventory & Tracking',
+              title: l10n.inventory,
               icon: LucideIcons.clipboardList,
               child: Column(
                 children: [
@@ -823,7 +825,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _buildField(
                         controller: _stockBoxesCtrl,
-                        label: 'Stock (${_unitLabels['unit1'] ?? 'Boxes'})',
+                        label: '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
                         icon: LucideIcons.box,
                         keyboardType: TextInputType.number,
                         onChanged: (val) {
@@ -838,7 +840,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                   _buildField(
                     controller: _stockStripsCtrl,
-                    label: 'Stock (${_unitLabels['unit2'] ?? 'Strips'})',
+                    label: '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
                     icon: LucideIcons.layers,
                     keyboardType: TextInputType.number,
                     onChanged: (val) {
@@ -853,7 +855,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _lowStockWarningCtrl,
-                      label: 'Low Stock Warning (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? 'Box'})',
+                      label: '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
                       icon: LucideIcons.alertTriangle,
                       keyboardType: TextInputType.number,
                     ),
@@ -887,7 +889,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 child: Text(
                                   _expiryDate != null
                                       ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                      : 'Select Expiry*',
+                                      : l10n.expiryDate,
                                   style: TextStyle(
                                     color: _expiryDate != null
                                         ? AppColors.primaryDark
@@ -905,7 +907,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         constraints: constraints,
                         left: _buildField(
                           controller: _batchCtrl,
-                          label: 'Batch No (optional)',
+                          label: l10n.batchNumber,
                           icon: LucideIcons.hash,
                           keyboardType: TextInputType.text,
                         ),
@@ -920,7 +922,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             // SECTION 4: SUPPLIER INFORMATION
             if (context.watch<AdminProvider>().showSupplierInfo)
               _buildSection(
-                title: 'Supplier Information',
+                title: l10n.supplierInfo,
                 icon: LucideIcons.truck,
                 child: Column(
                   children: [
@@ -967,7 +969,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 _supplierNameCtrl = controller;
                                 return _buildField(
                                   controller: controller,
-                                  label: 'Supplier Name',
+                                  label: l10n.supplierName,
                                   icon: LucideIcons.user,
                                   focusNode: focusNode,
                                   onEditingComplete: onEditingComplete,
@@ -1021,7 +1023,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _supplierPhoneCtrl,
-                      label: 'Supplier Phone',
+                      label: l10n.supplierPhone,
                       icon: LucideIcons.phone,
                       keyboardType: TextInputType.phone,
                     ),
@@ -1036,9 +1038,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
               child: ElevatedButton.icon(
                 onPressed: _submitForm,
                 icon: const Icon(LucideIcons.plus, color: AppColors.white),
-                label: const Text(
-                  'Add Product',
-                  style: TextStyle(
+                label: Text(
+                  l10n.addProduct,
+                  style: const TextStyle(
                     color: AppColors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -1070,9 +1072,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   LucideIcons.fileSpreadsheet,
                   color: AppColors.primaryDark,
                 ),
-                label: const Text(
-                  'Bulk Import CSV',
-                  style: TextStyle(
+                label: Text(
+                  l10n.bulkImport,
+                  style: const TextStyle(
                     color: AppColors.primaryDark,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -1091,127 +1093,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
-
-            // QUICK STOCK UPDATE SECTION
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          LucideIcons.refreshCw,
-                          color: AppColors.primaryDark,
-                          size: 22,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Quick Stock Update',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, color: AppColors.divider),
-                  Builder(
-                    builder: (ctx) {
-                      final sortedProducts = List<Product>.from(
-                        ctx.watch<POSProvider>().products,
-                      );
-                      final admin = ctx.watch<AdminProvider>();
-                      sortedProducts.sort((a, b) {
-                        if (admin.isProductLowStock(a) &&
-                            !admin.isProductLowStock(b)) {
-                          return -1;
-                        }
-                        if (!admin.isProductLowStock(a) &&
-                            admin.isProductLowStock(b)) {
-                          return 1;
-                        }
-                        return a.name.compareTo(b.name);
-                      });
-
-                      return ListView.separated(
-                        padding: const EdgeInsets.all(8),
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: sortedProducts.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1, color: AppColors.divider),
-                        itemBuilder: (_, idx) {
-                          final product = sortedProducts[idx];
-                          final lowAcc = admin.isProductLowStock(product)
-                              ? admin.lowStockTierFor(product).accentColor
-                              : null;
-                          return ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.secondaryAccent.withValues(
-                                  alpha: 0.1,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                LucideIcons.pill,
-                                color: AppColors.secondaryAccent,
-                                size: 18,
-                              ),
-                            ),
-                            title: Text(
-                              product.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${product.stockStrips} strips • ${product.totalPieces} pcs',
-                              style: const TextStyle(
-                                color: AppColors.secondaryAccent,
-                                fontSize: 12,
-                              ),
-                            ),
-                            trailing: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: (lowAcc ?? AppColors.success)
-                                    .withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                lowAcc != null ? 'LOW' : 'OK',
-                                style: TextStyle(
-                                  color: lowAcc ?? AppColors.success,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -1277,12 +1158,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final admin = context.read<AdminProvider>();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) {
+        final l10n = ctx.read<LanguageProvider>().strings;
+        return AlertDialog(
         backgroundColor: AppColors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Change Medicine Type',
-          style: TextStyle(
+        title: Text(
+          l10n.changeMedType,
+          style: const TextStyle(
             color: AppColors.primaryDark,
             fontWeight: FontWeight.bold,
           ),
@@ -1321,11 +1204,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
             },
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _buildMedTypeDropdown() {
+    final l10n = context.read<LanguageProvider>().strings;
     return InkWell(
       onTap: _showMedTypePicker,
       borderRadius: BorderRadius.circular(10),
@@ -1345,16 +1230,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Medicine Type',
-                    style: TextStyle(
+                  Text(
+                    l10n.category,
+                    style: const TextStyle(
                       color: AppColors.secondaryAccent,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   Text(
-                    _selectedMedType ?? 'Select type',
+                    _selectedMedType ?? l10n.category,
                     style: const TextStyle(
                       color: AppColors.primaryDark,
                       fontWeight: FontWeight.bold,

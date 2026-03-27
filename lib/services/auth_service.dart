@@ -184,9 +184,6 @@ class AuthService {
 
   AuthResult _handleAuthResponse(http.Response response) {
     if (response.statusCode != 200 && response.statusCode != 201) {
-      print(
-        'DEBUG ERROR: [AuthService] Non-success status=${response.statusCode} body=${response.body}',
-      );
       throw _buildException(response);
     }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 import '../../utils/colors.dart';
 import '../../utils/inventory_alert_tiers.dart';
 import '../../utils/responsive_helper.dart';
@@ -31,17 +33,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   int get _currentIndex => _navStack.last;
 
-  final List<_NavItem> _navItems = [
-    _NavItem(icon: LucideIcons.layoutDashboard, label: 'Dashboard'),
-    _NavItem(icon: LucideIcons.packagePlus, label: 'Add Product'),
-    _NavItem(icon: LucideIcons.rotateCcw, label: 'Returns'),
-    _NavItem(icon: LucideIcons.barChart3, label: 'Sales Report'),
-    _NavItem(icon: LucideIcons.clock, label: 'Expiring Soon'),
-    _NavItem(icon: LucideIcons.alertTriangle, label: 'Low Stock'),
-    _NavItem(icon: LucideIcons.package, label: 'Product List'),
-    _NavItem(icon: LucideIcons.trendingUp, label: 'Top Products'),
-    _NavItem(icon: LucideIcons.settings, label: 'Settings'),
-    _NavItem(icon: LucideIcons.user, label: 'Profile'),
+  final List<_NavItemData> _navItemsData = [
+    _NavItemData(icon: LucideIcons.layoutDashboard, labelKey: (l10n) => l10n.navDashboard),
+    _NavItemData(icon: LucideIcons.packagePlus, labelKey: (l10n) => l10n.navAddProduct),
+    _NavItemData(icon: LucideIcons.rotateCcw, labelKey: (l10n) => l10n.navReturns),
+    _NavItemData(icon: LucideIcons.barChart3, labelKey: (l10n) => l10n.navSalesReport),
+    _NavItemData(icon: LucideIcons.clock, labelKey: (l10n) => l10n.navExpiringSoon),
+    _NavItemData(icon: LucideIcons.alertTriangle, labelKey: (l10n) => l10n.navLowStock),
+    _NavItemData(icon: LucideIcons.package, labelKey: (l10n) => l10n.navProductList),
+    _NavItemData(icon: LucideIcons.trendingUp, labelKey: (l10n) => l10n.navTopProducts),
+    _NavItemData(icon: LucideIcons.settings, labelKey: (l10n) => l10n.navSettings),
+    _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),
   ];
 
   void _navigateTo(int index, {bool fromDrawer = false}) {
@@ -103,6 +105,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Provider.of<LanguageProvider>(context).strings;
     final isWide = MediaQuery.of(context).size.width > 800;
 
     return PopScope(
@@ -128,7 +131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ),
           title: Text(
-            _navItems[_currentIndex].label,
+            _navItemsData[_currentIndex].labelKey(l10n),
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
@@ -143,7 +146,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(LucideIcons.bell),
-                      tooltip: 'Notifications',
+                      tooltip: l10n.notifications,
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -182,16 +185,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             IconButton(
               icon: const Icon(LucideIcons.logOut),
-              tooltip: 'Logout',
+              tooltip: l10n.logout,
               onPressed: _exitAdmin,
             ),
           ],
         ),
-        drawer: isWide ? null : _buildDrawer(),
+        drawer: isWide ? null : _buildDrawer(l10n),
         body: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isWide) _buildSidebar(),
+            if (isWide) _buildSidebar(l10n),
             Expanded(child: _getPage(_currentIndex)),
           ],
         ),
@@ -199,7 +202,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar(AppStrings l10n) {
     return Container(
       width: 240,
       color: AppColors.primaryDark,
@@ -207,21 +210,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
+                const Icon(
                   LucideIcons.cross,
                   color: AppColors.highlightActive,
                   size: 28,
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'PHARMAPOS',
-                        style: TextStyle(
+                        l10n.posTitle,
+                        style: const TextStyle(
                           color: AppColors.white,
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
@@ -229,8 +232,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ),
                       Text(
-                        'ADMIN PORTAL',
-                        style: TextStyle(
+                        l10n.adminPortal,
+                        style: const TextStyle(
                           color: AppColors.secondaryAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
@@ -248,9 +251,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: _navItems.length,
+              itemCount: _navItemsData.length,
               itemBuilder: (_, idx) =>
-                  _buildNavTile(idx, onTap: () => _navigateTo(idx)),
+                  _buildNavTile(idx, l10n, onTap: () => _navigateTo(idx)),
             ),
           ),
           const Divider(color: AppColors.secondaryAccent, height: 1),
@@ -261,9 +264,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 LucideIcons.arrowLeft,
                 color: AppColors.highlightActive,
               ),
-              title: const Text(
-                'Back to POS',
-                style: TextStyle(
+              title: Text(
+                l10n.backToPos,
+                style: const TextStyle(
                   color: AppColors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -279,7 +282,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildDrawer() {
+  Widget _buildDrawer(AppStrings l10n) {
     return Drawer(
       backgroundColor: AppColors.primaryDark,
       child: SafeArea(
@@ -287,20 +290,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Container(
               padding: ResponsiveHelper.screenPadding(context),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     LucideIcons.cross,
                     color: AppColors.highlightActive,
                     size: 28,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'PHARMAPOS',
-                        style: TextStyle(
+                        l10n.posTitle,
+                        style: const TextStyle(
                           color: AppColors.white,
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
@@ -308,8 +311,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ),
                       Text(
-                        'ADMIN PORTAL',
-                        style: TextStyle(
+                        l10n.adminPortal,
+                        style: const TextStyle(
                           color: AppColors.secondaryAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
@@ -326,9 +329,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                itemCount: _navItems.length,
+                itemCount: _navItemsData.length,
                 itemBuilder: (_, idx) => _buildNavTile(
                   idx,
+                  l10n,
                   onTap: () => _navigateTo(idx, fromDrawer: true),
                 ),
               ),
@@ -339,9 +343,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildNavTile(int index, {required VoidCallback onTap}) {
+  Widget _buildNavTile(int index, AppStrings l10n, {required VoidCallback onTap}) {
     final isSelected = _currentIndex == index;
-    final item = _navItems[index];
+    final item = _navItemsData[index];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: ListTile(
@@ -351,7 +355,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           size: 22,
         ),
         title: Text(
-          item.label,
+          item.labelKey(l10n),
           style: TextStyle(
             color: isSelected ? AppColors.white : AppColors.secondaryAccent,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
@@ -368,6 +372,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // ===== DASHBOARD PAGE =====
   Widget _buildDashboardPage() {
+    final l10n = Provider.of<LanguageProvider>(context).strings;
     final admin = context.watch<AdminProvider>();
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
@@ -383,9 +388,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Overview',
-                    style: TextStyle(
+                  Text(
+                    l10n.overview,
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                       color: AppColors.primaryDark,
@@ -410,9 +415,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          DateFormat(
-                            'MMM dd, yyyy • hh:mm a',
-                          ).format(DateTime.now()),
+                          l10n.lastUpdated(
+                            DateFormat('MMM dd, yyyy • hh:mm a', Provider.of<LanguageProvider>(context, listen: false).currentLocale)
+                                .format(DateTime.now()),
+                          ),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -439,7 +445,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       SizedBox(
                         width: cardWidth,
                         child: _StatCard(
-                          title: "Today's Sales",
+                          title: l10n.todaySales,
                           value: admin.todaysSales.toStringAsFixed(2),
                           isTaka: true,
                           icon: LucideIcons.dollarSign,
@@ -450,7 +456,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       SizedBox(
                         width: cardWidth,
                         child: _StatCard(
-                          title: 'Total Orders',
+                          title: l10n.totalOrders,
                           value: '${admin.todaysOrders}',
                           icon: LucideIcons.receipt,
                           iconColor: AppColors.secondaryAccent,
@@ -462,7 +468,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       SizedBox(
                         width: cardWidth,
                         child: _StatCard(
-                          title: 'Low Stock',
+                          title: l10n.lowStock,
                           value: '${admin.lowStockProducts.length}',
                           icon: LucideIcons.alertTriangle,
                           iconColor: AppColors.error,
@@ -473,7 +479,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       SizedBox(
                         width: cardWidth,
                         child: _StatCard(
-                          title: 'Expiring Soon',
+                          title: l10n.expiringSoon,
                           value: '${admin.expiringSoonProducts.length}',
                           icon: LucideIcons.clock,
                           iconColor: AppColors.warningOrange,
@@ -491,17 +497,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // CRITICAL INVENTORY (shown first)
               _SectionCard(
-                title: 'Critical Inventory',
+                title: l10n.criticalInventory,
                 child:
                     (admin.lowStockProducts.isEmpty &&
                         admin.expiringSoonProducts.isEmpty)
-                    ? const Padding(
-                        padding: EdgeInsets.all(24.0),
+                    ? Padding(
+                        padding: const EdgeInsets.all(24.0),
                         child: Center(
                           child: Text(
-                            'All stock is good! 🎉\nNo low stock or expiring items.',
+                            l10n.allStockGood,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.secondaryAccent,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -535,7 +541,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 ),
                               ),
                               subtitle: Text(
-                                '${product.stockBoxes} boxes • ${product.remainingStrips} strips • ${product.totalPieces} pcs remaining (min: ${product.minStockLevel})',
+                                l10n.productStockDetails(
+                                  product.stockBoxes,
+                                  product.remainingStrips,
+                                  product.totalPieces,
+                                  product.minStockLevel,
+                                ),
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w500,
@@ -555,7 +566,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  'Low Stock',
+                                  l10n.lowStockBadge,
                                   style: TextStyle(
                                     color: accent,
                                     fontWeight: FontWeight.bold,
@@ -597,8 +608,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               ),
                               subtitle: Text(
                                 product.expiryDate != null
-                                    ? 'Expires: ${product.expiryDate!.toLocal().toString().split(' ')[0]}'
-                                    : 'Unknown Expiry',
+                                    ? l10n.expiresDate(product.expiryDate!.toLocal())
+                                    : l10n.unknownExpiry,
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w500,
@@ -618,7 +629,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  'Expiring Soon',
+                                  l10n.expiringSoonBadge,
                                   style: TextStyle(
                                     color: accent,
                                     fontWeight: FontWeight.bold,
@@ -636,7 +647,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // RECENT SALES
               _SectionCard(
-                title: 'Recent Transactions',
+                title: l10n.recentTransactions,
                 child: Column(
                   children: admin.allSales.take(5).map((sale) {
                     return Padding(
@@ -677,7 +688,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '${sale.productName} × ${sale.effectiveQuantity}',
+                                  l10n.productQuantity(sale.productName, sale.effectiveQuantity),
                                   style: const TextStyle(
                                     color: AppColors.secondaryAccent,
                                     fontSize: 12,
@@ -719,10 +730,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 }
 
 // ===== HELPER CLASSES =====
-class _NavItem {
+class _NavItemData {
   final IconData icon;
-  final String label;
-  _NavItem({required this.icon, required this.label});
+  final String Function(AppStrings) labelKey;
+  _NavItemData({required this.icon, required this.labelKey});
 }
 
 class _StatCard extends StatelessWidget {
@@ -792,13 +803,22 @@ class _StatCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: AppColors.primaryDark,
-              ),
+            Row(
+              children: [
+                if (isTaka)
+                  const TakaSymbol(
+                    size: 22,
+                    color: AppColors.primaryDark,
+                  ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

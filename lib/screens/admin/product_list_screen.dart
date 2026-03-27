@@ -5,6 +5,8 @@ import '../../utils/colors.dart';
 import '../../utils/inventory_alert_tiers.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 import '../../models/product.dart';
 import '../../widgets/drawer/pos_drawer.dart';
 import 'edit_product_screen.dart';
@@ -149,7 +151,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return list;
   }
 
-  void _showCompanySheet(List<String> allCompanies) {
+  void _showCompanySheet(List<String> allCompanies, AppStrings l10n) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -187,9 +189,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Filter by Company',
-                          style: TextStyle(
+                        Text(
+                          l10n.filterByCompany,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: AppColors.primaryDark,
@@ -220,7 +222,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         onChanged: (v) =>
                             setSheetState(() => sheetSearch = v),
                         decoration: InputDecoration(
-                          hintText: 'Search companies...',
+                          hintText: l10n.searchCompanies,
                           hintStyle: TextStyle(
                             color: AppColors.secondaryAccent
                                 .withValues(alpha: 0.6),
@@ -241,10 +243,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   const Divider(height: 1, color: AppColors.divider),
                   Expanded(
                     child: visible.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'No companies found',
-                              style: TextStyle(
+                              l10n.noCompaniesFound,
+                              style: const TextStyle(
                                 color: AppColors.secondaryAccent,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -292,9 +294,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.applyBtn,
+                          style: const TextStyle(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -312,7 +314,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  void _showGenericSheet(List<String> allGenerics) {
+  void _showGenericSheet(List<String> allGenerics, AppStrings l10n) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -350,9 +352,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Filter by Generic',
-                          style: TextStyle(
+                        Text(
+                          l10n.filterByGeneric,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: AppColors.primaryDark,
@@ -383,7 +385,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         onChanged: (v) =>
                             setSheetState(() => sheetSearch = v),
                         decoration: InputDecoration(
-                          hintText: 'Search generics...',
+                          hintText: l10n.searchGenerics,
                           hintStyle: TextStyle(
                             color: AppColors.secondaryAccent
                                 .withValues(alpha: 0.6),
@@ -404,10 +406,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   const Divider(height: 1, color: AppColors.divider),
                   Expanded(
                     child: visible.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'No generics found',
-                              style: TextStyle(
+                              l10n.noGenericsFound,
+                              style: const TextStyle(
                                 color: AppColors.secondaryAccent,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -455,9 +457,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.applyBtn,
+                          style: const TextStyle(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -485,7 +487,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     });
   }
 
-  void _deleteSelected() async {
+  void _deleteSelected(AppStrings l10n) async {
     if (_selectedIds.isEmpty) return;
     final confirm = await showDialog<bool>(
       context: context,
@@ -614,6 +616,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Provider.of<LanguageProvider>(context).strings;
     final products = context.watch<POSProvider>().products;
     final admin = context.watch<AdminProvider>();
     final filtered = _applyFiltersAndSort(source: products, admin: admin);
@@ -647,7 +650,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 children: [
                   // Sort button
                   PopupMenuButton<String>(
-                    tooltip: 'Sort',
+                    tooltip: l10n.sort,
                     icon: SizedBox(
                       height: 44,
                       width: 44,
@@ -683,7 +686,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       : AppColors.secondaryAccent,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(o),
+                                Text(l10n.sortOption(o)),
                               ],
                             ),
                           ),
@@ -694,32 +697,32 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   // Company filter button
                   _filterButton(
                     icon: LucideIcons.building2,
-                    tooltip: 'Filter by Company',
+                    tooltip: l10n.filterByCompany,
                     activeCount: _selectedCompanies.length,
-                    onPressed: () => _showCompanySheet(allCompanies),
+                    onPressed: () => _showCompanySheet(allCompanies, l10n),
                   ),
                   const SizedBox(width: 8),
                   // Generic filter button
                   _filterButton(
                     icon: LucideIcons.flaskConical,
-                    tooltip: 'Filter by Generic',
+                    tooltip: l10n.filterByGeneric,
                     activeCount: _selectedGenericNames.length,
-                    onPressed: () => _showGenericSheet(allGenerics),
+                    onPressed: () => _showGenericSheet(allGenerics, l10n),
                   ),
                   const SizedBox(width: 8),
                   // MedType filter button
                   _filterButton(
                     icon: LucideIcons.layers,
-                    tooltip: 'Filter by Type',
+                    tooltip: l10n.filterByType,
                     activeCount: _selectedMedTypes.length,
-                    onPressed: () => _showMedTypeSheet(admin.medicineTypes),
+                    onPressed: () => _showMedTypeSheet(admin.medicineTypes, l10n),
                   ),
                   if (widget.isAdmin) ...[
                     const SizedBox(width: 8),
                     if (_isSelectionMode)
                       IconButton(
                         onPressed: _selectedIds.isNotEmpty
-                            ? _deleteSelected
+                            ? () => _deleteSelected(l10n)
                             : null,
                         icon: Icon(
                           LucideIcons.trash2,
@@ -728,7 +731,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               : AppColors.secondaryAccent
                                   .withValues(alpha: 0.5),
                         ),
-                        tooltip: 'Delete Selected',
+                        tooltip: l10n.deleteSelectedTooltip,
                       ),
                     IconButton(
                       onPressed: _toggleSelectionMode,
@@ -739,8 +742,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         color: AppColors.primaryDark,
                       ),
                       tooltip: _isSelectionMode
-                          ? 'Cancel Selection'
-                          : 'Select Items',
+                          ? l10n.cancelSelection
+                          : l10n.selectItems,
                     ),
                   ],
                 ],
@@ -758,7 +761,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: TextField(
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: InputDecoration(
-                    hintText: 'Search products...',
+                    hintText: l10n.searchProducts,
                     hintStyle: TextStyle(
                       color: AppColors.secondaryAccent.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500,
@@ -811,8 +814,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 ),
                 Text(
                   _selectedIds.length == filtered.length
-                      ? 'Deselect All'
-                      : 'Select All',
+                      ? l10n.deselectAll
+                      : l10n.selectAll,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark,
@@ -820,7 +823,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  '${_selectedIds.length} Selected',
+                  l10n.selectedCount(_selectedIds.length),
                   style: const TextStyle(
                     color: AppColors.secondaryAccent,
                     fontWeight: FontWeight.bold,
@@ -834,10 +837,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
         Expanded(
           child: filtered.isEmpty
               ? EmptyStateWidget(
-                  title: 'No Products Found',
+                  title: l10n.noProductsFound,
                   message: _searchQuery.isEmpty
-                      ? 'Your product list is currently empty.'
-                      : 'No products match your search/filter criteria.',
+                      ? l10n.productListEmpty
+                      : l10n.noProductsMatchCriteria,
                   icon: LucideIcons.searchX,
                   onAction: _searchQuery.isNotEmpty
                       ? () {
@@ -848,7 +851,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           });
                         }
                       : null,
-                  actionLabel: 'Clear All Filters',
+                  actionLabel: l10n.clearAllFilters,
                 )
               : ListView.separated(
                   padding: ResponsiveHelper.screenPadding(context),
@@ -1002,8 +1005,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                   ),
                                   child: Text(
                                     lowAccent != null
-                                        ? 'Low Stock'
-                                        : 'In Stock',
+                                        ? l10n.lowStockBadge
+                                        : l10n.inStock,
                                     style: TextStyle(
                                       color: lowAccent ?? AppColors.success,
                                       fontWeight: FontWeight.bold,
@@ -1051,25 +1054,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             Row(
                               children: [
                                 _StockBadge(
-                                  label: 'Boxes',
+                                  label: l10n.boxes,
                                   value: '${product.stockBoxes}',
                                   lowStockAccent: lowAccent,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
-                                  label: 'Strips',
+                                  label: l10n.strips,
                                   value: '${product.remainingStrips}',
                                   lowStockAccent: lowAccent,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
-                                  label: 'Pcs',
+                                  label: l10n.pcs,
                                   value: '${product.totalPieces}',
                                   lowStockAccent: null,
                                 ),
                                 const SizedBox(width: 8),
                                 _StockBadge(
-                                  label: 'Strip ৳',
+                                  label: l10n.stripPrice,
                                   value: product.priceStrip.toStringAsFixed(2),
                                   isTaka: true,
                                   lowStockAccent: null,
@@ -1097,9 +1100,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       size: 16,
                                       color: AppColors.white,
                                     ),
-                                    label: const Text(
-                                      'Edit',
-                                      style: TextStyle(
+                                    label: Text(
+                                      l10n.editBtn,
+                                      style: const TextStyle(
                                         color: AppColors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 12,
@@ -1134,9 +1137,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       size: 16,
                                       color: AppColors.white,
                                     ),
-                                    label: const Text(
-                                      'Restock',
-                                      style: TextStyle(
+                                    label: Text(
+                                      l10n.restockBtn,
+                                      style: const TextStyle(
                                         color: AppColors.white,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 12,
@@ -1182,9 +1185,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          title: const Text(
-            'Product List',
-            style: TextStyle(
+          title: Text(
+            l10n.productList,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
             ),
@@ -1197,7 +1200,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return body;
   }
 
-  void _showMedTypeSheet(List<String> types) {
+  void _showMedTypeSheet(List<String> types, AppStrings l10n) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1228,9 +1231,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Filter by Medicine Type',
-                          style: TextStyle(
+                        Text(
+                          l10n.filterByType,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primaryDark,
@@ -1292,9 +1295,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.applyBtn,
+                          style: const TextStyle(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,

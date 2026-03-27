@@ -9,6 +9,8 @@ import '../../providers/admin_provider.dart';
 import '../../models/sale_record.dart';
 import '../../services/export_service.dart';
 import '../../widgets/taka_symbol.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 
 class SalesReportScreen extends StatefulWidget {
   const SalesReportScreen({super.key});
@@ -18,26 +20,35 @@ class SalesReportScreen extends StatefulWidget {
 }
 
 class _SalesReportScreenState extends State<SalesReportScreen> {
-  static const List<String> _periodPresets = [
-    'Today',
-    'This Week',
-    'This Month',
-    'Last 3 Months',
-    'All',
-  ];
-  static const List<String> _sortOptions = [
-    'Newest First',
-    'Oldest First',
-    'Amount (High)',
-    'Amount (Low)',
-    'Product A-Z',
+  static List<String> _getPeriodPresets(AppStrings l10n) => [
+    l10n.today,
+    l10n.thisWeek,
+    l10n.thisMonth,
+    l10n.last3Months,
+    'All', // Assuming 'All' is still acceptable or add l10n.all if needed
   ];
 
-  String _chartPeriod = 'Week'; // for charts
-  String _listFilter = 'This Week'; // for transaction list
-  String _sortBy = 'Newest First';
+  static List<String> _getSortOptions(AppStrings l10n) => [
+    l10n.newestFirst,
+    l10n.oldestFirst,
+    l10n.amountHigh,
+    l10n.amountLow,
+    l10n.productAZ,
+  ];
+
+  String _chartPeriod = 'Week'; // Internal values stay systemic
+  String _listFilter = ''; // Initialized in build/initState
+  String _sortBy = ''; // Initialized in build/initState
   DateTime? _customStart;
   DateTime? _customEnd;
+
+  @override
+  void initState() {
+    super.initState();
+    // We'll set initial values in didChangeDependencies or use a flag
+  }
+
+  bool _initialized = false;
 
   // --- DYNAMIC CHART DATA CALCULATION ---
 
@@ -96,25 +107,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     return _getWeeklyData(sales);
   }
 
-  List<String> get _labels {
+  List<String> _getLabels(AppStrings l10n) {
     if (_chartPeriod == 'Month') {
       return [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+        l10n.jan, l10n.feb, l10n.mar, l10n.apr, l10n.may, l10n.jun,
+        l10n.jul, l10n.aug, l10n.sep, l10n.oct, l10n.nov, l10n.dec,
       ];
     }
     if (_chartPeriod == 'Year') return _getYearlyLabels();
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return [l10n.mon, l10n.tue, l10n.wed, l10n.thu, l10n.fri, l10n.sat, l10n.sun];
   }
 
   double _getBarMaxY(List<double> barData) {
@@ -123,61 +124,49 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     return maxVal == 0 ? 100.0 : (maxVal * 1.2).ceilToDouble();
   }
 
-  String get _summaryLabel => _chartPeriod == 'Month'
-      ? 'Monthly'
+  String _getSummaryLabel(AppStrings l10n) => _chartPeriod == 'Month'
+      ? l10n.monthly
       : _chartPeriod == 'Year'
-      ? 'Yearly'
-      : 'Weekly';
+      ? l10n.yearly
+      : l10n.weekly;
 
   double _getPeriodTotal(List<double> barData) {
     if (barData.isEmpty) return 0.0;
     return barData.reduce((a, b) => a + b);
   }
 
-  List<SaleRecord> _getFilteredSales(AdminProvider admin) {
+  List<SaleRecord> _getFilteredSales(AdminProvider admin, AppStrings l10n) {
     final now = DateTime.now();
     DateTime start;
     DateTime end = now;
 
-    switch (_listFilter) {
-      case 'Today':
-        start = DateTime(now.year, now.month, now.day);
-        break;
-      case 'This Week':
-        start = now.subtract(const Duration(days: 7));
-        break;
-      case 'This Month':
-        start = DateTime(now.year, now.month, 1);
-        break;
-      case 'Last 3 Months':
-        start = DateTime(now.year, now.month - 3, now.day);
-        break;
-      case 'Custom':
-        start = _customStart ?? now.subtract(const Duration(days: 7));
-        end = _customEnd ?? now;
-        break;
-      default:
-        start = now.subtract(const Duration(days: 365));
+    if (_listFilter == l10n.today) {
+      start = DateTime(now.year, now.month, now.day);
+    } else if (_listFilter == l10n.thisWeek) {
+      start = now.subtract(const Duration(days: 7));
+    } else if (_listFilter == l10n.thisMonth) {
+      start = DateTime(now.year, now.month, 1);
+    } else if (_listFilter == l10n.last3Months) {
+      start = DateTime(now.year, now.month - 3, now.day);
+    } else if (_listFilter == 'Custom') {
+      start = _customStart ?? now.subtract(const Duration(days: 7));
+      end = _customEnd ?? now;
+    } else {
+      start = now.subtract(const Duration(days: 365));
     }
 
     var sales = admin.getSalesInRange(start, end);
 
-    switch (_sortBy) {
-      case 'Newest First':
-        sales.sort((a, b) => b.date.compareTo(a.date));
-        break;
-      case 'Oldest First':
-        sales.sort((a, b) => a.date.compareTo(b.date));
-        break;
-      case 'Amount (High)':
-        sales.sort((a, b) => b.effectiveAmount.compareTo(a.effectiveAmount));
-        break;
-      case 'Amount (Low)':
-        sales.sort((a, b) => a.effectiveAmount.compareTo(b.effectiveAmount));
-        break;
-      case 'Product A-Z':
-        sales.sort((a, b) => a.productName.compareTo(b.productName));
-        break;
+    if (_sortBy == l10n.newestFirst) {
+      sales.sort((a, b) => b.date.compareTo(a.date));
+    } else if (_sortBy == l10n.oldestFirst) {
+      sales.sort((a, b) => a.date.compareTo(b.date));
+    } else if (_sortBy == l10n.amountHigh) {
+      sales.sort((a, b) => b.effectiveAmount.compareTo(a.effectiveAmount));
+    } else if (_sortBy == l10n.amountLow) {
+      sales.sort((a, b) => a.effectiveAmount.compareTo(b.effectiveAmount));
+    } else if (_sortBy == l10n.productAZ) {
+      sales.sort((a, b) => a.productName.compareTo(b.productName));
     }
     return sales;
   }
@@ -215,10 +204,22 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      final l10n = context.read<LanguageProvider>().strings;
+      _listFilter = l10n.thisWeek;
+      _sortBy = l10n.newestFirst;
+      _initialized = true;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
+    final l10n = context.watch<LanguageProvider>().strings;
     final isTablet = MediaQuery.of(context).size.width > 600;
-    final filteredSales = _getFilteredSales(admin);
+    final filteredSales = _getFilteredSales(admin, l10n);
     
     // Group by invoice
     final Map<String, List<SaleRecord>> groupedSales = {};
@@ -259,7 +260,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   SizedBox(
                     width: cardWidth,
                     child: _SummaryCard(
-                      title: "Today's Sales",
+                      title: l10n.todaysSales,
                       value: admin.todaysSales.toStringAsFixed(2),
                       icon: LucideIcons.wallet,
                       color: AppColors.success,
@@ -268,7 +269,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   SizedBox(
                     width: cardWidth,
                     child: _SummaryCard(
-                      title: "Today's Orders",
+                      title: l10n.totalOrders,
                       value: '${admin.todaysOrders}',
                       icon: LucideIcons.shoppingCart,
                       color: AppColors.secondaryAccent,
@@ -277,7 +278,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   SizedBox(
                     width: cardWidth,
                     child: _SummaryCard(
-                      title: '$_summaryLabel Total',
+                      title: '${_getSummaryLabel(l10n)} ${l10n.totalRevenue}',
                       value: periodTotal.toStringAsFixed(0),
                       icon: LucideIcons.trendingUp,
                       color: AppColors.primaryDark,
@@ -292,18 +293,28 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
           // Chart period selector
           _buildChipSelector(
-            items: ['Week', 'Month', 'Year'],
-            selected: _chartPeriod,
-            onSelected: (v) => setState(() => _chartPeriod = v),
+            items: [l10n.weekly, l10n.monthly, l10n.yearly],
+            selected: _chartPeriod == 'Month' ? l10n.monthly : _chartPeriod == 'Year' ? l10n.yearly : l10n.weekly,
+            onSelected: (v) {
+              setState(() {
+                if (v == l10n.monthly) {
+                  _chartPeriod = 'Month';
+                } else if (v == l10n.yearly) {
+                  _chartPeriod = 'Year';
+                } else {
+                  _chartPeriod = 'Week';
+                }
+              });
+            },
           ),
 
           const SizedBox(height: 16),
 
-          _buildLineChart(barData, barMaxY),
+          _buildLineChart(barData, barMaxY, l10n),
 
           const SizedBox(height: 16),
 
-          _buildPieChart(admin.allSales),
+          _buildPieChart(admin.allSales, l10n),
 
           const SizedBox(height: 24),
 
@@ -335,9 +346,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                         size: 20,
                       ),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Transaction History',
-                        style: TextStyle(
+                      Text(
+                        l10n.transactionHistory,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           color: AppColors.primaryDark,
@@ -350,7 +361,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                           color: AppColors.primaryDark,
                           size: 20,
                         ),
-                        tooltip: 'Export',
+                        tooltip: l10n.filter,
                         onSelected: (String value) async {
                           final title =
                               _listFilter == 'Custom' &&
@@ -380,12 +391,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                             if (savedPath != null) {
                               scaffoldMessenger.showSnackBar(
                                 SnackBar(
-                                  content: const Text(
-                                    'Report saved successfully!',
+                                  content: Text(
+                                    l10n.reportSaved,
                                   ),
                                   duration: const Duration(seconds: 5),
                                   action: SnackBarAction(
-                                    label: 'Open',
+                                    label: l10n.open,
                                     onPressed: () {
                                       OpenFile.open(savedPath!);
                                     },
@@ -394,8 +405,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               );
                             } else {
                               scaffoldMessenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to save the report.'),
+                                SnackBar(
+                                  content: Text(l10n.reportFailed),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -403,7 +414,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                           } catch (e) {
                             scaffoldMessenger.showSnackBar(
                               SnackBar(
-                                content: Text('Error exporting report: $e'),
+                                content: Text(l10n.exportError(e.toString())),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -411,19 +422,19 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                         },
                         itemBuilder: (BuildContext context) =>
                             <PopupMenuEntry<String>>[
-                              const PopupMenuItem<String>(
+                               PopupMenuItem<String>(
                                 value: 'csv',
                                 child: ListTile(
-                                  leading: Icon(LucideIcons.fileSpreadsheet),
-                                  title: Text('Export CSV'),
+                                  leading: const Icon(LucideIcons.fileSpreadsheet),
+                                  title: Text(l10n.exportCsv),
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
-                              const PopupMenuItem<String>(
+                               PopupMenuItem<String>(
                                 value: 'pdf',
                                 child: ListTile(
-                                  leading: Icon(LucideIcons.fileCog),
-                                  title: Text('Export PDF'),
+                                  leading: const Icon(LucideIcons.fileCog),
+                                  title: Text(l10n.exportPdf),
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
@@ -442,7 +453,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          '${filteredSales.length} records',
+                          l10n.recordsCount(filteredSales.length),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
@@ -467,7 +478,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                       );
                       final periodField = InputDecorator(
                         decoration: InputDecoration(
-                          labelText: 'Period',
+                          labelText: l10n.period,
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -489,8 +500,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                             hint: _listFilter == 'Custom'
                                 ? Text(
                                     _customStart != null && _customEnd != null
-                                        ? 'Custom ${_customStart!.day}/${_customStart!.month} – ${_customEnd!.day}/${_customEnd!.month}'
-                                        : 'Custom range',
+                                        ? '${l10n.customRange} ${_customStart!.day}/${_customStart!.month} – ${_customEnd!.day}/${_customEnd!.month}'
+                                        : l10n.customRange,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
@@ -499,7 +510,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   )
                                 : null,
-                            items: _periodPresets
+                            items: _getPeriodPresets(l10n)
                                 .map(
                                   (p) => DropdownMenuItem<String>(
                                     value: p,
@@ -527,7 +538,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                       );
                       final sortField = InputDecorator(
                         decoration: InputDecoration(
-                          labelText: 'Sort',
+                          labelText: l10n.sortBy,
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -546,7 +557,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                           child: DropdownButton<String>(
                             isExpanded: true,
                             value: _sortBy,
-                            items: _sortOptions
+                            items: _getSortOptions(l10n)
                                 .map(
                                   (s) => DropdownMenuItem<String>(
                                     value: s,
@@ -578,7 +589,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               : AppColors.secondaryAccent,
                         ),
                         label: Text(
-                          'Custom',
+                          l10n.customRange,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
@@ -651,12 +662,12 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _MiniStat(
-                        label: 'Orders',
+                        label: l10n.orders,
                         value: '${filteredSales.length}',
                       ),
-                      _MiniStat(label: 'Items Sold', value: '$filteredQty'),
+                      _MiniStat(label: l10n.itemsSold, value: '$filteredQty'),
                       _MiniStat(
-                        label: 'Total Revenue',
+                        label: l10n.totalRevenue,
                         amount: filteredTotal.toStringAsFixed(2),
                       ),
                     ],
@@ -668,8 +679,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
                 // Table rows
                 if (filteredSales.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
+                  Padding(
+                    padding: const EdgeInsets.all(32),
                     child: Center(
                       child: Column(
                         children: [
@@ -680,15 +691,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            'No transactions found',
-                            style: TextStyle(
+                            l10n.noTransactionsFound,
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.secondaryAccent,
                             ),
                           ),
                           Text(
-                            'Try a different date range or filter',
-                            style: TextStyle(
+                            l10n.tryAnotherFilter,
+                            style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.secondaryAccent,
                             ),
@@ -775,7 +786,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                                             ),
                                             if (sale.batchNumber != null)
                                               Text(
-                                                'Batch: ${sale.batchNumber}',
+                                                '${l10n.batchLabel}: ${sale.batchNumber}',
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   color: AppColors.secondaryAccent,
@@ -786,7 +797,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                                       ),
                                       Expanded(
                                         child: Text(
-                                          'Qty: ${sale.effectiveQuantity}${sale.returnedQuantity > 0 ? '\n(Ret: ${sale.returnedQuantity})' : ''}',
+                                          '${l10n.qtyLabel}: ${sale.effectiveQuantity}${sale.returnedQuantity > 0 ? '\n(${l10n.retLabel}: ${sale.returnedQuantity})' : ''}',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: AppColors.primaryDark,
@@ -888,17 +899,17 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   }
 
   // ===== PIE CHART =====
-  Widget _buildPieChart(List<SaleRecord> sales) {
+  Widget _buildPieChart(List<SaleRecord> sales, AppStrings l10n) {
     if (sales.isEmpty) {
       return _ChartCard(
-        title: 'Top Products',
+        title: l10n.topProduct,
         icon: LucideIcons.pieChart,
         child: SizedBox(
           height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
-          child: const Center(
+          child: Center(
             child: Text(
-              'No sales data',
-              style: TextStyle(
+              l10n.noTransactionsFound,
+              style: const TextStyle(
                 color: AppColors.secondaryAccent,
                 fontWeight: FontWeight.bold,
               ),
@@ -942,10 +953,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     }
     if (otherSales > 0) {
       final pct = (otherSales / total) * 100;
-      data.add(_PieData('Others', pct, AppColors.highlightActive));
+      data.add(_PieData(l10n.others, pct, AppColors.highlightActive));
     }
     return _ChartCard(
-      title: 'Sales by Category',
+      title: l10n.topProduct,
       icon: LucideIcons.pieChart,
       child: SizedBox(
         height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
@@ -1019,17 +1030,19 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
+
   // ===== LINE CHART =====
-  Widget _buildLineChart(List<double> lineData, double lineMaxY) {
+  Widget _buildLineChart(List<double> barData, double barMaxY, AppStrings l10n) {
+    final labels = _getLabels(l10n);
     return _ChartCard(
-      title: 'Revenue Trend ($_summaryLabel)',
+      title: '${l10n.revenueTrend} (${_getSummaryLabel(l10n)})',
       icon: LucideIcons.trendingUp,
       child: SizedBox(
         height: (MediaQuery.of(context).size.width * 0.5).clamp(150.0, 220.0),
         child: LineChart(
           LineChartData(
             minY: 0,
-            maxY: lineMaxY,
+            maxY: barMaxY,
             lineTouchData: LineTouchData(
               enabled: true,
               touchTooltipData: LineTouchTooltipData(
@@ -1050,9 +1063,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              horizontalInterval: lineMaxY == 0 ? 1 : lineMaxY / 4,
+              horizontalInterval: barMaxY == 0 ? 1 : barMaxY / 4,
               getDrawingHorizontalLine: (v) =>
-                  FlLine(color: AppColors.divider, strokeWidth: 1),
+                  const FlLine(color: AppColors.divider, strokeWidth: 1),
             ),
             titlesData: FlTitlesData(
               topTitles: const AxisTitles(
@@ -1067,11 +1080,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   interval: 1,
                   reservedSize: 28,
                   getTitlesWidget: (v, m) {
-                    if (v.toInt() >= 0 && v.toInt() < _labels.length) {
+                    if (v.toInt() >= 0 && v.toInt() < labels.length) {
                       return Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
-                          _labels[v.toInt()],
+                          labels[v.toInt()],
                           style: const TextStyle(
                             color: AppColors.secondaryAccent,
                             fontWeight: FontWeight.bold,
@@ -1088,7 +1101,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 44,
-                  interval: lineMaxY == 0 ? 1 : lineMaxY / 4,
+                  interval: barMaxY == 0 ? 1 : barMaxY / 4,
                   getTitlesWidget: (v, m) {
                     return Text(
                       '৳${v.toInt()}',
@@ -1106,8 +1119,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             lineBarsData: [
               LineChartBarData(
                 spots: List.generate(
-                  lineData.length,
-                  (i) => FlSpot(i.toDouble(), lineData[i]),
+                  barData.length,
+                  (i) => FlSpot(i.toDouble(), barData[i]),
                 ),
                 isCurved: true,
                 curveSmoothness: 0.3,

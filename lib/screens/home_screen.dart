@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../utils/colors.dart';
 import '../providers/pos_provider.dart';
 import '../providers/admin_provider.dart';
+import '../providers/language_provider.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../services/ocr_service.dart';
@@ -172,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen>
     _searchOverlay = OverlayEntry(
       builder: (ctx) {
         final pos = Provider.of<POSProvider>(ctx, listen: false);
+        final l10n = Provider.of<LanguageProvider>(ctx, listen: false).strings;
         // Cap the dropdown height so it never extends behind the keyboard.
         // Using viewInsets.bottom to detect keyboard height.
         final mq = MediaQuery.of(ctx);
@@ -199,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen>
                     padding: EdgeInsets.zero,
                     shrinkWrap: true,
                     itemCount: _searchSuggestions.length,
-                    separatorBuilder: (_, __) => Divider(
+                    separatorBuilder: (_, _) => Divider(
                       height: 1,
                       color: AppColors.divider,
                     ),
@@ -218,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Added ${p.name} (1 pc) to cart',
+                                '${l10n.addedToCart.replaceFirst('{name}', p.name)}${l10n.onePcSuffix}',
                                 style: const TextStyle(color: Colors.white),
                               ),
                               backgroundColor: Colors.green.shade700,
@@ -301,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen>
   // ── Voice search ─────────────────────────────────────────────────────────
 
   Future<void> _startHomeVoiceSearch(POSProvider posProvider) async {
+    final l10n = context.read<LanguageProvider>().strings;
     setState(() {
       _isVoiceSearchActive = true;
       _isListeningVoice = true;
@@ -330,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Voice error: $error',
+                l10n.voiceError(error),
                 style: const TextStyle(color: Colors.white),
               ),
               backgroundColor: Colors.redAccent,
@@ -352,6 +355,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _handleHomeFinalSpeech(POSProvider posProvider, String text) {
+    final l10n = context.read<LanguageProvider>().strings;
     final best = ProductMatcher.findBestMatch(text, posProvider.products);
 
     if (best != null) {
@@ -363,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Added ${best.product.name} (1 pc) to cart',
+            '${l10n.addedToCart.replaceFirst('{name}', best.product.name)}${l10n.onePcSuffix}',
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green.shade700,
@@ -373,9 +377,9 @@ class _HomeScreenState extends State<HomeScreen>
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'No match – edit the name and tap the search icon.',
-            style: TextStyle(color: Colors.white),
+          content: Text(
+            l10n.noMatchVoice,
+            style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.orange.shade700,
           duration: const Duration(seconds: 2),
@@ -387,6 +391,7 @@ class _HomeScreenState extends State<HomeScreen>
   // ── Dialogs ───────────────────────────────────────────────────────────────
 
   void _showModal({required String type, required String message}) {
+    final l10n = context.read<LanguageProvider>().strings;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -408,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen>
             color: isSuccess ? AppColors.success : AppColors.error,
           ),
           title: Text(
-            isSuccess ? 'Sale Complete' : 'Clear Cart?',
+            isSuccess ? l10n.saleComplete : l10n.clearCart,
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
@@ -429,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (type == 'clear') ...[
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancelBtn),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
@@ -441,7 +446,7 @@ class _HomeScreenState extends State<HomeScreen>
                   backgroundColor: AppColors.error,
                   foregroundColor: AppColors.white,
                 ),
-                child: const Text('Yes, Clear'),
+                child: Text(l10n.yesClr),
               ),
             ] else
               SizedBox(
@@ -459,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content:
-                                Text('Sale Complete! Invoice: $invoiceNumber'),
+                                Text('${l10n.saleComplete}! ${l10n.invoicePrefix} $invoiceNumber'),
                             backgroundColor: AppColors.success,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
@@ -469,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen>
                       }
                     }
                   },
-                  child: const Text('New Sale'),
+                  child: Text(l10n.newSale),
                 ),
               ),
           ],
@@ -503,6 +508,7 @@ class _HomeScreenState extends State<HomeScreen>
     String code,
     POSProvider posProvider,
   ) async {
+    final l10n = context.read<LanguageProvider>().strings;
     if (!_isCameraActive || _isProcessingScan) return;
 
     setState(() => _isProcessingScan = true);
@@ -514,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Product not found for barcode: $code'),
+          content: Text('${l10n.barcodeNotFound}: $code'),
           backgroundColor: AppColors.error,
           duration: const Duration(seconds: 0),
         ),
@@ -548,6 +554,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleOcrScan() async {
+    final l10n = context.read<LanguageProvider>().strings;
     final bool wasOn = _isCameraActive;
     if (wasOn) _cameraController.stop();
 
@@ -572,19 +579,19 @@ class _HomeScreenState extends State<HomeScreen>
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const Center(
+        builder: (_) => Center(
           child: Card(
             color: AppColors.white,
             child: Padding(
-              padding: EdgeInsets.all(28),
+              padding: const EdgeInsets.all(28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: AppColors.primaryDark),
-                  SizedBox(height: 16),
+                  const CircularProgressIndicator(color: AppColors.primaryDark),
+                  const SizedBox(height: 16),
                   Text(
-                    'Reading strip...',
-                    style: TextStyle(
+                    l10n.readingStrip,
+                    style: const TextStyle(
                       color: AppColors.primaryDark,
                       fontWeight: FontWeight.bold,
                     ),
@@ -606,8 +613,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (results.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No medicine names detected. Try again.'),
+           SnackBar(
+            content: Text(l10n.noMedicineDetected),
             backgroundColor: AppColors.warningOrange,
           ),
         );
@@ -633,7 +640,7 @@ class _HomeScreenState extends State<HomeScreen>
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('OCR error: ${e.toString()}'),
+            content: Text(l10n.ocrError(e.toString())),
             backgroundColor: AppColors.error,
           ),
         );
@@ -651,6 +658,7 @@ class _HomeScreenState extends State<HomeScreen>
     final posProvider = context.watch<POSProvider>();
     final cart = posProvider.cart;
     final filteredCart = posProvider.filteredCart;
+    final l10n = context.watch<LanguageProvider>().strings;
 
     // Subscription warning
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -752,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen>
       total: posProvider.calculateTotal,
       onClear: () => _showModal(
         type: 'clear',
-        message: 'Are you sure you want to clear the cart?',
+        message: l10n.clearCartConfirm,
       ),
       onCheckout: () {
         if (_isAnyItemOutOfStock(cart)) {
@@ -762,7 +770,7 @@ class _HomeScreenState extends State<HomeScreen>
               _showModal(
                 type: 'success',
                 message:
-                    'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+                    '${l10n.successfullyCharged} ${posProvider.calculateTotal.toStringAsFixed(2)} ${l10n.taka}',
               );
             },
           );
@@ -770,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen>
           _showModal(
             type: 'success',
             message:
-                'Successfully charged ${posProvider.calculateTotal.toStringAsFixed(2)} Taka',
+                '${l10n.successfullyCharged} ${posProvider.calculateTotal.toStringAsFixed(2)} ${l10n.taka}',
           );
         }
       },
@@ -856,6 +864,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   PreferredSizeWidget _buildGradientAppBar() {
+    final l10n = context.watch<LanguageProvider>().strings;
     return AppBar(
       toolbarHeight: 64,
       backgroundColor: Colors.transparent,
@@ -872,11 +881,11 @@ class _HomeScreenState extends State<HomeScreen>
       leading: IconButton(
         icon: const Icon(LucideIcons.menu, color: AppColors.white),
         onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        tooltip: 'Menu',
+        tooltip: l10n.menuTooltip,
       ),
-      title: const Text(
-        'PharmaPOS',
-        style: TextStyle(
+      title: Text(
+        l10n.posTitle,
+        style: const TextStyle(
           color: AppColors.white,
           fontWeight: FontWeight.bold,
           fontSize: 18,
@@ -891,17 +900,18 @@ class _HomeScreenState extends State<HomeScreen>
             color: AppColors.white,
           ),
           onPressed: _toggleSearch,
-          tooltip: _isSearchVisible ? 'Close search' : 'Search products',
+          tooltip: _isSearchVisible ? l10n.closeSearchTooltip : l10n.searchTooltip,
         ),
         Builder(
           builder: (context) {
             final admin = context.watch<AdminProvider>();
             final alertCount = admin.unreadAlertCount;
+            final l10n = context.watch<LanguageProvider>().strings;
             return Stack(
               children: [
                 IconButton(
                   icon: const Icon(LucideIcons.bell, color: AppColors.white),
-                  tooltip: 'Alerts',
+                  tooltip: l10n.alertsTooltip,
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -967,6 +977,7 @@ class _ExpandableSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeInOut,
@@ -997,7 +1008,7 @@ class _ExpandableSearchBar extends StatelessWidget {
                       fontSize: 14,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Search medicine name or generic…',
+                      hintText: l10n.searchHint,
                       hintStyle: TextStyle(
                         color: AppColors.secondaryAccent.withValues(alpha: 0.7),
                         fontWeight: FontWeight.w400,
@@ -1012,7 +1023,7 @@ class _ExpandableSearchBar extends StatelessWidget {
                         icon: const Icon(LucideIcons.x,
                             size: 16, color: AppColors.secondaryAccent),
                         onPressed: onClose,
-                        tooltip: 'Close search',
+                        tooltip: l10n.closeSearchTooltip,
                       ),
                       border: InputBorder.none,
                       contentPadding:
@@ -1058,6 +1069,7 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
   }
 
   Widget _buildSuffixIcon() {
+    final l10n = context.read<LanguageProvider>().strings;
     final hasText = widget.controller.text.isNotEmpty;
 
     if (widget.isListening) {
@@ -1084,8 +1096,8 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
               color: AppColors.primaryDark,
               size: 18,
             ),
-            onPressed: widget.onConfirm,
-            tooltip: 'Search',
+             onPressed: widget.onConfirm,
+            tooltip: l10n.searchBtnTooltip,
           ),
           IconButton(
             icon: const Icon(
@@ -1094,7 +1106,7 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
               size: 18,
             ),
             onPressed: widget.onDiscard,
-            tooltip: 'Discard',
+            tooltip: l10n.discardBtnTooltip,
           ),
         ],
       );
@@ -1112,6 +1124,7 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     if (!widget.isVisible) return const SizedBox.shrink();
 
     return ClipRect(
@@ -1151,7 +1164,7 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
                   ),
                   decoration: InputDecoration(
                     hintText:
-                        widget.isListening ? 'Listening...' : 'Edit and tap search...',
+                        widget.isListening ? l10n.listening : l10n.voiceSearchHint,
                     hintStyle: TextStyle(
                       color: AppColors.secondaryAccent.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500,
@@ -1191,6 +1204,7 @@ class _LowStockStandaloneScreenState extends State<LowStockStandaloneScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -1201,9 +1215,9 @@ class _LowStockStandaloneScreenState extends State<LowStockStandaloneScreen> {
           icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: const Text(
-          'Low Stock',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
+        title: Text(
+          l10n.lowStockTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const LowStockScreen(showAppBar: false),
@@ -1225,6 +1239,7 @@ class _ExpiringSoonStandaloneScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -1235,9 +1250,9 @@ class _ExpiringSoonStandaloneScreenState
           icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: const Text(
-          'Expiring Soon',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
+         title: Text(
+          l10n.expiringSoonTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const ExpiringSoonScreen(showAppBar: false),
@@ -1259,6 +1274,7 @@ class _SalesReportStandaloneScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -1269,9 +1285,9 @@ class _SalesReportStandaloneScreenState
           icon: const Icon(LucideIcons.menu, color: AppColors.white),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: const Text(
-          'Sales Report',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
+        title: Text(
+          l10n.salesReport,
+          style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0),
         ),
       ),
       body: const SalesReportScreen(),

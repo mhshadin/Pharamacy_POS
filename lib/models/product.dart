@@ -1,4 +1,3 @@
-import '../utils/med_type_units.dart';
 
 class Product {
   final String id;
@@ -48,7 +47,6 @@ class Product {
   int get stockBoxes => stripsPerBox > 0 ? stockStrips ~/ stripsPerBox : 0;
   int get remainingStrips => stripsPerBox > 0 ? stockStrips % stripsPerBox : 0;
 
-  Map<String, String?> get unitLabels => MedTypeUnits.getLabels(medType);
 
   Product copyWith({
     String? id,

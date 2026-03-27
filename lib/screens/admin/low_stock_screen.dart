@@ -11,6 +11,8 @@ import '../../models/product.dart';
 import '../../services/export_service.dart';
 import 'restock_screen.dart';
 import '../../utils/med_type_icons.dart';
+import '../../providers/language_provider.dart';
+import '../../utils/med_type_units.dart';
 
 class LowStockScreen extends StatefulWidget {
   const LowStockScreen({super.key, this.showAppBar = true});
@@ -245,6 +247,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
     required bool isPdf,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.read<LanguageProvider>().strings;
     String? path;
     try {
       if (isPdf) {
@@ -252,6 +255,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
           products: products,
           orderQtys: orderQtys,
           title: 'Low Stock',
+          l10n: l10n,
         );
       } else {
         path = await ExportService.exportOrderListToCsv(
@@ -298,9 +302,11 @@ class _LowStockScreenState extends State<LowStockScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('Confirm Order Quantities'),
+      builder: (context) {
+        final l10n = context.read<LanguageProvider>().strings;
+        return StatefulBuilder(
+          builder: (ctx, setS) => AlertDialog(
+            title: const Text('Confirm Order Quantities'),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -308,15 +314,16 @@ class _LowStockScreenState extends State<LowStockScreen> {
               itemCount: products.length,
               itemBuilder: (c, i) {
                 final p = products[i];
+                final unitLabels = MedTypeUnits.getLabels(p.medType, l10n);
                 return ListTile(
                   title: Text(p.name),
-                  subtitle: Text('Deficit: ${p.minStockLevel - p.stockStrips} ${(p.unitLabels['unit2'] ?? 'strips').toLowerCase()}'),
+                  subtitle: Text('Deficit: ${p.minStockLevel - p.stockStrips} ${(unitLabels['unit2'] ?? 'strips').toLowerCase()}'),
                   trailing: SizedBox(
                     width: 80,
                     child: TextFormField(
                       initialValue: '${orderQtys[p.id]}',
                       keyboardType: TextInputType.number,
-                      decoration: InputDecoration(suffixText: (p.unitLabels['unit1'] ?? p.unitLabels['unit2'] ?? 'bx').toLowerCase().substring(0, 2)),
+                      decoration: InputDecoration(suffixText: (unitLabels['unit1'] ?? unitLabels['unit2'] ?? 'bx').toLowerCase().substring(0, 2)),
                       onChanged: (v) {
                         orderQtys[p.id] = int.tryParse(v) ?? 1;
                       },
@@ -349,9 +356,10 @@ class _LowStockScreenState extends State<LowStockScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -719,7 +727,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, index) {
+                      final l10n = context.read<LanguageProvider>().strings;
                       final product = filtered[index];
+                      final unitLabels = MedTypeUnits.getLabels(product.medType, l10n);
                       final tier = admin.lowStockTierFor(product);
                       final accent = tier.accentColor;
                       final percentage = (product.stockStrips / product.minStockLevel).clamp(0.0, 1.0);
@@ -815,16 +825,16 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _statBox(
-                                label: 'IN STOCK',
-                                value: '${product.stockBoxes} ${(product.unitLabels['unit1'] ?? 'bx').toLowerCase()}',
+                                label: l10n.inStock.toUpperCase(),
+                                value: '${product.stockBoxes} ${(unitLabels['unit1'] ?? 'bx').toLowerCase()}',
                                 bg: accent.withValues(alpha: 0.08),
                                 fg: accent,
                                 compact: isNarrow,
                               ),
                               const SizedBox(width: 8),
                               _statBox(
-                                label: 'MIN',
-                                value: '$minBoxes ${(product.unitLabels['unit1'] ?? 'bx').toLowerCase()}',
+                                label: l10n.minStock.toUpperCase(),
+                                value: '$minBoxes ${(unitLabels['unit1'] ?? 'bx').toLowerCase()}',
                                 bg: AppColors.primaryDark.withValues(alpha: 0.06),
                                 fg: AppColors.primaryDark,
                                 compact: isNarrow,
@@ -833,7 +843,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           );
 
                           final extraInfo = Text(
-                            '${product.remainingStrips} ${(product.unitLabels['unit2'] ?? 'strips').toLowerCase()} • ${product.stockPcs} ${(product.unitLabels['unit3'] ?? 'pcs').toLowerCase()} extra',
+                            '${product.remainingStrips} ${(unitLabels['unit2'] ?? 'strips').toLowerCase()} • ${product.stockPcs} ${(unitLabels['unit3'] ?? 'pcs').toLowerCase()} extra',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 11,
