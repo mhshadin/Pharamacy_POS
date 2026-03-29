@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/taka_symbol.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 
 class TopProductsScreen extends StatefulWidget {
   const TopProductsScreen({super.key});
@@ -48,6 +50,7 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
+    final l10n = context.watch<LanguageProvider>().strings;
     final range = _getDateRange();
     final topProducts = admin.getTopSellingProducts(
       start: range.start,
@@ -67,10 +70,11 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
                 tf,
               ) {
                 final isSelected = _timeFrame == tf;
+                final label = _getLocalizedTimeFrame(tf, l10n);
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: Text(tf),
+                    label: Text(label),
                     selected: isSelected,
                     onSelected: (val) {
                       if (val) setState(() => _timeFrame = tf);
@@ -92,13 +96,13 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
         const Divider(height: 1),
         Expanded(
           child: topProducts.isEmpty
-              ? _buildEmptyState()
+              ? _buildEmptyState(l10n)
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: topProducts.length,
                   itemBuilder: (context, index) {
                     final p = topProducts[index];
-                    return _buildProductCard(p, index + 1);
+                    return _buildProductCard(p, index + 1, l10n);
                   },
                 ),
         ),
@@ -106,7 +110,7 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppStrings l10n) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -117,9 +121,9 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
             color: AppColors.secondaryAccent.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No sales data for this period',
-            style: TextStyle(
+          Text(
+            l10n.noSalesData,
+            style: const TextStyle(
               fontSize: 16,
               color: AppColors.secondaryAccent,
               fontWeight: FontWeight.bold,
@@ -130,7 +134,24 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
     );
   }
 
-  Widget _buildProductCard(TopSellingProduct p, int rank) {
+  String _getLocalizedTimeFrame(String tf, AppStrings l10n) {
+    switch (tf) {
+      case 'Today':
+        return l10n.topProductsToday;
+      case 'Week':
+        return l10n.topProductsWeek;
+      case 'Month':
+        return l10n.topProductsMonth;
+      case 'Year':
+        return l10n.topProductsYear;
+      case 'All Time':
+        return l10n.topProductsAllTime;
+      default:
+        return tf;
+    }
+  }
+
+  Widget _buildProductCard(TopSellingProduct p, int rank, AppStrings l10n) {
     Color rankColor;
     if (rank == 1) {
       rankColor = const Color(0xFFFFD700); // Gold
@@ -198,7 +219,7 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  '${p.boxesSold.toStringAsFixed(1)} boxes sold',
+                  l10n.boxesSoldSuffix(p.boxesSold),
                   style: const TextStyle(
                     color: AppColors.secondaryAccent,
                     fontWeight: FontWeight.bold,
@@ -214,9 +235,9 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Text(
-              'REVENUE',
-              style: TextStyle(
+            Text(
+              l10n.revenueLabel,
+              style: const TextStyle(
                 fontSize: 10,
                 color: AppColors.secondaryAccent,
                 fontWeight: FontWeight.w900,

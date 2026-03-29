@@ -87,7 +87,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Voice error: $error',
+                context.read<LanguageProvider>().strings.voiceError(error),
                 style: const TextStyle(color: Colors.white),
               ),
               backgroundColor: Colors.redAccent,
@@ -111,12 +111,14 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
     final products = posProvider.products;
     final best = ProductMatcher.findBestMatch(text, products);
 
+    final l10n = context.read<LanguageProvider>().strings;
     if (best != null) {
       posProvider.updatePcQuantity(best.product, 1);
+      final unitLabels = MedTypeUnits.getLabels(best.product.medType, l10n);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Added ${best.product.name} (1 pc) to cart',
+            l10n.addedToCartDetail(best.product.name, 1, (unitLabels['unit3'] ?? 'pc').toLowerCase()),
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green.shade700,
@@ -126,9 +128,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'No close match found. Please edit the name.',
-            style: TextStyle(color: Colors.white),
+          content: Text(
+            l10n.noCloseMatchFound,
+            style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.orange.shade700,
           duration: const Duration(seconds: 2),
@@ -147,13 +149,14 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
       text: currentQ > 0 ? currentQ.toString() : '',
     );
 
+    final l10n = context.read<LanguageProvider>().strings;
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: AppColors.background,
           title: Text(
-            'Set $typeLabel Quantity: \n${product.name}',
+            l10n.setQuantityFor(typeLabel, product.name),
             style: const TextStyle(
               color: AppColors.primaryDark,
               fontWeight: FontWeight.bold,
@@ -164,12 +167,12 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
             keyboardType: TextInputType.number,
             autofocus: true,
             style: const TextStyle(color: AppColors.primaryDark),
-            decoration: const InputDecoration(
-              hintText: 'Enter amount...',
-              enabledBorder: UnderlineInputBorder(
+            decoration: InputDecoration(
+              hintText: l10n.enterAmount,
+              enabledBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: AppColors.secondaryAccent),
               ),
-              focusedBorder: UnderlineInputBorder(
+              focusedBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(
                   color: AppColors.highlightActive,
                   width: 2,
@@ -180,9 +183,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: AppColors.secondaryAccent),
+              child: Text(
+                l10n.cancelBtn,
+                style: const TextStyle(color: AppColors.secondaryAccent),
               ),
             ),
             ElevatedButton(
@@ -211,7 +214,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: AppColors.white,
               ),
-              child: const Text('Save'),
+              child: Text(l10n.saveBtn),
             ),
           ],
         );
@@ -238,14 +241,16 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
       return salesB.compareTo(salesA);
     });
 
+    final l10n = context.watch<LanguageProvider>().strings;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         elevation: 0,
-        title: const Text(
-          'MANUAL ADD',
-          style: TextStyle(
+        title: Text(
+          l10n.manualAddTitle,
+          style: const TextStyle(
             color: AppColors.white,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -275,7 +280,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                   fontWeight: FontWeight.w500,
                 ),
                 decoration: InputDecoration(
-                  hintText: _isListening ? 'Listening...' : 'Search product or generic name...',
+                  hintText: _isListening ? l10n.listening : l10n.searchHint,
                   hintStyle: TextStyle(
                     color: _isListening 
                       ? AppColors.highlightActive 
@@ -317,7 +322,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
               child: Row(
                 children: [
                   ChoiceChip(
-                    label: const Text('All'),
+                    label: Text(l10n.filterAll),
                     selected: posProvider.selectedMedType == null,
                     onSelected: (selected) {
                       if (selected) posProvider.setSelectedMedType(null);
@@ -376,10 +381,10 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
 
           Expanded(
             child: products.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'No products found matching search.',
-                      style: TextStyle(
+                      l10n.noMatchesFound,
+                      style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -533,14 +538,14 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                         ),
                                       ],
                                     ),
-                                    Text(
-                                      '${(unitLabels['unit2'] ?? 'STRIP').toUpperCase()} PRICE',
-                                      style: const TextStyle(
-                                        fontSize: 9,
-                                        color: AppColors.secondaryAccent,
-                                        fontWeight: FontWeight.bold,
+                                      Text(
+                                        l10n.unitPrice((unitLabels['unit2'] ?? 'STRIP').toUpperCase()),
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          color: AppColors.secondaryAccent,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                    ),
                                   ],
                                 ),
                               ],

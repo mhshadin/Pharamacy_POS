@@ -27,10 +27,11 @@ class ExpiringSoonScreen extends StatefulWidget {
 class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  String _filter = 'All'; // 'All' | 'Critical' | 'Warning' | 'Notice'
+  String _filter = 'All'; // Using keys for logic
   String _sortBy = 'Soonest First';
   final Set<String> _selectedCompanies = {};
 
+  // Note: These are logic values that map to l10n keys in the UI
   static const _sortOptions = [
     'Soonest First',
     'Latest First',
@@ -133,9 +134,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Filter by Company',
-                          style: TextStyle(
+                        Text(
+                          context.read<LanguageProvider>().strings.filterByCompany,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                             color: AppColors.primaryDark,
@@ -146,9 +147,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             setSheetState(() {});
                             setState(() => _selectedCompanies.clear());
                           },
-                          child: const Text(
-                            'Clear All',
-                            style: TextStyle(color: AppColors.secondaryAccent),
+                          child: Text(
+                            context.read<LanguageProvider>().strings.clearAll,
+                            style: const TextStyle(color: AppColors.secondaryAccent),
                           ),
                         ),
                       ],
@@ -198,9 +199,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
+                        child: Text(
+                          context.read<LanguageProvider>().strings.applyBtn,
+                          style: const TextStyle(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -230,9 +231,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.background,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Set Order Quantities',
-          style: TextStyle(
+        title: Text(
+          context.read<LanguageProvider>().strings.setOrderQuantities,
+          style: const TextStyle(
             fontWeight: FontWeight.w900,
             color: AppColors.primaryDark,
             fontSize: 18,
@@ -243,9 +244,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Enter how many boxes to order for each product.',
-                style: TextStyle(
+              Text(
+                context.read<LanguageProvider>().strings.enterBoxesToOrder,
+                style: const TextStyle(
                   color: AppColors.secondaryAccent,
                   fontSize: 13,
                 ),
@@ -303,7 +304,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                 color: AppColors.primaryDark,
                               ),
                               decoration: InputDecoration(
-                                labelText: 'Boxes',
+                                labelText: context.read<LanguageProvider>().strings.boxes,
                                 labelStyle: const TextStyle(
                                   color: AppColors.secondaryAccent,
                                   fontSize: 11,
@@ -350,9 +351,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             onPressed: () {
               Navigator.pop<Map<String, int>?>(ctx, null);
             },
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.secondaryAccent),
+            child: Text(
+              context.read<LanguageProvider>().strings.cancelBtn,
+              style: const TextStyle(color: AppColors.secondaryAccent),
             ),
           ),
           ElevatedButton.icon(
@@ -368,9 +369,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               color: AppColors.white,
               size: 18,
             ),
-            label: const Text(
-              'Next',
-              style: TextStyle(
+            label: Text(
+              context.read<LanguageProvider>().strings.next,
+              style: const TextStyle(
                 color: AppColors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -412,11 +413,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              'Export Order List',
-              style: TextStyle(
+              context.read<LanguageProvider>().strings.exportOrderList,
+              style: const TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: AppColors.primaryDark,
@@ -425,9 +426,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           ),
           ListTile(
             leading: const Icon(LucideIcons.fileText, color: Colors.red),
-            title: const Text(
-              'Export to PDF',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            title: Text(
+              context.read<LanguageProvider>().strings.exportPdf,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             onTap: () {
               Navigator.pop(ctx);
@@ -439,9 +440,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               LucideIcons.fileSpreadsheet,
               color: Colors.green,
             ),
-            title: const Text(
-              'Export to CSV',
-              style: TextStyle(fontWeight: FontWeight.w600),
+            title: Text(
+              context.read<LanguageProvider>().strings.exportCsv,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             onTap: () {
               Navigator.pop(ctx);
@@ -467,14 +468,14 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
         path = await ExportService.exportOrderListToPdf(
           products: products,
           orderQtys: orderQtys,
-          title: 'Expiring Soon',
+          title: l10n.expiringSoonTitle,
           l10n: l10n,
         );
       } else {
         path = await ExportService.exportOrderListToCsv(
           products,
           orderQtys,
-          'Expiring Soon',
+          l10n.expiringSoonTitle,
         );
       }
     } catch (e) {
@@ -486,19 +487,19 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     if (path != null) {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Order list exported successfully!'),
+          content: Text(l10n.exportSuccess),
           backgroundColor: AppColors.success,
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
-            label: 'Open',
+            label: l10n.open,
             onPressed: () => OpenFile.open(path),
           ),
         ),
       );
     } else {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Failed to export order list.'),
+        SnackBar(
+          content: Text(l10n.exportFailed),
           backgroundColor: AppColors.error,
         ),
       );
@@ -523,9 +524,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     final hasCompanies = allCompanies.isNotEmpty;
 
     if (allExpiring.isEmpty) {
+      final l10n = context.watch<LanguageProvider>().strings;
       return Scaffold(
         appBar: widget.showAppBar
-            ? AppBar(title: const Text('Expiring Soon Alerts'), centerTitle: true)
+            ? AppBar(title: Text(l10n.expiringSoonTitle), centerTitle: true)
             : null,
         backgroundColor: AppColors.background,
         body: Center(
@@ -534,9 +536,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             children: [
               const Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
               const SizedBox(height: 16),
-              const Text(
-                'No products expiring soon!',
-                style: TextStyle(
+              Text(
+                l10n.noExpiringSoon,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                   color: AppColors.primaryDark,
@@ -544,7 +546,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'All products have more than ${admin.expiringSoonDays} days until expiry.',
+                l10n.allProductsValidForDays(admin.expiringSoonDays),
                 style: const TextStyle(
                   color: AppColors.secondaryAccent,
                   fontWeight: FontWeight.w500,
@@ -556,9 +558,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       );
     }
 
+    final l10n = context.watch<LanguageProvider>().strings;
+
     return Scaffold(
       appBar: widget.showAppBar
-          ? AppBar(title: const Text('Expiring Soon Alerts'), centerTitle: true)
+          ? AppBar(title: Text(l10n.expiringSoonTitle), centerTitle: true)
           : null,
       backgroundColor: AppColors.background,
       body: Column(
@@ -591,7 +595,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             fontSize: 14,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Search name, generic, company…',
+                            hintText: l10n.searchHint,
                             hintStyle: TextStyle(
                               color: AppColors.secondaryAccent.withValues(
                                 alpha: 0.7,
@@ -626,7 +630,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                     ),
                     const SizedBox(width: 8),
                     PopupMenuButton<String>(
-                      tooltip: 'Sort',
+                      tooltip: l10n.sortBtn,
                       icon: SizedBox(
                         height: 44,
                         width: 44,
@@ -662,7 +666,15 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                         : AppColors.secondaryAccent,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(o),
+                                  Text(
+                                    o == 'Soonest First'
+                                        ? l10n.sortSoonestFirst
+                                        : o == 'Latest First'
+                                            ? l10n.sortLatestFirst
+                                            : o == 'A \u2192 Z'
+                                                ? l10n.sortNameAZ
+                                                : l10n.sortNameZA,
+                                  ),
                                 ],
                               ),
                             ),
@@ -681,7 +693,15 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text(label),
+                            label: Text(
+                              label == 'All'
+                                  ? l10n.filterAll
+                                  : label == 'Critical'
+                                      ? l10n.filterCritical
+                                      : label == 'Warning'
+                                          ? l10n.filterWarning
+                                          : l10n.filterNotice,
+                            ),
                             selected: _filter == label,
                             onSelected: (_) =>
                                 setState(() => _filter = label),
@@ -742,10 +762,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           const SizedBox(width: 6),
                           Text(
                             _selectedCompanies.isEmpty
-                                ? 'All Companies'
+                                ? l10n.allCompanies
                                 : _selectedCompanies.length == 1
-                                ? _selectedCompanies.first
-                                : '${_selectedCompanies.length} Companies',
+                                    ? _selectedCompanies.first
+                                    : l10n.nCompanies(_selectedCompanies.length),
                             style: TextStyle(
                               color: _selectedCompanies.isNotEmpty
                                   ? AppColors.primaryDark
@@ -775,7 +795,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${filtered.length} product${filtered.length == 1 ? '' : 's'}',
+                      l10n.productsCount(filtered.length),
                       style: const TextStyle(
                         color: AppColors.secondaryAccent,
                         fontWeight: FontWeight.w600,
@@ -790,9 +810,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           size: 15,
                           color: AppColors.primaryDark,
                         ),
-                        label: const Text(
-                          'Export',
-                          style: TextStyle(
+                        label: Text(
+                          l10n.exportOrderList,
+                          style: const TextStyle(
                             color: AppColors.primaryDark,
                             fontWeight: FontWeight.bold,
                             fontSize: 13,

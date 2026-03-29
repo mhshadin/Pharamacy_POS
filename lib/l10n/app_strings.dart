@@ -61,6 +61,19 @@ abstract class AppStrings {
   String get units;
   String get pcsSuffix;
 
+  // ── Notifications ─────────────────────────────
+  String lowStockSubtitle(int strips);
+  String expiresOnDate(String date);
+
+  // ── Top Products ───────────────────────────────
+  String get topProductsToday;
+  String get topProductsWeek;
+  String get topProductsMonth;
+  String get topProductsYear;
+  String get topProductsAllTime;
+  String get revenueLabel;
+  String boxesSoldSuffix(double n);
+
   // ── Product Management ─────────────────────────────
   String get productList;
   String get searchProducts;
@@ -98,6 +111,21 @@ abstract class AppStrings {
   String get stockPcs;
   String get pcsRemaining;
   String get minStock;
+
+  // ── Restock Screen ─────────────────────────────
+  String get pleaseSelectExpiryDate;
+  String get enterBoxesOrStrips;
+  String get failedToAddStock;
+  String currentStock(int boxes, int strips, int pcs);
+  String currentExpiry(String date);
+  String packagingInfo(int spb, int pps);
+  String get batchAndExpiry;
+  String get quantityToAdd;
+  String get batchNoOptional;
+  String newBatchExp(String date);
+  String get selectExpiryForBatch;
+  String get addingLabel;
+  String get addStock;
 
   // ── Filtering & Sorting ────────────────────────────
   String get filterByCompany;
@@ -138,6 +166,10 @@ abstract class AppStrings {
   String get edit;
   String get cancel;
   String get delete;
+  String get saveBtn;
+  String unitPrice(String unit);
+  String addedToCartDetail(String name, int qty, String unit);
+  String get noCloseMatchFound;
   String deleteProductsConfirmation(int count);
   String get deleteSelectedTooltip;
   String get taka;
@@ -322,6 +354,95 @@ abstract class AppStrings {
   String get newPassword;
   String get updatePassword;
   String get passwordUpdated;
+
+  // ── Profile Screen Extension ───────────────────
+  String get emailAddress;
+  String get subscriptionValidUntil;
+  String get subscriptionManagement;
+  String get activeSubscription;
+  String get expiredInactive;
+  String get activateBtn;
+  String get renewalDate;
+  String get editDisplayName;
+  String get updateAdminPin;
+  String get setLocalPassword;
+  String get setLocalPasswordSubtitle;
+  String get googleManagedAccount;
+  String get googleManagedSubtitle;
+  String get newDisplayName;
+  String get nameRequired;
+  String get max100Chars;
+  String get currentPin;
+  String get newPin;
+  String get confirmPin;
+  String get pinUpdated;
+  String get incorrectPin;
+  String get nameUpdated;
+  String get saveNameBtn;
+  String get updateSecurityPin;
+  String get secureLocalAccount;
+  String get pinsDoNotMatch;
+  String get minFourDigits;
+  String get passwordSet;
+  String get adminRole;
+  String get renew;
+  String get activate;
+  String get required;
+  String get min8Chars;
+  String get confirmPassword;
+  String get passwordsDoNotMatch;
+
+  // ── Product Edit Extension ─────────────────────
+  String get genericDescription;
+  String get companyNameOptional;
+  String get supplierNameOptional;
+  String get supplierPhoneOptional;
+  String get barcodeOptional;
+  String get expiryDateOptional;
+  String get pricePerStripLabel;
+  String get pricePerPcLabel;
+  String get lowStockWarningBox;
+  String get activeBatches;
+  String get noActiveBatches;
+  String pcsSuffixCount(int n);
+  String get saveChanges;
+  String get medicineType;
+  String editProductTitle(String name);
+  String get productDetailsTitle;
+  String batchRemaining(int str, int pcs);
+
+  // ── Bulk Import Screen ──────────────────────────
+  String get noFileSelected;
+  String selectedFile(String name);
+  String get selectCsvExcel;
+  String get showFileStructure;
+  String get uploadCsvHint;
+  String get xlsNotSupported;
+  String unsupportedFileType(String ext);
+  String readyToImport(int n);
+  String errorsCount(int n);
+  String get confirmImport;
+  String confirmImportMsg(int n);
+  String get yesImport;
+  String importNItems(int n);
+  String get noValidProducts;
+  String get noErrorsFound;
+  String get boxPrice;
+  String get stockPcsLabel;
+  String get xlsLegacyNotSupported;
+  String get failedToReadFile;
+  String get fileIsEmpty;
+  String missingRequiredColumn(String col);
+  String rowSkippedNameEmpty(int row);
+  String invalidExpiryUsingDefault(int row, String val);
+  String rowSkippedDataError(int row, String err);
+  String get noValidRowsFound;
+  String bulkImportSuccess(int n);
+  String databaseInsertFailed(String err);
+  String get failedToImportReviewErrors;
+  String get bulkImportPreview;
+  String get editThisRow;
+  String get deleteThisRow;
   String get subscriptionTitle;
   String get subscribeBtn;
   String get currentPlan;
@@ -377,4 +498,95 @@ abstract class AppStrings {
   String get boxes;
   String get minAmount;
   String get maxAmount;
+  String get fileStructureExample;
+  String get expiryFormatHint;
+  String get csvTemplateSuccess;
+  String get csvTemplateFail;
+  String get excelTemplateSuccess;
+  String get excelTemplateFail;
+  String get downloadCsvTemplate;
+  String get downloadExcel;
+  String get rawCsvExample;
+  String get editImportedProduct;
+  String get pricingPackaging;
+  String get inventoryTracking;
+  String get saveChangesLabel;
+  String get selectExpiryDateError;
+  String get requiredLabel;
+  String get mustBeGreaterThanZero;
+  String get minStockWarningBox;
+  String get productNameLabel;
+  String get barcodeLabelOptional;
+  String get stripsPerBoxLabel;
+  String get pcsPerStripLabel;
+  String get pricePerBoxLabel;
+  String get stockInBoxesLabel;
+  String get selectExpiry;
+  String get medTypeLabel;
+
+  // ── Expiring Soon & Low Stock ──────────────────────
+  String allProductsValidForDays(int days);
+  String get filterAll;
+  String get filterCritical;
+  String get filterWarning;
+  String get filterNotice;
+  String get allCompanies;
+  String nCompanies(int n);
+  String productsCount(int n);
+  String get sortSoonestFirst;
+  String get sortLatestFirst;
+  String get sortNameZA;
+  String get setOrderQuantities;
+  String get enterBoxesToOrder;
+  String get next;
+  String get filterOutOfStock;
+  String get sortMostUrgent;
+  String get sortBiggestDeficit;
+  String get confirmOrderQuantities;
+  String deficitUnits(int n, String unit);
+  String get callSupplier;
+  String remainingUnits(int n, String unit);
+  String extraUnits(int n, String unit);
+  String stockLevelPercent(int n);
+
+  // ── Manual Add ────────────────────────────────────
+  String get manualAddTitle;
+  String setQuantityFor(String type, String name);
+  String get enterAmount;
+
+  // ── OCR Scan Result ────────────────────────────────
+  String get reviewScanResults;
+  String get scannedImage;
+  String get noMedicineDetectedTryAgain;
+  String get selectedForImport;
+  String itemsDetected(int n);
+  String get retake;
+  String get scannedText;
+  String matchPercent(int n);
+  String get exactMatchFound;
+  String get multipleMatchesSelect;
+  String get selectCorrectProduct;
+  String get statusAccepted;
+  String get statusRejected;
+  String get statusPending;
+  String get undoReject;
+  String get reject;
+  String get accept;
+  String get selectProductFirst;
+  String productsAddedToCart(int n);
+  String get noMatchesFound;
+  String get tryRetakingPhoto;
+  String get commitValidItems;
+  String get resolveSelectionsFirst;
+  String get supplierNameLabel;
+  String get supplierPhoneLabel;
+  // ── Subscription ──────────────────────────────────
+  String get elevatePharmacy;
+  String get choosePlanDesc;
+  String get monthlyBilling;
+  String get yearlySave20;
+  String get haveCouponCode;
+  String get enterCodeHere;
+  String get getStartedSubscription;
+  String get epsSafePayment;
 }

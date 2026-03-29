@@ -6,6 +6,7 @@ import '../../utils/colors.dart';
 import '../../utils/inventory_alert_tiers.dart';
 import 'low_stock_screen.dart';
 import 'expiring_soon_screen.dart';
+import '../../providers/language_provider.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -28,10 +29,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Notifications',
+          l10n.notificationsTitle,
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -53,7 +55,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'No new notifications',
+                    l10n.noNotifications,
                     style: GoogleFonts.poppins(
                       fontSize: 18,
                       color: Colors.grey,
@@ -70,15 +72,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
             children: [
               if (lowStock.isNotEmpty) ...[
                 _buildSectionHeader(
-                  'Low Stock Alerts',
+                  l10n.lowStockTitle,
                   Icons.warning_amber_rounded,
                   AppColors.primaryDark,
                 ),
                 ...lowStock.map((product) => _buildNotificationItem(
                   context: context,
                   title: product.name,
-                  subtitle:
-                      'Item is low on stock (${product.stockStrips} strips left)',
+                  subtitle: l10n.lowStockSubtitle(product.stockStrips),
                   icon: Icons.inventory_2_outlined,
                   color: adminProvider.lowStockTierFor(product).accentColor,
                   onTap: () => Navigator.push(
@@ -90,7 +91,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               if (expiringSoon.isNotEmpty) ...[
                 if (lowStock.isNotEmpty) const SizedBox(height: 20),
                 _buildSectionHeader(
-                  'Expiring Soon',
+                  l10n.expiringSoonTitle,
                   Icons.timer_outlined,
                   AppColors.primaryDark,
                 ),
@@ -104,8 +105,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   return _buildNotificationItem(
                     context: context,
                     title: product.name,
-                    subtitle:
-                        'Expires on ${product.expiryDate?.toLocal().toString().split(' ')[0]}',
+                    subtitle: l10n.expiresOnDate(
+                      product.expiryDate?.toLocal().toString().split(' ')[0] ??
+                          '',
+                    ),
                     icon: iconData,
                     color: tier.accentColor,
                     onTap: () => Navigator.push(

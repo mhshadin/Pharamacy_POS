@@ -63,6 +63,19 @@ class AppStringsEn implements AppStrings {
   @override String get units => 'Units';
   @override String get pcsSuffix => 'pcs';
 
+  // ── Notifications ─────────────────────────────
+  @override String lowStockSubtitle(int strips) => 'Item is low on stock ($strips strips left)';
+  @override String expiresOnDate(String date) => 'Expires on $date';
+
+  // ── Top Products ───────────────────────────────
+  @override String get topProductsToday => 'Today';
+  @override String get topProductsWeek => 'Week';
+  @override String get topProductsMonth => 'Month';
+  @override String get topProductsYear => 'Year';
+  @override String get topProductsAllTime => 'All Time';
+  @override String get revenueLabel => 'REVENUE';
+  @override String boxesSoldSuffix(double n) => '$n boxes sold';
+
   // ── Product Management ─────────────────────────────
   @override String get productList => 'Product List';
   @override String get searchProducts => 'Search Products';
@@ -100,6 +113,21 @@ class AppStringsEn implements AppStrings {
   @override String get stockPcs => 'pieces';
   @override String get pcsRemaining => 'pcs remaining';
   @override String get minStock => 'min';
+
+  // ── Restock Screen ─────────────────────────────
+  @override String get pleaseSelectExpiryDate => 'Please select an expiry date.';
+  @override String get enterBoxesOrStrips => 'Enter boxes or strips to add.';
+  @override String get failedToAddStock => 'Failed to add stock. Please try again.';
+  @override String currentStock(int boxes, int strips, int pcs) => 'Current stock: $boxes boxes • $strips strips • $pcs pcs';
+  @override String currentExpiry(String date) => 'Current expiry (product): $date';
+  @override String packagingInfo(int spb, int pps) => 'Packaging: $spb strips/box • $pps pcs/strip';
+  @override String get batchAndExpiry => 'Batch & expiry';
+  @override String get quantityToAdd => 'Quantity to add';
+  @override String get batchNoOptional => 'Batch No (optional)';
+  @override String newBatchExp(String date) => 'New batch exp: $date';
+  @override String get selectExpiryForBatch => 'Select expiry for new batch*';
+  @override String get addingLabel => 'Adding…';
+  @override String get addStock => 'Add stock';
 
   // ── Filtering & Sorting ────────────────────────────
   @override String get filterByCompany => 'Filter by Company';
@@ -283,6 +311,95 @@ class AppStringsEn implements AppStrings {
   @override String get newPassword => 'New Password';
   @override String get updatePassword => 'Update Password';
   @override String get passwordUpdated => 'Password updated successfully';
+
+  // ── Profile Screen Extension ───────────────────
+  @override String get emailAddress => 'Email Address';
+  @override String get subscriptionValidUntil => 'Subscription Valid Until';
+  @override String get subscriptionManagement => 'Subscription Management';
+  @override String get activeSubscription => 'Active Subscription';
+  @override String get expiredInactive => 'Expired / Inactive';
+  @override String get activateBtn => 'Activate';
+  @override String get renewalDate => 'Renewal Date';
+  @override String get editDisplayName => 'Edit Display Name';
+  @override String get updateAdminPin => 'Update Admin PIN';
+  @override String get setLocalPassword => 'Set Local Password';
+  @override String get setLocalPasswordSubtitle => 'Create a password to also log in via email';
+  @override String get googleManagedAccount => 'Google Managed Account';
+  @override String get googleManagedSubtitle => 'You log in using your Google identity';
+  @override String get newDisplayName => 'New Display Name';
+  @override String get nameRequired => 'Name is required';
+  @override String get max100Chars => 'Max 100 characters';
+  @override String get currentPin => 'Current PIN';
+  @override String get newPin => 'New PIN';
+  @override String get confirmPin => 'Confirm PIN';
+  @override String get pinUpdated => 'PIN updated successfully!';
+  @override String get incorrectPin => 'Incorrect current PIN.';
+  @override String get nameUpdated => 'Name updated successfully!';
+  @override String get saveNameBtn => 'Save Name';
+  @override String get updateSecurityPin => 'Update Security PIN';
+  @override String get secureLocalAccount => 'Secure Local Account';
+  @override String get pinsDoNotMatch => 'PINs do not match';
+  @override String get minFourDigits => 'Min 4 digits';
+  @override String get passwordSet => 'Password set successfully!';
+  @override String get adminRole => 'Admin';
+  @override String get renew => 'Renew';
+  @override String get activate => 'Activate';
+  @override String get required => 'Required';
+  @override String get min8Chars => 'Min 8 characters';
+  @override String get confirmPassword => 'Confirm Password';
+  @override String get passwordsDoNotMatch => 'Passwords do not match';
+
+  // ── Product Edit Extension ─────────────────────
+  @override String get genericDescription => 'Generic / Description';
+  @override String get companyNameOptional => 'Company Name (optional)';
+  @override String get supplierNameOptional => 'Supplier Name (optional)';
+  @override String get supplierPhoneOptional => 'Supplier Phone (optional)';
+  @override String get barcodeOptional => 'Barcode (optional)';
+  @override String get expiryDateOptional => 'Expiry Date (optional)';
+  @override String get pricePerStripLabel => 'Price / Strip';
+  @override String get pricePerPcLabel => 'Price / Pc';
+  @override String get lowStockWarningBox => 'Low Stock Warning (Box)';
+  @override String get activeBatches => 'Active Batches';
+  @override String get noActiveBatches => 'No active batches. Stock is 0.';
+  @override String pcsSuffixCount(int n) => '$n pcs';
+  @override String get saveChanges => 'Save Changes';
+  @override String get medicineType => 'Medicine Type';
+  @override String editProductTitle(String name) => 'Edit: $name';
+  @override String get productDetailsTitle => 'Product Details';
+  @override String batchRemaining(int str, int pcs) => '($str str + $pcs)';
+
+  // ── Bulk Import Screen ──────────────────────────
+  @override String get noFileSelected => 'No file selected';
+  @override String selectedFile(String name) => 'File: $name';
+  @override String get selectCsvExcel => 'Select CSV/Excel';
+  @override String get showFileStructure => 'Show file structure example';
+  @override String get uploadCsvHint => 'Upload a CSV or Excel file to preview your products before importing.';
+  @override String get xlsNotSupported => 'Legacy .xls files are not supported. Please use .xlsx or .csv';
+  @override String unsupportedFileType(String ext) => 'Unsupported file type: $ext';
+  @override String readyToImport(int n) => 'Ready to Import ($n)';
+  @override String errorsCount(int n) => 'Errors ($n)';
+  @override String get confirmImport => 'Confirm Import';
+  @override String confirmImportMsg(int n) => 'Are you sure you want to import $n items into your inventory?';
+  @override String get yesImport => 'Yes, import';
+  @override String importNItems(int n) => 'Import $n Items';
+  @override String get noValidProducts => 'No valid products found.';
+  @override String get noErrorsFound => 'No errors found! You are good to go.';
+  @override String get boxPrice => 'Box Price';
+  @override String get stockPcsLabel => 'Stock Pcs';
+  @override String get xlsLegacyNotSupported => 'Legacy .xls files are not supported. Please save as .xlsx or CSV.';
+  @override String get failedToReadFile => 'Failed to read file. Please try again.';
+  @override String get fileIsEmpty => 'The selected file is empty.';
+  @override String missingRequiredColumn(String col) => 'Missing required column: $col';
+  @override String rowSkippedNameEmpty(int row) => 'Row $row: Product name cannot be empty. Row skipped.';
+  @override String invalidExpiryUsingDefault(int row, String val) => 'Row $row: Invalid ExpiryDate \'$val\'; using default 1 year.';
+  @override String rowSkippedDataError(int row, String err) => 'Row $row: Data format error. Row skipped. ($err)';
+  @override String get noValidRowsFound => 'No valid rows were found. Please review the error list.';
+  @override String bulkImportSuccess(int n) => '$n products imported to database safely!';
+  @override String databaseInsertFailed(String err) => 'Database Batch Insert Failed: $err';
+  @override String get failedToImportReviewErrors => 'Failed to import products into the database. Please review the errors.';
+  @override String get bulkImportPreview => 'Bulk Import Preview';
+  @override String get editThisRow => 'Edit this row';
+  @override String get deleteThisRow => 'Delete this row from import';
   @override String get subscriptionTitle => 'Subscription';
   @override String get subscribeBtn => 'Subscribe Now';
   @override String get currentPlan => 'Current Plan';
@@ -368,6 +485,10 @@ class AppStringsEn implements AppStrings {
   @override String get edit => 'Edit';
   @override String get cancel => 'Cancel';
   @override String get delete => 'Delete';
+  @override String get saveBtn => 'Save';
+  @override String unitPrice(String unit) => '$unit PRICE';
+  @override String addedToCartDetail(String name, int qty, String unit) => 'Added $name ($qty $unit) to cart';
+  @override String get noCloseMatchFound => 'No close match found. Please edit the name.';
   @override String deleteProductsConfirmation(int count) => 'Are you sure you want to delete $count products?';
 
   @override
@@ -405,4 +526,106 @@ class AppStringsEn implements AppStrings {
       'Expires: ${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   @override String productQuantity(String name, int quantity) => '$name × $quantity';
+
+  @override String get fileStructureExample => 'File structure example (CSV / Excel)';
+  @override String get expiryFormatHint => 'ExpiryDate format: YYYY-MM-DD. BatchNo is optional.';
+  @override String get csvTemplateSuccess => 'CSV template downloaded successfully.';
+  @override String get csvTemplateFail => 'Failed to download CSV template.';
+  @override String get excelTemplateSuccess => 'Excel template downloaded successfully.';
+  @override String get excelTemplateFail => 'Failed to download Excel template.';
+  @override String get downloadCsvTemplate => 'Download CSV Template';
+  @override String get downloadExcel => 'Download Excel';
+  @override String get rawCsvExample => 'Raw CSV example (full structure):';
+  @override String get editImportedProduct => 'Edit Imported Product';
+  @override String get pricingPackaging => 'Pricing & Packaging';
+  @override String get inventoryTracking => 'Inventory & Tracking';
+  @override String get saveChangesLabel => 'Save Changes';
+  @override String get selectExpiryDateError => 'Please select an expiry date.';
+  @override String get requiredLabel => 'Required';
+  @override String get mustBeGreaterThanZero => 'Must be > 0';
+  @override String get minStockWarningBox => 'Low Stock Warning (Box)';
+  @override String get productNameLabel => 'Product Name';
+  @override String get barcodeLabelOptional => 'Barcode (optional)';
+  @override String get stripsPerBoxLabel => 'Strips per Box';
+  @override String get pcsPerStripLabel => 'Pieces per Strip';
+  @override String get pricePerBoxLabel => 'Price / Box';
+  @override String get stockInBoxesLabel => 'Stock (Boxes)';
+  @override String get selectExpiry => 'Select Expiry';
+  @override String get medTypeLabel => 'Medicine Type';
+  @override String get supplierNameLabel => 'Supplier Name';
+  @override String get supplierPhoneLabel => 'Supplier Phone';
+
+  // ── Expiring Soon & Low Stock ──────────────────────
+  @override String allProductsValidForDays(int days) => 'All products have more than $days days until expiry.';
+  @override String get filterAll => 'All';
+  @override String get filterCritical => 'Critical';
+  @override String get filterWarning => 'Warning';
+  @override String get filterNotice => 'Notice';
+  @override String get allCompanies => 'All Companies';
+  @override String nCompanies(int n) => '$n Companies';
+  @override String productsCount(int n) => '$n product${n == 1 ? '' : 's'}';
+  @override String get sortSoonestFirst => 'Soonest First';
+  @override String get sortLatestFirst => 'Latest First';
+  @override String get sortNameZA => 'Z → A';
+  @override String get setOrderQuantities => 'Set Order Quantities';
+  @override String get enterBoxesToOrder => 'Enter how many boxes to order for each product.';
+  @override String get next => 'Next';
+  @override String get filterOutOfStock => 'Out of Stock';
+  @override String get sortMostUrgent => 'Most Urgent';
+  @override String get sortBiggestDeficit => 'Biggest Deficit';
+  @override String get confirmOrderQuantities => 'Confirm Order Quantities';
+  @override
+  String deficitUnits(int n, String unit) => 'Deficit: $n $unit';
+
+  @override
+  String get callSupplier => 'Call supplier';
+
+  @override
+  String remainingUnits(int n, String unit) => '$n $unit remaining';
+
+  @override
+  String extraUnits(int n, String unit) => '$n $unit extra';
+
+  @override
+  String stockLevelPercent(int n) => '$n% level';
+
+  // ── Manual Add ────────────────────────────────────
+  @override String get manualAddTitle => 'Manual Add';
+  @override String setQuantityFor(String type, String name) => 'Set $type Quantity:\n$name';
+  @override String get enterAmount => 'Enter amount...';
+
+  // ── OCR Scan Result ────────────────────────────────
+  @override String get reviewScanResults => 'Review Scan Results';
+  @override String get scannedImage => 'Scanned Image';
+  @override String get noMedicineDetectedTryAgain => 'No medicine names detected. Try again.';
+  @override String get selectedForImport => 'Selected for Import:';
+
+  // ── Subscription ──────────────────────────────────
+  @override String get elevatePharmacy => 'Elevate Your Pharmacy';
+  @override String get choosePlanDesc => 'Choose the plan that fits your business needs. Switch or cancel anytime.';
+  @override String get monthlyBilling => 'Monthly';
+  @override String get yearlySave20 => 'Yearly (Save 20%)';
+  @override String get haveCouponCode => 'Have a coupon code?';
+  @override String get enterCodeHere => 'Enter code here...';
+  @override String get getStartedSubscription => 'Get Started with Subscription';
+  @override String get epsSafePayment => 'EPS Safe Payment';
+  @override String itemsDetected(int n) => '$n item${n == 1 ? '' : 's'} detected';
+  @override String get retake => 'Retake';
+  @override String get scannedText => 'SCANNED TEXT';
+  @override String matchPercent(int n) => '$n% match';
+  @override String get exactMatchFound => 'EXACT MATCH FOUND';
+  @override String get multipleMatchesSelect => 'MULTIPLE MATCHES — PLEASE SELECT:';
+  @override String get selectCorrectProduct => '— Select Correct Product —';
+  @override String get statusAccepted => 'ACCEPTED';
+  @override String get statusRejected => 'REJECTED';
+  @override String get statusPending => 'PENDING';
+  @override String get undoReject => 'Undo Reject';
+  @override String get reject => 'Reject';
+  @override String get accept => 'Accept';
+  @override String get selectProductFirst => 'Select a product from the dropdown first.';
+  @override String productsAddedToCart(int n) => '$n product(s) added to cart.';
+  @override String get noMatchesFound => 'No matches found';
+  @override String get tryRetakingPhoto => 'Try retaking the photo with better lighting.';
+  @override String get commitValidItems => 'Commit Valid Items';
+  @override String get resolveSelectionsFirst => 'Resolve Selections First';
 }

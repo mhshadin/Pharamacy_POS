@@ -7,6 +7,8 @@ import '../../providers/admin_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/auth_storage.dart';
 import '../subscription_screen.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -55,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKeyPin.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final l10n = context.read<LanguageProvider>().strings;
     final admin = context.read<AdminProvider>();
     final success = await admin.updatePin(
       _oldPinCtrl.text.trim(),
@@ -70,16 +73,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _confirmPinCtrl.clear();
       setState(() => _pinExpanded = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('PIN updated successfully!'),
+        SnackBar(
+          content: Text(l10n.pinUpdated),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Incorrect current PIN.'),
+        SnackBar(
+          content: Text(l10n.incorrectPin),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -91,6 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKeyName.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final l10n = context.read<LanguageProvider>().strings;
     try {
       await context.read<AdminProvider>().updateProfileName(
         _nameCtrl.text.trim(),
@@ -102,8 +106,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Name updated successfully!'),
+        SnackBar(
+          content: Text(l10n.nameUpdated),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -125,6 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKeyPass.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final l10n = context.read<LanguageProvider>().strings;
     final admin = context.read<AdminProvider>();
     final token = admin.authSession?.licenseToken;
     
@@ -149,8 +154,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password set successfully!'),
+        SnackBar(
+          content: Text(l10n.passwordSet),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -171,10 +176,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
+    final l10n = context.watch<LanguageProvider>().strings;
     final session = admin.authSession;
     final isGoogleUser = session?.googleAccessToken != null;
     
-    final userName = session?.userName ?? 'Admin';
+    final userName = session?.userName ?? l10n.adminRole;
     final userInitials = userName.isNotEmpty
         ? userName.split(' ').where((e) => e.isNotEmpty).map((e) => e[0]).take(2).join().toUpperCase()
         : 'A';
@@ -187,19 +193,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             children: [
               // 1. HERO SECTION
-              _buildHero(userName, userInitials, session?.userRole, session?.subscriptionStatus, session?.userAvatarUrl),
+              _buildHero(userName, userInitials, session?.userRole, session?.subscriptionStatus, session?.userAvatarUrl, l10n),
               const SizedBox(height: 24),
               
               // 2. ACCOUNT INFO
-              _buildInfoCard(session),
+              _buildInfoCard(session, l10n),
               const SizedBox(height: 16),
 
               // 2.5 SUBSCRIPTION SECTION
-              _buildSubscriptionCard(session),
+              _buildSubscriptionCard(session, l10n),
               const SizedBox(height: 16),
               
               // 3. SECURITY SECTION
-              _buildSecuritySection(isGoogleUser),
+              _buildSecuritySection(isGoogleUser, l10n),
               
               const SizedBox(height: 40),
             ],
@@ -209,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildHero(String name, String initials, String? role, String? subStatus, String? avatarUrl) {
+  Widget _buildHero(String name, String initials, String? role, String? subStatus, String? avatarUrl, AppStrings l10n) {
     final isSubActive = subStatus?.toLowerCase() == 'active';
     
     return Container(
@@ -285,7 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildBadge(
-                role?.toUpperCase() ?? 'ADMIN', 
+                role?.toUpperCase() ?? l10n.adminRole.toUpperCase(), 
                 AppColors.secondaryAccent.withAlpha(50), 
                 AppColors.secondaryAccent
               ),
@@ -322,15 +328,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoCard(dynamic session) {
+  Widget _buildInfoCard(dynamic session, AppStrings l10n) {
     return _Card(
-      title: 'Account Information',
+      title: l10n.accountInfo,
       icon: LucideIcons.user,
       child: Column(
         children: [
-          _buildInfoRow(LucideIcons.mail, 'Email Address', session?.userEmail ?? 'Not provided'),
+          _buildInfoRow(LucideIcons.mail, l10n.emailAddress, session?.userEmail ?? 'Not provided'),
           const Divider(height: 24),
-          _buildInfoRow(LucideIcons.calendar, 'Subscription Valid Until', 
+          _buildInfoRow(LucideIcons.calendar, l10n.subscriptionValidUntil, 
             session?.subscriptionValidUntil != null && session!.subscriptionValidUntil.isNotEmpty
             ? session.subscriptionValidUntil.split(' ')[0]
             : 'N/A'
@@ -340,14 +346,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSubscriptionCard(AuthSession? session) {
+  Widget _buildSubscriptionCard(AuthSession? session, AppStrings l10n) {
     if (session == null) return const SizedBox.shrink();
     
     final isSubActive = session.subscriptionStatus.toLowerCase() == 'active';
     final planName = session.planName;
     
     return _Card(
-      title: 'Subscription Management',
+      title: l10n.subscriptionManagement,
       icon: LucideIcons.creditCard,
       child: Column(
         children: [
@@ -380,7 +386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     Text(
-                      isSubActive ? 'Active Subscription' : 'Expired / Inactive',
+                      isSubActive ? l10n.activeSubscription : l10n.expiredInactive,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -409,7 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
                 child: Text(
-                  isSubActive ? 'Renew' : 'Activate',
+                  isSubActive ? l10n.renew : l10n.activate,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
@@ -419,7 +425,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(height: 32),
             _buildInfoRow(
               LucideIcons.calendarClock, 
-              'Renewal Date', 
+              l10n.renewalDate, 
               session.subscriptionValidUntil.split(' ')[0]
             ),
           ],
@@ -468,12 +474,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSecuritySection(bool isGoogleUser) {
+  Widget _buildSecuritySection(bool isGoogleUser, AppStrings l10n) {
     return Column(
       children: [
         // Name Edit Form
         _buildCollapsibleSection(
-          title: 'Edit Display Name',
+          title: l10n.editDisplayName,
           icon: LucideIcons.pencil,
           isExpanded: _nameExpanded,
           onToggle: () => setState(() => _nameExpanded = !_nameExpanded),
@@ -489,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: AppColors.primaryDark,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'New Display Name',
+                    labelText: l10n.newDisplayName,
                     prefixIcon: const Icon(LucideIcons.user, size: 18),
                     filled: true,
                     fillColor: AppColors.primaryDark.withAlpha(5),
@@ -503,13 +509,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Name is required';
-                    if (v.trim().length > 100) return 'Max 100 characters';
+                    if (v == null || v.trim().isEmpty) return l10n.nameRequired;
+                    if (v.trim().length > 100) return l10n.max100Chars;
                     return null;
                   },
                 ),
                 const SizedBox(height: 24),
-                _buildSubmitButton('Save Name', _updateName),
+                _buildSubmitButton(l10n.saveNameBtn, _updateName),
               ],
             ),
           ),
@@ -519,7 +525,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // PIN Form (Always present, but collapsible)
         _buildCollapsibleSection(
-          title: 'Update Admin PIN',
+          title: l10n.updateAdminPin,
           icon: LucideIcons.shieldCheck,
           isExpanded: _pinExpanded,
           onToggle: () => setState(() => _pinExpanded = !_pinExpanded),
@@ -529,37 +535,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 _buildField(
                   controller: _oldPinCtrl,
-                  label: 'Current PIN',
+                  label: l10n.currentPin,
                   icon: LucideIcons.key,
                   obscure: _obscureOld,
                   isPin: true,
+                  l10n: l10n,
                   onToggle: () => setState(() => _obscureOld = !_obscureOld),
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _newPinCtrl,
-                  label: 'New PIN',
+                  label: l10n.newPin,
                   icon: LucideIcons.lock,
                   obscure: _obscureNew,
                   isPin: true,
+                  l10n: l10n,
                   onToggle: () => setState(() => _obscureNew = !_obscureNew),
                 ),
                 const SizedBox(height: 16),
                 _buildField(
                   controller: _confirmPinCtrl,
-                  label: 'Confirm PIN',
+                  label: l10n.confirmPin,
                   icon: LucideIcons.checkCircle,
                   obscure: _obscureConfirm,
                   isPin: true,
+                  l10n: l10n,
                   onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
                   validator: (v) {
-                    if (v == null || v.isEmpty) return 'Required';
-                    if (v != _newPinCtrl.text) return 'PINs do not match';
+                    if (v == null || v.isEmpty) return l10n.required;
+                    if (v != _newPinCtrl.text) return l10n.pinsDoNotMatch;
                     return null;
                   },
                 ),
                 const SizedBox(height: 24),
-                _buildSubmitButton('Update Security PIN', _updatePin),
+                _buildSubmitButton(l10n.updateSecurityPin, _updatePin),
               ],
             ),
           ),
@@ -569,11 +578,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // Password Form (Only for Google users to set password)
         if (isGoogleUser) ...[
-          _buildGoogleBadge(),
+          _buildGoogleBadge(l10n),
           const SizedBox(height: 16),
           _buildCollapsibleSection(
-            title: 'Set Local Password',
-            subtitle: 'Create a password to also log in via email',
+            title: l10n.setLocalPassword,
+            subtitle: l10n.setLocalPasswordSubtitle,
             icon: LucideIcons.lock,
             isExpanded: _passExpanded,
             onToggle: () => setState(() => _passExpanded = !_passExpanded),
@@ -583,31 +592,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildField(
                     controller: _newPassCtrl,
-                    label: 'New Password',
+                    label: l10n.newPassword,
                     icon: LucideIcons.lock,
                     obscure: _obscurePass,
+                    l10n: l10n,
                     onToggle: () => setState(() => _obscurePass = !_obscurePass),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Required';
-                      if (v.length < 8) return 'Min 8 characters';
+                      if (v == null || v.isEmpty) return l10n.required;
+                      if (v.length < 8) return l10n.min8Chars;
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
                   _buildField(
                     controller: _confirmPassCtrl,
-                    label: 'Confirm Password',
+                    label: l10n.confirmPassword,
                     icon: LucideIcons.checkCircle,
                     obscure: _obscurePassConfirm,
+                    l10n: l10n,
                     onToggle: () => setState(() => _obscurePassConfirm = !_obscurePassConfirm),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Required';
-                      if (v != _newPassCtrl.text) return 'Passwords do not match';
+                      if (v == null || v.isEmpty) return l10n.required;
+                      if (v != _newPassCtrl.text) return l10n.passwordsDoNotMatch;
                       return null;
                     },
                   ),
                   const SizedBox(height: 24),
-                  _buildSubmitButton('Secure Local Account', _updatePassword),
+                  _buildSubmitButton(l10n.secureLocalAccount, _updatePassword),
                 ],
               ),
             ),
@@ -617,7 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildGoogleBadge() {
+  Widget _buildGoogleBadge(AppStrings l10n) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -633,17 +644,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Icon(LucideIcons.chrome, color: Color(0xFF4285F4), size: 16),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Google Managed Account',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4285F4), fontSize: 13),
+                  l10n.googleManagedAccount,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4285F4), fontSize: 13),
                 ),
                 Text(
-                  'You log in using your Google identity',
-                  style: TextStyle(color: Color(0xFF4285F4), fontSize: 11),
+                  l10n.googleManagedSubtitle,
+                  style: const TextStyle(color: Color(0xFF4285F4), fontSize: 11),
                 ),
               ],
             ),
@@ -712,6 +723,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required bool obscure,
     required VoidCallback onToggle,
+    required AppStrings l10n,
     bool isPin = false,
     String? Function(String?)? validator,
   }) {
@@ -743,8 +755,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       validator: validator ?? (v) {
-        if (v == null || v.isEmpty) return 'Required';
-        if (isPin && v.length < 4) return 'Min 4 digits';
+        if (v == null || v.isEmpty) return l10n.required;
+        if (isPin && v.length < 4) return l10n.minFourDigits;
         return null;
       },
     );

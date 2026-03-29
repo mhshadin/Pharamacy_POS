@@ -3,6 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:pharmacy_pos/models/product.dart';
 import 'package:pharmacy_pos/providers/admin_provider.dart';
 import 'package:pharmacy_pos/utils/colors.dart';
+import 'package:provider/provider.dart';
+import 'package:pharmacy_pos/providers/language_provider.dart';
 
 class BulkImportEditForm extends StatefulWidget {
   final BulkImportRecord record;
@@ -110,9 +112,10 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     if (_expiryDate == null) {
+      final l10n = context.read<LanguageProvider>().strings;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an expiry date.'),
+        SnackBar(
+          content: Text(l10n.selectExpiryDateError),
           backgroundColor: AppColors.error,
         ),
       );
@@ -225,11 +228,12 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   @override
   Widget build(BuildContext context) {
     final admin = widget.admin;
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Edit Imported Product',
-          style: TextStyle(color: AppColors.white),
+        title: Text(
+          l10n.editImportedProduct,
+          style: const TextStyle(color: AppColors.white),
         ),
         backgroundColor: AppColors.primaryDark,
         iconTheme: const IconThemeData(color: AppColors.white),
@@ -244,29 +248,29 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
             children: [
               // General
               _buildSection(
-                title: 'General Information',
+                title: l10n.generalInfo,
                 icon: LucideIcons.info,
                 child: Column(
                   children: [
                     _buildField(
                       controller: _nameCtrl,
-                      label: 'Product Name',
+                      label: l10n.productNameLabel,
                       icon: LucideIcons.pill,
                       validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                          v == null || v.trim().isEmpty ? l10n.requiredLabel : null,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _genericCtrl,
-                      label: 'Generic / Description',
+                      label: l10n.genericDescription,
                       icon: LucideIcons.fileText,
                       validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
+                          v == null || v.trim().isEmpty ? l10n.requiredLabel : null,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _barcodeCtrl,
-                      label: 'Barcode (optional)',
+                      label: l10n.barcodeLabelOptional,
                       icon: LucideIcons.scanLine,
                       keyboardType: TextInputType.number,
                     ),
@@ -277,19 +281,19 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
               ),
               // Pricing & Packaging
               _buildSection(
-                title: 'Pricing & Packaging',
+                title: l10n.pricingPackaging,
                 icon: LucideIcons.circleDollarSign,
                 child: Column(
                   children: [
                     _buildField(
                       controller: _stripsPerBoxCtrl,
-                      label: 'Strips per Box',
+                      label: l10n.stripsPerBoxLabel,
                       icon: LucideIcons.package,
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
                         if (n == null || n <= 0) {
-                          return 'Must be > 0';
+                          return l10n.mustBeGreaterThanZero;
                         }
                         return null;
                       },
@@ -297,13 +301,13 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _pcsPerStripCtrl,
-                      label: 'Pieces per Strip',
+                      label: l10n.pcsPerStripLabel,
                       icon: LucideIcons.boxes,
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
                         if (n == null || n <= 0) {
-                          return 'Must be > 0';
+                          return l10n.mustBeGreaterThanZero;
                         }
                         return null;
                       },
@@ -311,13 +315,13 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _priceBoxCtrl,
-                      label: 'Price / Box',
+                      label: l10n.pricePerBoxLabel,
                       icon: LucideIcons.shoppingCart,
                       keyboardType: TextInputType.number,
                       validator: (v) {
                         final n = double.tryParse(v ?? '');
                         if (n == null || n <= 0) {
-                          return 'Must be > 0';
+                          return l10n.mustBeGreaterThanZero;
                         }
                         return null;
                       },
@@ -327,20 +331,20 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
               ),
               // Inventory
               _buildSection(
-                title: 'Inventory & Tracking',
+                title: l10n.inventoryTracking,
                 icon: LucideIcons.clipboardList,
                 child: Column(
                   children: [
                     _buildField(
                       controller: _stockBoxesCtrl,
-                      label: 'Stock (Boxes)',
+                      label: l10n.stockInBoxesLabel,
                       icon: LucideIcons.box,
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
                       controller: _minStockBoxesCtrl,
-                      label: 'Low Stock Warning (Box)',
+                      label: l10n.minStockWarningBox,
                       icon: LucideIcons.alertTriangle,
                       keyboardType: TextInputType.number,
                     ),
@@ -350,7 +354,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                         Expanded(
                           child: _buildField(
                             controller: _batchCtrl,
-                            label: 'Batch No (optional)',
+                            label: l10n.batchNoOptional,
                             icon: LucideIcons.hash,
                             keyboardType: TextInputType.text,
                           ),
@@ -384,7 +388,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                                     child: Text(
                                       _expiryDate != null
                                           ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                          : 'Select Expiry*',
+                                          : '${l10n.selectExpiry}*',
                                       style: TextStyle(
                                         color: _expiryDate != null
                                             ? AppColors.primaryDark
@@ -406,19 +410,19 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
               ),
               if (admin.showSupplierInfo)
                 _buildSection(
-                  title: 'Supplier Information',
+                  title: l10n.supplierInfo,
                   icon: LucideIcons.truck,
                   child: Column(
                     children: [
                       _buildField(
                         controller: _supplierNameCtrl,
-                        label: 'Supplier Name',
+                        label: l10n.supplierNameLabel,
                         icon: LucideIcons.user,
                       ),
                       const SizedBox(height: 12),
                       _buildField(
                         controller: _supplierPhoneCtrl,
-                        label: 'Supplier Phone',
+                        label: l10n.supplierPhoneLabel,
                         icon: LucideIcons.phone,
                         keyboardType: TextInputType.phone,
                       ),
@@ -431,9 +435,9 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                 child: ElevatedButton.icon(
                   onPressed: _save,
                   icon: const Icon(LucideIcons.check, color: AppColors.white),
-                  label: const Text(
-                    'Save Changes',
-                    style: TextStyle(
+                  label: Text(
+                    l10n.saveChangesLabel,
+                    style: const TextStyle(
                       color: AppColors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -456,11 +460,12 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   }
 
   Widget _buildMedTypeDropdown() {
+    final l10n = context.watch<LanguageProvider>().strings;
     final medTypes = widget.admin.medicineTypes;
     return DropdownButtonFormField<String>(
-      initialValue: _selectedMedType,
+      value: _selectedMedType,
       decoration: InputDecoration(
-        labelText: 'Medicine Type',
+        labelText: l10n.medTypeLabel,
         labelStyle: const TextStyle(
           color: AppColors.secondaryAccent,
           fontWeight: FontWeight.w500,

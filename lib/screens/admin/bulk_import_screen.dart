@@ -10,6 +10,7 @@ import 'package:pharmacy_pos/providers/pos_provider.dart';
 import 'package:pharmacy_pos/utils/colors.dart';
 import 'package:pharmacy_pos/models/product.dart';
 import 'package:pharmacy_pos/providers/admin_provider.dart';
+import 'package:pharmacy_pos/providers/language_provider.dart';
 import 'package:pharmacy_pos/screens/admin/bulk_import_edit_form.dart';
 import 'package:pharmacy_pos/services/export_service.dart';
 
@@ -104,46 +105,41 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
         final bytes = File(path).readAsBytesSync();
         final excel = Excel.decodeBytes(bytes);
 
-      if (excel.tables.isNotEmpty) {
-        final firstTable = excel.tables.values.first;
-        fields = firstTable.rows
-            .map(
-              (row) => row
-                  .map(
-                    (cell) =>
-                        cell == null ? '' : (cell.value ?? '').toString(),
-                  )
-                  .toList(),
-            )
-            .toList();
-      }
-      } else if (extension == 'xls') {
-        setState(() {
-          _errors.add(
-            "Legacy .xls files are not supported. Please save as .xlsx or CSV.",
-          );
-          _isProcessing = false;
-        });
-        _showErrorSnack(
-          'Legacy .xls files are not supported. Please use .xlsx or .csv.',
-        );
-        return;
+        if (excel.tables.isNotEmpty) {
+          final firstTable = excel.tables.values.first;
+          fields = firstTable.rows
+              .map(
+                (row) => row
+                    .map(
+                      (cell) =>
+                          cell == null ? '' : (cell.value ?? '').toString(),
+                    )
+                    .toList(),
+              )
+              .toList();
+        }
       } else {
+        final l10n = context.read<LanguageProvider>().strings;
+        String errorMsg = extension == 'xls'
+            ? l10n.xlsLegacyNotSupported
+            : l10n.unsupportedFileType(extension);
+
         setState(() {
-          _errors.add("Unsupported file type: .$extension");
+          _errors.add(errorMsg);
           _isProcessing = false;
         });
-        _showErrorSnack('Unsupported file type: .$extension');
+        _showErrorSnack(errorMsg);
         return;
       }
 
       _processFields(fields);
     } catch (e) {
+      final l10n = context.read<LanguageProvider>().strings;
       setState(() {
-        _errors.add("Failed to read file: $e");
+        _errors.add("${l10n.error}: $e");
         _isProcessing = false;
       });
-      _showErrorSnack('Failed to read file. Please try again.');
+      _showErrorSnack(l10n.failedToReadFile);
     }
   }
 
@@ -167,12 +163,13 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   }
 
   void _processFields(List<List<dynamic>> fields) {
+    final l10n = context.read<LanguageProvider>().strings;
     if (fields.isEmpty) {
       setState(() {
-        _errors.add("The file is completely empty.");
+        _errors.add(l10n.fileIsEmpty);
         _isProcessing = false;
       });
-      _showErrorSnack('The selected file is empty.');
+      _showErrorSnack(l10n.fileIsEmpty);
       return;
     }
 
@@ -181,10 +178,10 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     for (var expected in _expectedHeaders) {
       if (!headers.contains(expected)) {
         setState(() {
-          _errors.add("Missing required column: $expected");
+          _errors.add(l10n.missingRequiredColumn(expected));
           _isProcessing = false;
         });
-        _showErrorSnack('Missing required column: $expected');
+        _showErrorSnack(l10n.missingRequiredColumn(expected));
         return;
       }
     }
@@ -205,9 +202,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
 
         final name = getString('Name');
         if (name.isEmpty) {
-          _errors.add(
-            "Row ${i + 1}: Product name cannot be empty. Row skipped.",
-          );
+          _errors.add(l10n.rowSkippedNameEmpty(i + 1));
           continue;
         }
 
@@ -229,9 +224,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
         if (parsed != null) {
           expiry = parsed;
         } else if (expiryStr.isNotEmpty) {
-          _errors.add(
-            "Row ${i + 1}: Invalid ExpiryDate '$expiryStr'; using default 1 year.",
-          );
+          _errors.add(l10n.invalidExpiryUsingDefault(i + 1, expiryStr));
         }
 
         final batchNo = getString('BatchNo');
@@ -268,7 +261,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           expiryDate: expiry,
         ));
       } catch (e) {
-        _errors.add("Row ${i + 1}: Data format error. Row skipped. ($e)");
+        _errors.add(l10n.rowSkippedDataError(i + 1, e.toString()));
       }
     }
 
@@ -277,9 +270,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
       _isProcessing = false;
       if (_parsedRecords.isEmpty && _errors.isNotEmpty) {
         _showErrorsList = true;
-        _showErrorSnack(
-          'No valid rows were found. Please review the error list.',
-        );
+        _showErrorSnack(l10n.noValidRowsFound);
       }
     });
   }
@@ -302,19 +293,20 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   Future<void> _commitToDatabase() async {
     if (_parsedRecords.isEmpty) return;
 
+    final l10n = context.read<LanguageProvider>().strings;
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text(
-            'Confirm Import',
-            style: TextStyle(
+          title: Text(
+            l10n.confirmImport,
+            style: const TextStyle(
               color: AppColors.primaryDark,
               fontWeight: FontWeight.bold,
             ),
           ),
           content: Text(
-            'Are you sure you want to import ${_parsedRecords.length} items to the database? Once imported, you cannot undo this action from this screen.',
+            l10n.confirmImportMsg(_parsedRecords.length),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -322,9 +314,9 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: AppColors.secondaryAccent),
+              child: Text(
+                l10n.cancelBtn,
+                style: const TextStyle(color: AppColors.secondaryAccent),
               ),
             ),
             ElevatedButton(
@@ -335,9 +327,9 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                 ),
               ),
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                'Yes, import',
-                style: TextStyle(color: AppColors.white),
+              child: Text(
+                l10n.yesImport,
+                style: const TextStyle(color: AppColors.white),
               ),
             ),
           ],
@@ -363,32 +355,34 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           SnackBar(
             backgroundColor: AppColors.success,
             content: Text(
-              '${_parsedRecords.length} products imported to database safely!',
+              l10n.bulkImportSuccess(_parsedRecords.length),
             ),
           ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
-      setState(() {
-        _errors.add("Database Batch Insert Failed: $e");
-        _showErrorsList = true;
-        _isProcessing = false;
-      });
-      _showErrorSnack(
-        'Failed to import products into the database. Please review the errors.',
-      );
+      if (mounted) {
+        final l10nError = context.read<LanguageProvider>().strings;
+        setState(() {
+          _errors.add(l10nError.databaseInsertFailed(e.toString()));
+          _showErrorsList = true;
+          _isProcessing = false;
+        });
+        _showErrorSnack(l10nError.failedToImportReviewErrors);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Bulk Import Preview',
-          style: TextStyle(color: AppColors.white),
+        title: Text(
+          l10n.bulkImportPreview,
+          style: const TextStyle(color: AppColors.white),
         ),
         backgroundColor: AppColors.primaryDark,
         iconTheme: const IconThemeData(color: AppColors.white),
@@ -409,8 +403,8 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                         Expanded(
                           child: Text(
                             _fileName == null
-                                ? 'No file selected'
-                                : 'File: $_fileName',
+                                ? l10n.noFileSelected
+                                : l10n.selectedFile(_fileName!),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppColors.primaryDark,
@@ -429,7 +423,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                             color: AppColors.white,
                           ),
                           label: Text(
-                            _fileName == null ? 'Select CSV/Excel' : 'Change',
+                            _fileName == null ? l10n.selectCsvExcel : l10n.changeBtn,
                             style: const TextStyle(color: AppColors.white),
                           ),
                           style: ElevatedButton.styleFrom(
@@ -456,9 +450,9 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                             size: 16,
                             color: AppColors.primaryDark,
                           ),
-                          label: const Text(
-                            'Show file structure example',
-                            style: TextStyle(color: AppColors.primaryDark),
+                          label: Text(
+                            l10n.showFileStructure,
+                            style: const TextStyle(color: AppColors.primaryDark),
                           ),
                         ),
                       ),
@@ -468,13 +462,13 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
 
                     if (_fileName == null) ...[
                       // Empty State Instructions
-                      const Padding(
-                        padding: EdgeInsets.only(top: 24.0, bottom: 24.0),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24.0, bottom: 24.0),
                         child: Center(
                           child: Text(
-                            'Upload a CSV or Excel file to preview the data before importing to the database.',
+                            l10n.uploadCsvHint,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.secondaryAccent,
                               fontSize: 16,
                             ),
@@ -506,7 +500,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                                     borderRadius: BorderRadius.circular(7),
                                   ),
                                   child: Text(
-                                    'Ready to Import (${_parsedRecords.length})',
+                                    l10n.readyToImport(_parsedRecords.length),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -533,7 +527,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                                     borderRadius: BorderRadius.circular(7),
                                   ),
                                   child: Text(
-                                    'Errors (${_errors.length})',
+                                    l10n.errorsCount(_errors.length),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -568,9 +562,9 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                                 LucideIcons.xCircle,
                                 color: AppColors.error,
                               ),
-                              label: const Text(
-                                'Cancel',
-                                style: TextStyle(color: AppColors.error),
+                              label: Text(
+                                l10n.cancelBtn,
+                                style: const TextStyle(color: AppColors.error),
                               ),
                               style: OutlinedButton.styleFrom(
                                 padding:
@@ -586,15 +580,15 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                           Expanded(
                             flex: 2,
                             child: ElevatedButton.icon(
-onPressed: _parsedRecords.isEmpty
-                                ? null
-                                : _commitToDatabase,
+                              onPressed: _parsedRecords.isEmpty
+                                  ? null
+                                  : _commitToDatabase,
                               icon: const Icon(
                                 LucideIcons.database,
                                 color: AppColors.white,
                               ),
                               label: Text(
-                                'Import ${_parsedRecords.length} Items',
+                                l10n.importNItems(_parsedRecords.length),
                                 style: const TextStyle(
                                   color: AppColors.white,
                                   fontWeight: FontWeight.bold,
@@ -624,11 +618,12 @@ onPressed: _parsedRecords.isEmpty
 
   // Visual list of products sitting in the staging area
   Widget _buildPreviewList() {
+    final l10n = context.read<LanguageProvider>().strings;
     if (_parsedRecords.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No valid products found.',
-          style: TextStyle(color: AppColors.secondaryAccent),
+          l10n.noValidProducts,
+          style: const TextStyle(color: AppColors.secondaryAccent),
         ),
       );
     }
@@ -677,14 +672,14 @@ onPressed: _parsedRecords.isEmpty
                         runSpacing: 8,
                         children: [
                           _buildMiniStat(
-                            'Box Price',
+                            context.read<LanguageProvider>().strings.boxPrice,
                             '\$${product.priceBox.toStringAsFixed(2)}',
                           ),
-                          _buildMiniStat('Stock Pcs', '${product.totalPieces}'),
+                          _buildMiniStat(context.read<LanguageProvider>().strings.stockPcsLabel, '${product.totalPieces}'),
                           if (product.barcode != null)
-                            _buildMiniStat('Barcode', product.barcode!),
+                            _buildMiniStat(context.read<LanguageProvider>().strings.barcodeLabel, product.barcode!),
                           if (product.medType != null)
-                            _buildMiniStat('Type', product.medType!),
+                            _buildMiniStat(context.read<LanguageProvider>().strings.category, product.medType!),
                         ],
                       ),
                     ],
@@ -699,7 +694,7 @@ onPressed: _parsedRecords.isEmpty
                         LucideIcons.pencil,
                         color: AppColors.primaryDark,
                       ),
-                      tooltip: 'Edit this row',
+                      tooltip: context.read<LanguageProvider>().strings.editThisRow,
                     ),
                     IconButton(
                       onPressed: () => _removeStagedItem(index),
@@ -707,7 +702,7 @@ onPressed: _parsedRecords.isEmpty
                         LucideIcons.trash2,
                         color: AppColors.error,
                       ),
-                      tooltip: 'Delete this row from import',
+                      tooltip: context.read<LanguageProvider>().strings.deleteThisRow,
                     ),
                   ],
                 ),
@@ -740,11 +735,12 @@ onPressed: _parsedRecords.isEmpty
   }
 
   Widget _buildErrorsList() {
+    final l10n = context.read<LanguageProvider>().strings;
     if (_errors.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No errors found! You are good to go.',
-          style: TextStyle(
+          l10n.noErrorsFound,
+          style: const TextStyle(
             color: AppColors.success,
             fontWeight: FontWeight.bold,
           ),
@@ -812,6 +808,7 @@ onPressed: _parsedRecords.isEmpty
   }
 
   Widget _buildTemplateInfoPanel() {
+    final l10n = context.read<LanguageProvider>().strings;
     final headerLine = _expectedHeaders.join(',');
     final sampleLine = _sampleRow.join(',');
 
@@ -826,7 +823,7 @@ onPressed: _parsedRecords.isEmpty
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(
                 LucideIcons.info,
                 size: 18,
@@ -835,8 +832,8 @@ onPressed: _parsedRecords.isEmpty
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'File structure example (CSV / Excel)',
-                  style: TextStyle(
+                  l10n.fileStructureExample,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryDark,
                   ),
@@ -846,8 +843,8 @@ onPressed: _parsedRecords.isEmpty
           ),
           const SizedBox(height: 6),
           Text(
-            'ExpiryDate format: YYYY-MM-DD. BatchNo is optional.',
-            style: TextStyle(
+            l10n.expiryFormatHint,
+            style: const TextStyle(
               fontSize: 11,
               color: AppColors.secondaryAccent,
               fontStyle: FontStyle.italic,
@@ -868,17 +865,17 @@ onPressed: _parsedRecords.isEmpty
                     if (!mounted) return;
                     if (path != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'CSV template downloaded successfully.',
+                            l10n.csvTemplateSuccess,
                           ),
                         ),
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Failed to download CSV template.',
+                            l10n.csvTemplateFail,
                           ),
                         ),
                       );
@@ -889,9 +886,9 @@ onPressed: _parsedRecords.isEmpty
                     size: 16,
                     color: AppColors.white,
                   ),
-                  label: const Text(
-                    'Download CSV Template',
-                    style: TextStyle(color: AppColors.white),
+                  label: Text(
+                    l10n.downloadCsvTemplate,
+                    style: const TextStyle(color: AppColors.white),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryDark,
@@ -915,17 +912,17 @@ onPressed: _parsedRecords.isEmpty
                     if (!mounted) return;
                     if (path != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Excel template downloaded successfully.',
+                            l10n.excelTemplateSuccess,
                           ),
                         ),
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Failed to download Excel template.',
+                            l10n.excelTemplateFail,
                           ),
                         ),
                       );
@@ -936,9 +933,9 @@ onPressed: _parsedRecords.isEmpty
                     size: 16,
                     color: AppColors.primaryDark,
                   ),
-                  label: const Text(
-                    'Download Excel',
-                    style: TextStyle(color: AppColors.primaryDark),
+                  label: Text(
+                    l10n.downloadExcel,
+                    style: const TextStyle(color: AppColors.primaryDark),
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -988,9 +985,9 @@ onPressed: _parsedRecords.isEmpty
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Raw CSV example (full structure):',
-            style: TextStyle(
+          Text(
+            l10n.rawCsvExample,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               color: AppColors.secondaryAccent,
             ),

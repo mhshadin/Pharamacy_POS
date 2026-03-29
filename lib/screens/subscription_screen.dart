@@ -5,6 +5,8 @@ import '../utils/colors.dart';
 import '../utils/api_error_mapper.dart';
 import '../services/eps_service.dart';
 import '../widgets/plan_card.dart';
+import '../providers/language_provider.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -12,7 +14,7 @@ class SubscriptionScreen extends StatefulWidget {
   final bool isDismissible;
 
   const SubscriptionScreen({
-    super.key, 
+    super.key,
     required this.pharmacyId,
     this.isDismissible = true,
   });
@@ -24,7 +26,7 @@ class SubscriptionScreen extends StatefulWidget {
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   final _epsService = const EpsService();
   final _couponController = TextEditingController();
-  
+
   List<Map<String, dynamic>> _plans = [];
   bool _isLoading = true;
   String? _selectedPlanId;
@@ -73,7 +75,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       final result = await _epsService.initializePayment(
         pharmacyId: widget.pharmacyId,
         planId: _selectedPlanId!,
-        couponCode: _couponController.text.trim().isEmpty ? null : _couponController.text.trim(),
+        couponCode: _couponController.text.trim().isEmpty
+            ? null
+            : _couponController.text.trim(),
       );
 
       if (!mounted) return;
@@ -114,9 +118,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredPlans = _plans.where((p) => 
-      _isMonthly ? p['billing_cycle'] == 'monthly' : p['billing_cycle'] == 'yearly'
-    ).toList();
+    final l10n = context.watch<LanguageProvider>().strings;
+    final filteredPlans = _plans
+        .where(
+          (p) => _isMonthly
+              ? p['billing_cycle'] == 'monthly'
+              : p['billing_cycle'] == 'yearly',
+        )
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -130,7 +139,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 children: [
                   const SizedBox(height: 20),
                   Text(
-                    'Elevate Your Pharmacy',
+                    context.watch<LanguageProvider>().strings.elevatePharmacy,
                     style: GoogleFonts.inter(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -139,7 +148,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Choose the plan that fits your business needs. Switch or cancel anytime.',
+                    context.watch<LanguageProvider>().strings.choosePlanDesc,
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       color: AppColors.textSecondary,
@@ -147,7 +156,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Billing Toggle
                   Center(
                     child: Container(
@@ -160,15 +169,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildToggleButton('Monthly', _isMonthly),
-                          _buildToggleButton('Yearly (Save 20%)', !_isMonthly),
+                          _buildToggleButton(l10n.monthlyBilling, _isMonthly),
+                          _buildToggleButton(l10n.yearlySave20, !_isMonthly),
                         ],
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Plans Carousel
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
@@ -195,12 +204,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         },
                       ),
                     ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Coupon Input
                   Text(
-                    'Have a coupon code?',
+                    context.watch<LanguageProvider>().strings.haveCouponCode,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -214,13 +223,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         child: TextFormField(
                           controller: _couponController,
                           decoration: InputDecoration(
-                            hintText: 'Enter code here...',
+                            hintText: context.watch<LanguageProvider>().strings.enterCodeHere,
                             filled: true,
                             fillColor: AppColors.white,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.cardBorder),
+                              borderSide: const BorderSide(
+                                color: AppColors.cardBorder,
+                              ),
                             ),
                           ),
                         ),
@@ -228,20 +241,25 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       const SizedBox(width: 12),
                       ElevatedButton(
                         onPressed: () {
-                          // TODO: Validate coupon UI if needed
+                          //TODO: Validate coupon UI if needed
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        child: const Text('Apply', style: TextStyle(color: Colors.white)),
+                        child: Text(
+                          context.watch<LanguageProvider>().strings.applyBtn,
+                          style: const TextStyle(color: Colors.white),
+                        ),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 60),
-                  
+
                   // Buy Now Button
                   SizedBox(
                     width: double.infinity,
@@ -250,36 +268,44 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       onPressed: _isProcessing ? null : _handleBuyNow,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         elevation: 4,
                       ),
                       child: _isProcessing
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                            'Get Started with Subscription',
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              context.watch<LanguageProvider>().strings.getStartedSubscription,
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
                     ),
                   ),
                   const SizedBox(height: 100),
                 ],
               ),
             ),
-            
+
             // X / Skip Button
             if (widget.isDismissible)
               Positioned(
                 top: 20,
                 right: 20,
                 child: IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.textPrimary, size: 28),
+                  icon: const Icon(
+                    Icons.close,
+                    color: AppColors.textPrimary,
+                    size: 28,
+                  ),
                   onPressed: () {
                     Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const HomeScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const HomeScreen(),
+                      ),
                     );
                   },
                 ),
@@ -291,14 +317,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildToggleButton(String label, bool active) {
+    final isMonthly = label == context.read<LanguageProvider>().strings.monthlyBilling;
     return GestureDetector(
-      onTap: () => setState(() => _isMonthly = label.startsWith('M')),
+      onTap: () => setState(() => _isMonthly = isMonthly),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: active ? AppColors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          boxShadow: active ? [const BoxShadow(color: Colors.black12, blurRadius: 4)] : null,
+          boxShadow: active
+              ? [const BoxShadow(color: Colors.black12, blurRadius: 4)]
+              : null,
         ),
         child: Text(
           label,
@@ -318,7 +347,7 @@ class EpsWebViewScreen extends StatefulWidget {
   final String merchantTransactionId;
 
   const EpsWebViewScreen({
-    super.key, 
+    super.key,
     required this.url,
     required this.merchantTransactionId,
   });
@@ -343,9 +372,12 @@ class _EpsWebViewScreenState extends State<EpsWebViewScreen> {
           onPageFinished: (url) => setState(() => _isLoading = false),
           onNavigationRequest: (request) async {
             final url = request.url.toLowerCase();
-            if (url.contains('status=success') || url.contains('type=success')) {
+            if (url.contains('status=success') ||
+                url.contains('type=success')) {
               // Verify server-side
-              final success = await _epsService.verifyPayment(widget.merchantTransactionId);
+              final success = await _epsService.verifyPayment(
+                widget.merchantTransactionId,
+              );
               if (mounted) Navigator.of(context).pop(success);
               return NavigationDecision.prevent;
             }
@@ -364,7 +396,7 @@ class _EpsWebViewScreenState extends State<EpsWebViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('EPS Safe Payment'),
+        title: Text(context.watch<LanguageProvider>().strings.epsSafePayment),
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
@@ -372,18 +404,19 @@ class _EpsWebViewScreenState extends State<EpsWebViewScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
-              final success = await _epsService.verifyPayment(widget.merchantTransactionId);
+              final success = await _epsService.verifyPayment(
+                widget.merchantTransactionId,
+              );
               if (!context.mounted) return;
               if (success) Navigator.of(context).pop(true);
             },
-          )
+          ),
         ],
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator()),
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

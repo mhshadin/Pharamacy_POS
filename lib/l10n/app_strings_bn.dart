@@ -63,6 +63,19 @@ class AppStringsBn implements AppStrings {
   @override String get units => 'ইউনিট';
   @override String get pcsSuffix => 'পিস';
 
+  // ── Notifications ─────────────────────────────
+  @override String lowStockSubtitle(int strips) => 'ওষুধের স্টক কম ($strips পাতা অবশিষ্ট)';
+  @override String expiresOnDate(String date) => '$date তারিখে মিয়াদ শেষ হবে';
+
+  // ── Top Products ───────────────────────────────
+  @override String get topProductsToday => 'আজ';
+  @override String get topProductsWeek => 'সপ্তাহ';
+  @override String get topProductsMonth => 'মাস';
+  @override String get topProductsYear => 'বছর';
+  @override String get topProductsAllTime => 'সর্বকাল';
+  @override String get revenueLabel => 'মোট আয়';
+  @override String boxesSoldSuffix(double n) => '$n বক্স বিক্রি হয়েছে';
+
   // ── Product Management ─────────────────────────────
   @override String get productList => 'ওষুধের তালিকা';
   @override String get searchProducts => 'ওষুধ খুঁজুন';
@@ -100,6 +113,21 @@ class AppStringsBn implements AppStrings {
   @override String get stockPcs => 'পিস';
   @override String get pcsRemaining => 'পিস অবশিষ্ট';
   @override String get minStock => 'সর্বনিম্ন';
+
+  // ── Restock Screen ─────────────────────────────
+  @override String get pleaseSelectExpiryDate => 'অনুগ্রহ করে মিয়াদের তারিখ নির্বাচন করুন।';
+  @override String get enterBoxesOrStrips => 'যোগ করার জন্য বক্স বা পাতা লিখুন।';
+  @override String get failedToAddStock => 'স্টক যোগ করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
+  @override String currentStock(int boxes, int strips, int pcs) => 'বর্তমান স্টক: $boxes বক্স • $strips পাতা • $pcs পিস';
+  @override String currentExpiry(String date) => 'বর্তমান মিয়াদ (ওষুধ): $date';
+  @override String packagingInfo(int spb, int pps) => 'প্যাকেজিং: $spb পাতা/বক্স • $pps পিস/পাতা';
+  @override String get batchAndExpiry => 'ব্যাচ ও মিয়াদ';
+  @override String get quantityToAdd => 'যোগ করার পরিমাণ';
+  @override String get batchNoOptional => 'ব্যাচ নং (ঐচ্ছিক)';
+  @override String newBatchExp(String date) => 'নতুন ব্যাচের মিয়াদ: $date';
+  @override String get selectExpiryForBatch => 'নতুন ব্যাচের জন্য মিয়াদ নির্বাচন করুন*';
+  @override String get addingLabel => 'যোগ করা হচ্ছে…';
+  @override String get addStock => 'স্টক যোগ করুন';
 
   // ── Filtering & Sorting ────────────────────────────
   @override String get filterByCompany => 'কোম্পানি অনুযায়ী ফিল্টার';
@@ -283,6 +311,95 @@ class AppStringsBn implements AppStrings {
   @override String get newPassword => 'নতুন পাসওয়ার্ড';
   @override String get updatePassword => 'পাসওয়ার্ড আপডেট করুন';
   @override String get passwordUpdated => 'পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে';
+
+  // ── Profile Screen Extension ───────────────────
+  @override String get emailAddress => 'ইমেল ঠিকানা';
+  @override String get subscriptionValidUntil => 'সাবস্ক্রিপশনের মেয়াদ';
+  @override String get subscriptionManagement => 'সাবস্ক্রিপশন ম্যানেজমেন্ট';
+  @override String get activeSubscription => 'সক্রিয় সাবস্ক্রিপশন';
+  @override String get expiredInactive => 'মেয়াদোত্তীর্ণ / নিষ্ক্রিয়';
+  @override String get activateBtn => 'সক্রিয় করুন';
+  @override String get renewalDate => 'রিনিউয়াল তারিখ';
+  @override String get editDisplayName => 'নাম পরিবর্তন করুন';
+  @override String get updateAdminPin => 'অ্যাডমিন পিন আপডেট করুন';
+  @override String get setLocalPassword => 'লোকাল পাসওয়ার্ড সেট করুন';
+  @override String get setLocalPasswordSubtitle => 'ইমেল দিয়ে লগইন করার জন্য একটি পাসওয়ার্ড তৈরি করুন';
+  @override String get googleManagedAccount => 'গুগল ম্যানেজড অ্যাকাউন্ট';
+  @override String get googleManagedSubtitle => 'আপনি আপনার গুগল আইডি দিয়ে লগইন করেছেন';
+  @override String get newDisplayName => 'নতুন নাম';
+  @override String get nameRequired => 'নাম প্রয়োজন';
+  @override String get max100Chars => 'সর্বোচ্চ ১০০ অক্ষর';
+  @override String get currentPin => 'বর্তমান পিন';
+  @override String get newPin => 'নতুন পিন';
+  @override String get confirmPin => 'পিন নিশ্চিত করুন';
+  @override String get pinUpdated => 'পিন সফলভাবে আপডেট করা হয়েছে!';
+  @override String get incorrectPin => 'ভুল বর্তমান পিন।';
+  @override String get nameUpdated => 'নাম সফলভাবে আপডেট করা হয়েছে!';
+  @override String get saveNameBtn => 'নাম সংরক্ষণ করুন';
+  @override String get updateSecurityPin => 'সিকিউরিটি পিন আপডেট করুন';
+  @override String get secureLocalAccount => 'লোকাল অ্যাকাউন্ট সুরক্ষিত করুন';
+  @override String get pinsDoNotMatch => 'পিন দুটি মিলছে না';
+  @override String get minFourDigits => 'কমপক্ষে ৪ ডিজিট';
+  @override String get passwordSet => 'পাসওয়ার্ড সফলভাবে তৈরি হয়েছে!';
+  @override String get adminRole => 'প্রশাসক';
+  @override String get renew => 'রিনিউ করুন';
+  @override String get activate => 'সক্রিয় করুন';
+  @override String get required => 'আবশ্যক';
+  @override String get min8Chars => 'ন্যূনতম ৮টি অক্ষর';
+  @override String get confirmPassword => 'পাসওয়ার্ড নিশ্চিত করুন';
+  @override String get passwordsDoNotMatch => 'পাসওয়ার্ড মিলছে না';
+
+  // ── Product Edit Extension ─────────────────────
+  @override String get genericDescription => 'জেনেরিক / বিবরণ';
+  @override String get companyNameOptional => 'কোম্পানির নাম (ঐচ্ছিক)';
+  @override String get supplierNameOptional => 'সরবরাহকারীর নাম (ঐচ্ছিক)';
+  @override String get supplierPhoneOptional => 'সরবরাহকারীর ফোন (ঐচ্ছিক)';
+  @override String get barcodeOptional => 'বারকোড (ঐচ্ছিক)';
+  @override String get expiryDateOptional => 'মিয়াদের তারিখ (ঐচ্ছিক)';
+  @override String get pricePerStripLabel => 'দাম / পাতা';
+  @override String get pricePerPcLabel => 'দাম / পিস';
+  @override String get lowStockWarningBox => 'কম স্টক সতর্কতা (বক্স)';
+  @override String get activeBatches => 'সক্রিয় ব্যাচসমূহ';
+  @override String get noActiveBatches => 'কোনো সক্রিয় ব্যাচ নেই। স্টক ০।';
+  @override String pcsSuffixCount(int n) => '$n পিস';
+  @override String get saveChanges => 'পরিবর্তন সংরক্ষণ করুন';
+  @override String get medicineType => 'ওষুধের ধরণ';
+  @override String editProductTitle(String name) => 'সম্পাদনা: $name';
+  @override String get productDetailsTitle => 'ওষুধের বিবরণ';
+  @override String batchRemaining(int str, int pcs) => '($str পাতা + $pcs)';
+
+  // ── Bulk Import Screen ──────────────────────────
+  @override String get noFileSelected => 'কোনো ফাইল নির্বাচন করা হয়নি';
+  @override String selectedFile(String name) => 'ফাইল: $name';
+  @override String get selectCsvExcel => 'CSV/Excel ফাইল নির্বাচন করুন';
+  @override String get showFileStructure => 'ফাইলের গঠন উদাহরণ দেখুন';
+  @override String get uploadCsvHint => 'ইম্পোর্ট করার আগে আপনার ওষুধগুলো দেখতে একটি CSV বা Excel ফাইল আপলোড করুন।';
+  @override String get xlsNotSupported => 'পুরানো .xls ফাইল সমর্থিত নয়। অনুগ্রহ করে .xlsx বা .csv ব্যবহার করুন';
+  @override String unsupportedFileType(String ext) => 'অসমর্থিত ফাইলের ধরণ: $ext';
+  @override String readyToImport(int n) => 'ইম্পোর্টের জন্য প্রস্তুত ($n)';
+  @override String errorsCount(int n) => 'ত্রুটি ($n)';
+  @override String get confirmImport => 'ইম্পোর্ট নিশ্চিত করুন';
+  @override String confirmImportMsg(int n) => 'আপনি কি নিশ্চিত যে আপনি আপনার ইনভেন্টরিতে $nটি আইটেম ইম্পোর্ট করতে চান?';
+  @override String get yesImport => 'হ্যাঁ, ইম্পোর্ট করুন';
+  @override String importNItems(int n) => '$nটি আইটেম ইম্পোর্ট করুন';
+  @override String get noValidProducts => 'কোনো বৈধ ওষুধ পাওয়া যায়নি।';
+  @override String get noErrorsFound => 'কোনো ত্রুটি পাওয়া যায়নি! আপনি এগুতে পারেন।';
+  @override String get boxPrice => 'বক্সের দাম';
+  @override String get stockPcsLabel => 'স্টক পিস';
+  @override String get xlsLegacyNotSupported => 'পুরানো .xls ফাইল সমর্থিত নয়। অনুগ্রহ করে .xlsx বা CSV হিসেবে সেভ করুন।';
+  @override String get failedToReadFile => 'ফাইল পড়তে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
+  @override String get fileIsEmpty => 'নির্বাচিত ফাইলটি খালি।';
+  @override String missingRequiredColumn(String col) => 'প্রয়োজনীয় কলাম নেই: $col';
+  @override String rowSkippedNameEmpty(int row) => 'সারি $row: ওষুধের নাম খালি রাখা যাবে না। সারিটি বাদ দেওয়া হয়েছে।';
+  @override String invalidExpiryUsingDefault(int row, String val) => 'সারি $row: অকার্যকর মেয়াদ উত্তীর্ণের তারিখ \'$val\'; ১ বছরের ডিফল্ট তারিখ ব্যবহার করা হচ্ছে।';
+  @override String rowSkippedDataError(int row, String err) => 'সারি $row: ডেটা ফরম্যাটে ভুল। সারিটি বাদ দেওয়া হয়েছে। ($err)';
+  @override String get noValidRowsFound => 'কোনো বৈধ সারি পাওয়া যায়নি। অনুগ্রহ করে ভুলের তালিকা দেখুন।';
+  @override String bulkImportSuccess(int n) => '$n টি ওষুধ ডেটাবেসে সফলভাবে যুক্ত করা হয়েছে!';
+  @override String databaseInsertFailed(String err) => 'ডেটাবেসে যুক্ত করতে ব্যর্থ হয়েছে: $err';
+  @override String get failedToImportReviewErrors => 'ওষুধগুলো ডেটাবেসে যুক্ত করতে ব্যর্থ হয়েছে। ভুলের তালিকা দেখুন।';
+  @override String get bulkImportPreview => 'বাল্ক ইম্পোর্ট প্রিভিউ';
+  @override String get editThisRow => 'এই সারিটি সম্পাদনা করুন';
+  @override String get deleteThisRow => 'ইম্পোর্ট থেকে এই সারিটি মুছে ফেলুন';
   @override String get subscriptionTitle => 'সাবস্ক্রিপশন';
   @override String get subscribeBtn => 'এখনই সাবস্ক্রাইব করুন';
   @override String get currentPlan => 'বর্তমান প্ল্যান';
@@ -370,6 +487,10 @@ class AppStringsBn implements AppStrings {
   @override String get edit => 'সম্পাদনা';
   @override String get cancel => 'বাতিল';
   @override String get delete => 'মুছুন';
+  @override String get saveBtn => 'সংরক্ষণ';
+  @override String unitPrice(String unit) => '$unit এর দাম';
+  @override String addedToCartDetail(String name, int qty, String unit) => '$name ($qty $unit) কার্টে যোগ করা হয়েছে';
+  @override String get noCloseMatchFound => 'কোনো কাছাকাছি মিল পাওয়া যায়নি। দয়া করে নাম পরিবর্তন করুন।';
   @override
   String deleteProductsConfirmation(int count) => 'আপনি কি নিশ্চিত যে আপনি $count টি পণ্য মুছে ফেলতে চান?';
 
@@ -408,4 +529,106 @@ class AppStringsBn implements AppStrings {
       'মিয়াদ শেষ: ${date.day}/${date.month}/${date.year}';
 
   @override String productQuantity(String name, int quantity) => '$name × $quantity';
+
+  @override String get fileStructureExample => 'ফাইলের গঠন উদাহরণ (CSV / Excel)';
+  @override String get expiryFormatHint => 'মেয়াদ উত্তীর্ণের ফরম্যাট: YYYY-MM-DD। ব্যাচ নম্বর (BatchNo) ঐচ্ছিক।';
+  @override String get csvTemplateSuccess => 'CSV টেমপ্লেট সফলভাবে ডাউনলোড হয়েছে।';
+  @override String get csvTemplateFail => 'CSV টেমপ্লেট ডাউনলোড করতে ব্যর্থ হয়েছে।';
+  @override String get excelTemplateSuccess => 'Excel টেমপ্লেট সফলভাবে ডাউনলোড হয়েছে।';
+  @override String get excelTemplateFail => 'Excel টেমপ্লেট ডাউনলোড করতে ব্যর্থ হয়েছে।';
+  @override String get downloadCsvTemplate => 'CSV টেমপ্লেট ডাউনলোড করুন';
+  @override String get downloadExcel => 'Excel ডাউনলোড করুন';
+  @override String get rawCsvExample => 'র CSV উদাহরণ (সম্পূর্ণ গঠন):';
+  @override String get editImportedProduct => 'আমদানি করা পণ্য সম্পাদনা করুন';
+  @override String get pricingPackaging => 'মূল্য ও প্যাকেজিং';
+  @override String get inventoryTracking => 'ইনভেন্টরি ও ট্র্যাকিং';
+  @override String get saveChangesLabel => 'পরিবর্তন সংরক্ষণ করুন';
+  @override String get selectExpiryDateError => 'অনুগ্রহ করে একটি মেয়াদ উত্তীর্ণের তারিখ নির্বাচন করুন।';
+  @override String get requiredLabel => 'প্রয়োজন';
+  @override String get mustBeGreaterThanZero => '০ এর বেশি হতে হবে';
+  @override String get minStockWarningBox => 'কম স্টকের সতর্কতা (বক্স)';
+  @override String get productNameLabel => 'পণ্যের নাম';
+  @override String get barcodeLabelOptional => 'বারকোড (ঐচ্ছিক)';
+  @override String get stripsPerBoxLabel => 'বক্স প্রতি পাতা';
+  @override String get pcsPerStripLabel => 'পাতা প্রতি পিস';
+  @override String get pricePerBoxLabel => 'প্রতি বক্সের দাম';
+  @override String get stockInBoxesLabel => 'স্টক (বক্স)';
+  @override String get selectExpiry => 'মেয়াদ চয়ন করুন';
+  @override String get medTypeLabel => 'ওষুধের ধরন';
+  @override String get supplierNameLabel => 'সরবরাহকারীর নাম';
+  @override String get supplierPhoneLabel => 'সরবরাহকারীর ফোন';
+
+  // ── Expiring Soon & Low Stock ──────────────────────
+  @override String allProductsValidForDays(int days) => 'সব পণ্যের মেয়াদ $days দিনের বেশি বাকি।';
+  @override String get filterAll => 'সব';
+  @override String get filterCritical => 'সংকটজনক';
+  @override String get filterWarning => 'সতর্কতা';
+  @override String get filterNotice => 'বিজ্ঞপ্তি';
+  @override String get allCompanies => 'সব কোম্পানি';
+  @override String nCompanies(int n) => '$n টি কোম্পানি';
+  @override String productsCount(int n) => '$n টি পণ্য';
+  @override String get sortSoonestFirst => 'নিকটতম মেয়াদ আগে';
+  @override String get sortLatestFirst => 'দূরতম মেয়াদ আগে';
+  @override String get sortNameZA => 'Z → A';
+  @override String get setOrderQuantities => 'অর্ডারের পরিমাণ নির্ধারণ করুন';
+  @override String get enterBoxesToOrder => 'প্রতিটি পণ্যের জন্য কতটি বক্স অর্ডার করবেন লিখুন।';
+  @override String get next => 'পরবর্তী';
+  @override String get filterOutOfStock => 'স্টক শেষ';
+  @override String get sortMostUrgent => 'সবচেয়ে জরুরি';
+  @override String get sortBiggestDeficit => 'সবচেয়ে বেশি ঘাটতি';
+  @override String get confirmOrderQuantities => 'অর্ডারের পরিমাণ নিশ্চিত করুন';
+  @override
+  String deficitUnits(int n, String unit) => 'ঘাটতি: $n $unit';
+
+  @override
+  String get callSupplier => 'সরবরাহকারীকে কল করুন';
+
+  @override
+  String remainingUnits(int n, String unit) => '$n $unit বাকি আছে';
+
+  @override
+  String extraUnits(int n, String unit) => '$n $unit অতিরিক্ত';
+
+  @override
+  String stockLevelPercent(int n) => '$n% লেভেল';
+
+  // ── Manual Add ────────────────────────────────────
+  @override String get manualAddTitle => 'ম্যানুয়াল যোগ';
+  @override String setQuantityFor(String type, String name) => '$type পরিমাণ নির্ধারণ করুন:\n$name';
+  @override String get enterAmount => 'পরিমাণ লিখুন...';
+
+  // ── OCR Scan Result ────────────────────────────────
+  @override String get reviewScanResults => 'স্ক্যান ফলাফল পর্যালোচনা করুন';
+  @override String get scannedImage => 'স্ক্যান করা ছবি';
+  @override String get noMedicineDetectedTryAgain => 'কোনো ওষুধের নাম পাওয়া যায়নি। আবার চেষ্টা করুন।';
+  @override String get selectedForImport => 'আমদানির জন্য নির্বাচিত:';
+
+  // ── Subscription ──────────────────────────────────
+  @override String get elevatePharmacy => 'আপনার ফার্মেসি উন্নত করুন';
+  @override String get choosePlanDesc => 'আপনার ব্যবসার প্রয়োজনীয়তা অনুযায়ী প্ল্যান বেছে নিন। যেকোনো সময় পরিবর্তন বা বাতিল করুন।';
+  @override String get monthlyBilling => 'মাসিক';
+  @override String get yearlySave20 => 'বার্ষিক (২০% সাশ্রয়)';
+  @override String get haveCouponCode => 'কুপন কোড আছে?';
+  @override String get enterCodeHere => 'এখানে কোড লিখুন...';
+  @override String get getStartedSubscription => 'সাবস্ক্রিপশন শুরু করুন';
+  @override String get epsSafePayment => 'EPS নিরাপদ পেমেন্ট';
+  @override String itemsDetected(int n) => '$n টি আইটেম শনাক্ত হয়েছে';
+  @override String get retake => 'আবার তুলুন';
+  @override String get scannedText => 'স্ক্যান করা টেক্সট';
+  @override String matchPercent(int n) => '$n% মিল';
+  @override String get exactMatchFound => 'সঠিক মিল পাওয়া গেছে';
+  @override String get multipleMatchesSelect => 'একাধিক মিল — অনুগ্রহ করে নির্বাচন করুন:';
+  @override String get selectCorrectProduct => '— সঠিক পণ্য নির্বাচন করুন —';
+  @override String get statusAccepted => 'গৃহীত';
+  @override String get statusRejected => 'প্রত্যাখ্যাত';
+  @override String get statusPending => 'বিচারাধীন';
+  @override String get undoReject => 'বাতিল পূর্বাবস্থায় ফেরান';
+  @override String get reject => 'প্রত্যাখ্যান করুন';
+  @override String get accept => 'গ্রহণ করুন';
+  @override String get selectProductFirst => 'অনুগ্রহ করে প্রথমে ড্রপডাউন থেকে একটি পণ্য নির্বাচন করুন।';
+  @override String productsAddedToCart(int n) => '$n টি পণ্য কার্টে যোগ করা হয়েছে।';
+  @override String get noMatchesFound => 'কোনো মিল পাওয়া যায়নি';
+  @override String get tryRetakingPhoto => 'ভালো আলোতে আবার ছবি তুলে দেখুন।';
+  @override String get commitValidItems => 'বৈধ আইটেম নিশ্চিত করুন';
+  @override String get resolveSelectionsFirst => 'আগে নির্বাচন নিষ্পত্তি করুন';
 }

@@ -34,16 +34,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int get _currentIndex => _navStack.last;
 
   final List<_NavItemData> _navItemsData = [
-    _NavItemData(icon: LucideIcons.layoutDashboard, labelKey: (l10n) => l10n.navDashboard),
-    _NavItemData(icon: LucideIcons.packagePlus, labelKey: (l10n) => l10n.navAddProduct),
-    _NavItemData(icon: LucideIcons.rotateCcw, labelKey: (l10n) => l10n.navReturns),
-    _NavItemData(icon: LucideIcons.barChart3, labelKey: (l10n) => l10n.navSalesReport),
-    _NavItemData(icon: LucideIcons.clock, labelKey: (l10n) => l10n.navExpiringSoon),
-    _NavItemData(icon: LucideIcons.alertTriangle, labelKey: (l10n) => l10n.navLowStock),
-    _NavItemData(icon: LucideIcons.package, labelKey: (l10n) => l10n.navProductList),
-    _NavItemData(icon: LucideIcons.trendingUp, labelKey: (l10n) => l10n.navTopProducts),
-    _NavItemData(icon: LucideIcons.settings, labelKey: (l10n) => l10n.navSettings),
-    _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),
+    _NavItemData(icon: LucideIcons.layoutDashboard, labelKey: (l10n) => l10n.navDashboard),   // 0
+    _NavItemData(icon: LucideIcons.package, labelKey: (l10n) => l10n.navProductList),          // 1
+    _NavItemData(icon: LucideIcons.packagePlus, labelKey: (l10n) => l10n.navAddProduct),       // 2
+    _NavItemData(icon: LucideIcons.alertTriangle, labelKey: (l10n) => l10n.navLowStock),       // 3
+    _NavItemData(icon: LucideIcons.clock, labelKey: (l10n) => l10n.navExpiringSoon),           // 4
+    _NavItemData(icon: LucideIcons.rotateCcw, labelKey: (l10n) => l10n.navReturns),           // 5
+    _NavItemData(icon: LucideIcons.barChart3, labelKey: (l10n) => l10n.navSalesReport),        // 6
+    _NavItemData(icon: LucideIcons.trendingUp, labelKey: (l10n) => l10n.navTopProducts),       // 7
+    _NavItemData(icon: LucideIcons.settings, labelKey: (l10n) => l10n.navSettings),            // 8
+    _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),                 // 9
   ];
 
   void _navigateTo(int index, {bool fromDrawer = false}) {
@@ -76,17 +76,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardPage();
       case 1:
-        return const AddProductScreen();
+        return const ProductListScreen(isAdmin: true);
       case 2:
-        return const ReturnsScreen();
+        return const AddProductScreen();
       case 3:
-        return const SalesReportScreen();
+        return const LowStockScreen(showAppBar: false);
       case 4:
         return const ExpiringSoonScreen(showAppBar: false);
       case 5:
-        return const LowStockScreen(showAppBar: false);
+        return const ReturnsScreen();
       case 6:
-        return const ProductListScreen(isAdmin: true);
+        return const SalesReportScreen();
       case 7:
         return const TopProductsScreen();
       case 8:
@@ -473,7 +473,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: LucideIcons.alertTriangle,
                           iconColor: AppColors.error,
                           iconBg: AppColors.error.withValues(alpha: 0.1),
-                          onTap: () => _navigateTo(5),
+                          onTap: () => _navigateTo(3),
                         ),
                       ),
                       SizedBox(

@@ -8,6 +8,7 @@ import '../../providers/admin_provider.dart';
 import '../../providers/pos_provider.dart';
 import '../../utils/colors.dart';
 import '../../utils/responsive_helper.dart';
+import '../../providers/language_provider.dart';
 
 /// Add stock for an existing product (new batch with expiry).
 class RestockScreen extends StatefulWidget {
@@ -98,13 +99,14 @@ class _RestockScreenState extends State<RestockScreen> {
   }
 
   Future<void> _submit() async {
+    final l10n = context.read<LanguageProvider>().strings;
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
 
     if (_expiryDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an expiry date.'),
+        SnackBar(
+          content: Text(l10n.pleaseSelectExpiryDate),
           backgroundColor: AppColors.error,
         ),
       );
@@ -128,8 +130,8 @@ class _RestockScreenState extends State<RestockScreen> {
 
     if (totalStrips <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter boxes or strips to add.'),
+        SnackBar(
+          content: Text(l10n.enterBoxesOrStrips),
           backgroundColor: AppColors.error,
         ),
       );
@@ -154,13 +156,13 @@ class _RestockScreenState extends State<RestockScreen> {
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          content: const Row(
+          content: Row(
             children: [
-              Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
-              SizedBox(width: 8),
+              const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Stock added successfully!',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                l10n.restockSuccess,
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -170,8 +172,8 @@ class _RestockScreenState extends State<RestockScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to add stock. Please try again.'),
+        SnackBar(
+          content: Text(l10n.failedToAddStock),
           backgroundColor: AppColors.error,
         ),
       );
@@ -271,12 +273,13 @@ class _RestockScreenState extends State<RestockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     final exp = _p.expiryDate;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Restock'),
+        title: Text(l10n.restock),
         centerTitle: true,
       ),
       body: Form(
@@ -318,7 +321,11 @@ class _RestockScreenState extends State<RestockScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Current stock: ${_p.stockBoxes} boxes • ${_p.remainingStrips} strips • ${_p.totalPieces} pcs',
+                      l10n.currentStock(
+                        _p.stockBoxes,
+                        _p.remainingStrips,
+                        _p.totalPieces,
+                      ),
                       style: const TextStyle(
                         color: AppColors.secondaryAccent,
                         fontSize: 12,
@@ -327,7 +334,7 @@ class _RestockScreenState extends State<RestockScreen> {
                     if (exp != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Current expiry (product): ${exp.day}/${exp.month}/${exp.year}',
+                        l10n.currentExpiry('${exp.day}/${exp.month}/${exp.year}'),
                         style: const TextStyle(
                           color: AppColors.secondaryAccent,
                           fontSize: 12,
@@ -337,7 +344,7 @@ class _RestockScreenState extends State<RestockScreen> {
                     ],
                     const SizedBox(height: 8),
                     Text(
-                      'Packaging: ${_p.stripsPerBox} strips/box • ${_p.pcsPerStrip} pcs/strip',
+                      l10n.packagingInfo(_p.stripsPerBox, _p.pcsPerStrip),
                       style: const TextStyle(
                         color: AppColors.secondaryAccent,
                         fontSize: 11,
@@ -348,7 +355,7 @@ class _RestockScreenState extends State<RestockScreen> {
               ),
               const SizedBox(height: 8),
               _buildSection(
-                title: 'Batch & expiry',
+                title: l10n.batchAndExpiry,
                 icon: LucideIcons.calendar,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -378,8 +385,10 @@ class _RestockScreenState extends State<RestockScreen> {
                             Expanded(
                               child: Text(
                                 _expiryDate != null
-                                    ? 'New batch exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                    : 'Select expiry for new batch*',
+                                    ? l10n.newBatchExp(
+                                        '${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}',
+                                      )
+                                    : l10n.selectExpiryForBatch,
                                 style: TextStyle(
                                   color: _expiryDate != null
                                       ? AppColors.primaryDark
@@ -397,7 +406,7 @@ class _RestockScreenState extends State<RestockScreen> {
                       constraints: constraints,
                       left: _buildField(
                         controller: _batchCtrl,
-                        label: 'Batch No (optional)',
+                        label: l10n.batchNoOptional,
                         icon: LucideIcons.hash,
                         keyboardType: TextInputType.text,
                       ),
@@ -407,7 +416,7 @@ class _RestockScreenState extends State<RestockScreen> {
                 ),
               ),
               _buildSection(
-                title: 'Quantity to add',
+                title: l10n.quantityToAdd,
                 icon: LucideIcons.package,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -415,7 +424,7 @@ class _RestockScreenState extends State<RestockScreen> {
                       constraints: constraints,
                       left: _buildField(
                         controller: _stockBoxesCtrl,
-                        label: 'Boxes',
+                        label: l10n.boxes,
                         icon: LucideIcons.box,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
@@ -425,7 +434,7 @@ class _RestockScreenState extends State<RestockScreen> {
                       ),
                       right: _buildField(
                         controller: _stockStripsCtrl,
-                        label: 'Strips',
+                        label: l10n.strips,
                         icon: LucideIcons.layers,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
@@ -452,7 +461,7 @@ class _RestockScreenState extends State<RestockScreen> {
                         )
                       : const Icon(LucideIcons.plus, color: AppColors.white),
                   label: Text(
-                    _submitting ? 'Adding…' : 'Add stock',
+                    _submitting ? l10n.addingLabel : l10n.addStock,
                     style: const TextStyle(
                       color: AppColors.white,
                       fontWeight: FontWeight.bold,

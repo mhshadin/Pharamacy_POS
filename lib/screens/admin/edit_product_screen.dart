@@ -5,6 +5,8 @@ import '../../utils/colors.dart';
 import '../../utils/responsive_helper.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 import '../../models/product.dart';
 import '../../models/stock_batch.dart';
 import '../scanner_screen.dart';
@@ -165,18 +167,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
     await context.read<POSProvider>().loadProducts();
 
     if (!mounted) return;
+    final l10n = context.read<LanguageProvider>().strings;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
-          children: const [
-            Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
-            SizedBox(width: 8),
+          children: [
+            const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
+            const SizedBox(width: 8),
             Text(
-              'Product updated successfully!',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              l10n.productUpdated,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -187,13 +190,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
     final showSupplierInfo = context.watch<AdminProvider>().showSupplierInfo;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
         title: Text(
-          'Edit: ${widget.product.name}',
+          l10n.editProductTitle(widget.product.name),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
@@ -208,19 +212,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       LucideIcons.edit3,
                       color: AppColors.primaryDark,
                       size: 22,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
-                      'Product Details',
-                      style: TextStyle(
+                      l10n.productDetailsTitle,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         color: AppColors.primaryDark,
@@ -238,38 +242,38 @@ class _EditProductScreenState extends State<EditProductScreen> {
                     children: [
                       _buildField(
                         controller: _nameCtrl,
-                        label: 'Product Name',
+                        label: l10n.productName,
                         icon: LucideIcons.pill,
                         validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
+                            v == null || v.isEmpty ? l10n.required : null,
                       ),
                       const SizedBox(height: 12),
                       _buildField(
                         controller: _genericCtrl,
-                        label: 'Generic / Description',
+                        label: l10n.genericDescription,
                         icon: LucideIcons.fileText,
                         validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
+                            v == null || v.isEmpty ? l10n.required : null,
                       ),
                       const SizedBox(height: 12),
                       _buildField(
                         controller: _companyCtrl,
-                        label: 'Company Name (optional)',
+                        label: l10n.companyNameOptional,
                         icon: LucideIcons.building2,
                       ),
                       const SizedBox(height: 12),
-                      _buildMedTypeDropdown(),
+                      _buildMedTypeDropdown(l10n),
                       if (showSupplierInfo) ...[
                         const SizedBox(height: 12),
                         _buildField(
                           controller: _supplierNameCtrl,
-                          label: 'Supplier Name (optional)',
+                          label: l10n.supplierNameOptional,
                           icon: LucideIcons.user,
                         ),
                         const SizedBox(height: 12),
                         _buildField(
                           controller: _supplierPhoneCtrl,
-                          label: 'Supplier Phone (optional)',
+                          label: l10n.supplierPhoneOptional,
                           icon: LucideIcons.phone,
                           keyboardType: TextInputType.phone,
                         ),
@@ -303,9 +307,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                 color: AppColors.white,
                                 size: 20,
                               ),
-                              label: const Text(
-                                'Scan',
-                                style: TextStyle(
+                              label: Text(
+                                l10n.scan,
+                                style: const TextStyle(
                                   color: AppColors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -322,7 +326,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           );
                           final barcodeField = _buildField(
                             controller: _barcodeCtrl,
-                            label: 'Barcode (optional)',
+                            label: l10n.barcodeOptional,
                             icon: LucideIcons.scanLine,
                             keyboardType: TextInputType.number,
                           );
@@ -357,7 +361,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                   ? '${_selectedExpiryDate!.year}-${_selectedExpiryDate!.month.toString().padLeft(2, '0')}-${_selectedExpiryDate!.day.toString().padLeft(2, '0')}'
                                   : '',
                             ),
-                            label: 'Expiry Date (optional)',
+                            label: l10n.expiryDateOptional,
                             icon: LucideIcons.calendar,
                             keyboardType: TextInputType.none,
                           ),
@@ -370,11 +374,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           constraints: constraints,
                           left: _buildField(
                             controller: _priceStripCtrl,
-                            label: 'Price / Strip',
+                            label: l10n.pricePerStripLabel,
                             icon: LucideIcons.dollarSign,
                             keyboardType: TextInputType.number,
                             validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
+                                v == null || v.isEmpty ? l10n.required : null,
                             onChanged: (val) {
                               if (val.isEmpty) return;
                               final stripPrice = double.tryParse(val);
@@ -388,11 +392,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           ),
                           right: _buildField(
                             controller: _pricePcCtrl,
-                            label: 'Price / Pc',
+                            label: l10n.pricePerPcLabel,
                             icon: LucideIcons.dollarSign,
                             keyboardType: TextInputType.number,
                             validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
+                                v == null || v.isEmpty ? l10n.required : null,
                             onChanged: (val) {
                               if (val.isEmpty) return;
                               final pcPrice = double.tryParse(val);
@@ -409,11 +413,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       const SizedBox(height: 12),
                       _buildField(
                         controller: _pcsPerStripCtrl,
-                        label: 'Pieces per Strip',
+                        label: l10n.pcsPerStrip,
                         icon: LucideIcons.boxes,
                         keyboardType: TextInputType.number,
                         validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
+                            v == null || v.isEmpty ? l10n.required : null,
                         onChanged: (val) {
                           if (val.isEmpty) return;
                           final pps = int.tryParse(val) ?? 10;
@@ -431,7 +435,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       const SizedBox(height: 12),
                       _buildField(
                         controller: _lowStockWarningCtrl,
-                        label: 'Low Stock Warning (Box)',
+                        label: l10n.lowStockWarningBox,
                         icon: LucideIcons.alertTriangle,
                         keyboardType: TextInputType.number,
                       ),
@@ -440,9 +444,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Active Batches',
-                            style: TextStyle(
+                          Text(
+                            l10n.activeBatches,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: AppColors.primaryDark,
@@ -457,12 +461,12 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           child: Center(child: CircularProgressIndicator()),
                         )
                       else if (_batches == null || _batches!.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
                           child: Center(
                             child: Text(
-                              'No active batches. Stock is 0.',
-                              style: TextStyle(color: AppColors.textSecondary),
+                              l10n.noActiveBatches,
+                              style: const TextStyle(color: AppColors.textSecondary),
                             ),
                           ),
                         )
@@ -497,14 +501,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Batch: ${batch.batchNumber}',
+                                        '${l10n.batchNumber}: ${batch.batchNumber}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        "Exp: ${batch.expiryDate.year}-${batch.expiryDate.month.toString().padLeft(2, '0')}-${batch.expiryDate.day.toString().padLeft(2, '0')}",
+                                        l10n.expiresDate(batch.expiryDate),
                                         style: TextStyle(
                                           color: isExpired
                                               ? AppColors.error
@@ -518,7 +522,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        '${batch.remainingPieces} pcs',
+                                        l10n.pcsSuffixCount(batch.remainingPieces),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -527,7 +531,10 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                       ),
                                       if (widget.product.pcsPerStrip > 0)
                                         Text(
-                                          '(${batch.remainingPieces ~/ widget.product.pcsPerStrip} str + ${batch.remainingPieces % widget.product.pcsPerStrip})',
+                                          l10n.batchRemaining(
+                                            batch.remainingPieces ~/ widget.product.pcsPerStrip,
+                                            batch.remainingPieces % widget.product.pcsPerStrip,
+                                          ),
                                           style: const TextStyle(
                                             color: AppColors.textSecondary,
                                             fontSize: 12,
@@ -549,9 +556,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                             LucideIcons.save,
                             color: AppColors.white,
                           ),
-                          label: const Text(
-                            'Save Changes',
-                            style: TextStyle(
+                          label: Text(
+                            l10n.saveChanges,
+                            style: const TextStyle(
                               color: AppColors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -626,13 +633,13 @@ class _EditProductScreenState extends State<EditProductScreen> {
       ),
     );
   }
-
-  Widget _buildMedTypeDropdown() {
+ 
+  Widget _buildMedTypeDropdown(AppStrings l10n) {
     final admin = context.watch<AdminProvider>();
     return DropdownButtonFormField<String>(
-      initialValue: _selectedMedType,
+      value: _selectedMedType,
       decoration: InputDecoration(
-        labelText: 'Medicine Type',
+        labelText: l10n.medicineType,
         labelStyle: const TextStyle(
           color: AppColors.secondaryAccent,
           fontWeight: FontWeight.w500,

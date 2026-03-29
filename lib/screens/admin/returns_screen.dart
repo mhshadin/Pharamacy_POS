@@ -204,9 +204,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           ),
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4),
-                        child: Text('to'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(l10n.toLabel),
                       ),
                       Expanded(
                         child: OutlinedButton.icon(
@@ -294,9 +294,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                           ),
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4),
-                        child: Text('to'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(l10n.toLabel),
                       ),
                       Expanded(
                         child: OutlinedButton.icon(

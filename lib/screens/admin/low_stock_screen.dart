@@ -26,7 +26,7 @@ class LowStockScreen extends StatefulWidget {
 class _LowStockScreenState extends State<LowStockScreen> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
-  String _filter = 'All'; // 'All' | 'Out of Stock' | 'Low Stock'
+  String _filter = 'All'; // Using keys for logic
   String _sortBy = 'Most Urgent';
   final Set<String> _selectedCompanies = {};
 
@@ -74,6 +74,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
     );
   }
 
+  // Note: These are logic values that map to l10n keys in the UI
   static const _sortOptions = [
     'Most Urgent',
     'Biggest Deficit',
@@ -174,9 +175,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Filter by Company',
-                style: TextStyle(
+              Text(
+                context.read<LanguageProvider>().strings.filterByCompany,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                   color: AppColors.primaryDark,
@@ -218,7 +219,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                         setState(() => _selectedCompanies.clear());
                         Navigator.pop(context);
                       },
-                      child: const Text('Clear All'),
+                      child: Text(context.read<LanguageProvider>().strings.clearAll),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -229,7 +230,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                         backgroundColor: AppColors.primaryDark,
                         foregroundColor: AppColors.white,
                       ),
-                      child: const Text('Apply'),
+                      child: Text(context.read<LanguageProvider>().strings.applyBtn),
                     ),
                   ),
                 ],
@@ -261,7 +262,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
         path = await ExportService.exportOrderListToCsv(
           products,
           orderQtys,
-          'Low Stock',
+          l10n.lowStockTitle,
         );
       }
     } catch (e) {
@@ -273,19 +274,19 @@ class _LowStockScreenState extends State<LowStockScreen> {
     if (path != null) {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Order list exported successfully!'),
+          content: Text(l10n.exportSuccess),
           backgroundColor: AppColors.success,
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
-            label: 'Open',
+            label: l10n.open,
             onPressed: () => OpenFile.open(path),
           ),
         ),
       );
     } else {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Failed to export order list.'),
+        SnackBar(
+          content: Text(l10n.exportFailed),
           backgroundColor: AppColors.error,
         ),
       );
@@ -306,7 +307,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
         final l10n = context.read<LanguageProvider>().strings;
         return StatefulBuilder(
           builder: (ctx, setS) => AlertDialog(
-            title: const Text('Confirm Order Quantities'),
+            title: Text(l10n.confirmOrderQuantities),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -317,7 +318,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 final unitLabels = MedTypeUnits.getLabels(p.medType, l10n);
                 return ListTile(
                   title: Text(p.name),
-                  subtitle: Text('Deficit: ${p.minStockLevel - p.stockStrips} ${(unitLabels['unit2'] ?? 'strips').toLowerCase()}'),
+                  subtitle: Text(l10n.deficitUnits(p.minStockLevel - p.stockStrips, (unitLabels['unit2'] ?? 'strips').toLowerCase())),
                   trailing: SizedBox(
                     width: 80,
                     child: TextFormField(
@@ -336,7 +337,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancelBtn),
             ),
             ElevatedButton.icon(
               onPressed: () {
@@ -344,7 +345,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 _doExport(products, orderQtys, isPdf: false);
               },
               icon: const Icon(LucideIcons.fileSpreadsheet),
-              label: const Text('CSV'),
+              label: Text(l10n.exportCsv),
             ),
             ElevatedButton.icon(
               onPressed: () {
@@ -352,7 +353,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 _doExport(products, orderQtys, isPdf: true);
               },
               icon: const Icon(LucideIcons.fileText),
-              label: const Text('PDF'),
+              label: Text(l10n.exportPdf),
             ),
           ],
         ),
@@ -382,29 +383,30 @@ class _LowStockScreenState extends State<LowStockScreen> {
     final hasCompanies = allCompanies.isNotEmpty;
 
     if (allLowStock.isEmpty) {
+      final l10n = context.watch<LanguageProvider>().strings;
       return Scaffold(
         appBar: widget.showAppBar
-            ? AppBar(title: const Text('Low Stock Alerts'), centerTitle: true)
+            ? AppBar(title: Text(l10n.lowStockTitle), centerTitle: true)
             : null,
         backgroundColor: AppColors.background,
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
-              SizedBox(height: 16),
+              const Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
+              const SizedBox(height: 16),
               Text(
-                'All products well stocked!',
-                style: TextStyle(
+                l10n.allStockGood,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                   color: AppColors.primaryDark,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
-                'No products below minimum stock level.',
-                style: TextStyle(
+                l10n.noLowStockExpiring,
+                style: const TextStyle(
                   color: AppColors.secondaryAccent,
                   fontWeight: FontWeight.w500,
                 ),
@@ -415,9 +417,11 @@ class _LowStockScreenState extends State<LowStockScreen> {
       );
     }
 
+    final l10n = context.watch<LanguageProvider>().strings;
+
     return Scaffold(
       appBar: widget.showAppBar
-          ? AppBar(title: const Text('Low Stock Alerts'), centerTitle: true)
+          ? AppBar(title: Text(l10n.lowStockTitle), centerTitle: true)
           : null,
       backgroundColor: AppColors.background,
       body: Column(
@@ -450,7 +454,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             fontSize: 14,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Search name, generic, company…',
+                            hintText: l10n.searchHint,
                             hintStyle: TextStyle(
                               color: AppColors.secondaryAccent.withValues(
                                 alpha: 0.7,
@@ -485,7 +489,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                     ),
                     const SizedBox(width: 8),
                     PopupMenuButton<String>(
-                      tooltip: 'Sort',
+                      tooltip: l10n.sortBtn,
                       icon: SizedBox(
                         height: 44,
                         width: 44,
@@ -521,7 +525,15 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                         : AppColors.secondaryAccent,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(o),
+                                  Text(
+                                    o == 'Most Urgent'
+                                        ? l10n.sortMostUrgent
+                                        : o == 'Biggest Deficit'
+                                            ? l10n.sortBiggestDeficit
+                                            : o == 'A \u2192 Z'
+                                                ? l10n.sortNameAZ
+                                                : l10n.sortNameZA,
+                                  ),
                                 ],
                               ),
                             ),
@@ -540,7 +552,13 @@ class _LowStockScreenState extends State<LowStockScreen> {
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
-                            label: Text(label),
+                            label: Text(
+                              label == 'All'
+                                  ? l10n.filterAll
+                                  : label == 'Out of Stock'
+                                      ? l10n.filterOutOfStock
+                                      : l10n.lowStockBadge,
+                            ),
                             selected: _filter == label,
                             onSelected: (_) =>
                                 setState(() => _filter = label),
@@ -604,10 +622,10 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                 const SizedBox(width: 6),
                                 Text(
                                   _selectedCompanies.isEmpty
-                                      ? 'All Companies'
+                                      ? l10n.allCompanies
                                       : _selectedCompanies.length == 1
                                           ? _selectedCompanies.first
-                                          : '${_selectedCompanies.length} Companies',
+                                          : l10n.nCompanies(_selectedCompanies.length),
                                   style: TextStyle(
                                     color: _selectedCompanies.isNotEmpty
                                         ? AppColors.primaryDark
@@ -640,7 +658,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${filtered.length} product${filtered.length == 1 ? '' : 's'}',
+                      l10n.productsCount(filtered.length),
                       style: const TextStyle(
                         color: AppColors.secondaryAccent,
                         fontWeight: FontWeight.w600,
@@ -655,9 +673,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           size: 15,
                           color: AppColors.primaryDark,
                         ),
-                        label: const Text(
-                          'Export',
-                          style: TextStyle(
+                        label: Text(
+                          l10n.exportOrderList,
+                          style: const TextStyle(
                             color: AppColors.primaryDark,
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
@@ -696,9 +714,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           color: AppColors.secondaryAccent,
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          'No products match your filters.',
-                          style: TextStyle(
+                        Text(
+                          l10n.noProductsMatchCriteria,
+                          style: const TextStyle(
                             color: AppColors.secondaryAccent,
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -714,9 +732,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
                               _selectedCompanies.clear();
                             });
                           },
-                          child: const Text(
-                            'Clear Filters',
-                            style: TextStyle(color: AppColors.primaryDark),
+                          child: Text(
+                            l10n.clearAllFilters,
+                            style: const TextStyle(color: AppColors.primaryDark),
                           ),
                         ),
                       ],
@@ -813,7 +831,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
 
                           final phoneBtn = hasSupplierPhone
                               ? IconButton(
-                                  tooltip: 'Call supplier',
+                                  tooltip: l10n.callSupplier,
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                   onPressed: () => tryDialPhone(context, supplierPhone),
@@ -843,7 +861,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           );
 
                           final extraInfo = Text(
-                            '${product.remainingStrips} ${(unitLabels['unit2'] ?? 'strips').toLowerCase()} • ${product.stockPcs} ${(unitLabels['unit3'] ?? 'pcs').toLowerCase()} extra',
+                            '${l10n.remainingUnits(product.remainingStrips, (unitLabels['unit2'] ?? 'strips').toLowerCase())} • ${l10n.extraUnits(product.stockPcs, (unitLabels['unit3'] ?? 'pcs').toLowerCase())}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 11,
@@ -924,7 +942,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              '${(percentage * 100).toInt()}% level',
+                                              l10n.stockLevelPercent((percentage * 100).toInt()),
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 color: accent,
