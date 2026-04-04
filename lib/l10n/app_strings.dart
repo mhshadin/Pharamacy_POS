@@ -483,6 +483,8 @@ abstract class AppStrings {
   String get failedToSaveProduct;
   String get noDate;
   String get bulkImport;
+  String get wizardBack;
+  String get wizardContinue;
   String get changeMedType;
   String get returns;
   String get searchBtn;

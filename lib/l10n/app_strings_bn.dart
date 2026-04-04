@@ -441,6 +441,8 @@ class AppStringsBn implements AppStrings {
   @override String get failedToSaveProduct => 'পণ্য সংরক্ষণ করতে ব্যর্থ হয়েছে। পুনরায় চেষ্টা করুন।';
   @override String get noDate => 'কোনো তারিখ নেই';
   @override String get bulkImport => 'একসাথে পণ্য ইনপুট (CSV)';
+  @override String get wizardBack => 'পিছনে';
+  @override String get wizardContinue => 'এগিয়ে যান';
   @override String get changeMedType => 'ওষুধের ধরন পরিবর্তন করুন';
   @override String get returns => 'ফেরত সমূহ';
   @override String get searchBtn => 'অনুসন্ধান';

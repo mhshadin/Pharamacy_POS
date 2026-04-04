@@ -10,6 +10,7 @@ import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../utils/med_type_units.dart';
 import '../../utils/med_type_icons.dart';
+import '../../l10n/app_strings.dart';
 import '../scanner_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
@@ -20,7 +21,10 @@ class AddProductScreen extends StatefulWidget {
 }
 
 class _AddProductScreenState extends State<AddProductScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKeyStep1 = GlobalKey<FormState>();
+  final _formKeyStep2 = GlobalKey<FormState>();
+  final _formKeyStep3 = GlobalKey<FormState>();
+  int _currentStep = 0;
   TextEditingController? _nameCtrl;
   TextEditingController? _genericCtrl;
   TextEditingController? _companyCtrl;
@@ -40,7 +44,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
 
-  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(_selectedMedType, context.read<LanguageProvider>().strings);
+  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(
+    _selectedMedType,
+    context.read<LanguageProvider>().strings,
+  );
 
   @override
   void initState() {
@@ -127,15 +134,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKeyStep1.currentState!.validate()) {
+      setState(() => _currentStep = 0);
+      return;
+    }
+    if (!_formKeyStep2.currentState!.validate()) {
+      setState(() => _currentStep = 1);
+      return;
+    }
+    if (!_formKeyStep3.currentState!.validate()) return;
 
     if (_expiryDate == null) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text(context.read<LanguageProvider>().strings.selectExpiryDate),
-           backgroundColor: AppColors.error,
-         ),
-       );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<LanguageProvider>().strings.selectExpiryDate,
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
@@ -162,9 +179,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     final allProducts = context.read<AdminProvider>().allProducts;
     final existingProduct = allProducts
-        .where((p) =>
-            p.name.toLowerCase() == productName.toLowerCase() &&
-            (p.medType ?? 'Tablet') == _selectedMedType)
+        .where(
+          (p) =>
+              p.name.toLowerCase() == productName.toLowerCase() &&
+              (p.medType ?? 'Tablet') == _selectedMedType,
+        )
         .firstOrNull;
 
     final stripPrice = double.tryParse(_priceStripCtrl.text) ?? 0;
@@ -174,9 +193,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ? (double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0) /
               (pps > 0 ? pps : 1)
         : (_buyingPriceBoxCtrl.text.isNotEmpty
-            ? (double.tryParse(_buyingPriceBoxCtrl.text) ?? 0.0) /
-                  ((spb > 0 ? spb : 1) * (pps > 0 ? pps : 1))
-            : 0.0);
+              ? (double.tryParse(_buyingPriceBoxCtrl.text) ?? 0.0) /
+                    ((spb > 0 ? spb : 1) * (pps > 0 ? pps : 1))
+              : 0.0);
 
     try {
       if (existingProduct != null) {
@@ -213,7 +232,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         await context.read<AdminProvider>().updateProduct(updatedProduct);
         if (!mounted) return;
         if (finalStrips > 0 || finalPcs > 0) {
-        await context.read<AdminProvider>().addBatch(
+          await context.read<AdminProvider>().addBatch(
             productId: updatedProduct.id,
             batchNumber: _batchCtrl.text.trim(),
             expiryDate: _expiryDate!,
@@ -268,11 +287,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text(context.read<LanguageProvider>().strings.failedToSaveProduct),
-           backgroundColor: AppColors.error,
-         ),
-       );
+        SnackBar(
+          content: Text(
+            context.read<LanguageProvider>().strings.failedToSaveProduct,
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
@@ -301,6 +322,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     setState(() {
       _expiryDate = null;
       _selectedMedType = 'Tablet';
+      _currentStep = 0;
     });
 
     if (!mounted) return;
@@ -311,18 +333,345 @@ class _AddProductScreenState extends State<AddProductScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
           children: [
-             const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
-             const SizedBox(width: 8),
-             Text(
-               existingProduct != null
-                ? context.read<LanguageProvider>().strings.productUpdated
-                : context.read<LanguageProvider>().strings.productSaved,
-               style: const TextStyle(fontWeight: FontWeight.bold),
-             ),
+            const Icon(
+              LucideIcons.checkCircle2,
+              color: AppColors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              existingProduct != null
+                  ? context.read<LanguageProvider>().strings.productUpdated
+                  : context.read<LanguageProvider>().strings.productSaved,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildHorizontalStepper(AppStrings l10n) {
+    String labelFor(int i) {
+      switch (i) {
+        case 0:
+          return l10n.generalInfo;
+        case 1:
+          return l10n.pricing;
+        default:
+          return l10n.inventory;
+      }
+    }
+
+    Widget circle(int index) {
+      const size = 28.0;
+      if (_currentStep > index) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryDark,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            LucideIcons.check,
+            color: AppColors.white,
+            size: 16,
+          ),
+        );
+      }
+      if (_currentStep == index) {
+        return Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primaryDark, width: 2),
+            color: AppColors.white,
+          ),
+          child: Text(
+            '${index + 1}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              color: AppColors.primaryDark,
+              fontSize: 14,
+            ),
+          ),
+        );
+      }
+      return Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.divider.withValues(alpha: 0.35),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Text(
+          '${index + 1}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.secondaryAccent,
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
+    Widget connector(bool done) {
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: Divider(
+            thickness: 2,
+            color: done ? AppColors.primaryDark : AppColors.divider,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                circle(0),
+                const SizedBox(height: 6),
+                Text(
+                  labelFor(0),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _currentStep >= 0
+                        ? AppColors.primaryDark
+                        : AppColors.secondaryAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          connector(_currentStep > 0),
+          Expanded(
+            child: Column(
+              children: [
+                circle(1),
+                const SizedBox(height: 6),
+                Text(
+                  labelFor(1),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _currentStep >= 1
+                        ? AppColors.primaryDark
+                        : AppColors.secondaryAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          connector(_currentStep > 1),
+          Expanded(
+            child: Column(
+              children: [
+                circle(2),
+                const SizedBox(height: 6),
+                Text(
+                  labelFor(2),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _currentStep >= 2
+                        ? AppColors.primaryDark
+                        : AppColors.secondaryAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWizardFooter(AppStrings l10n, double maxWidth) {
+    final narrow = maxWidth < 380;
+    final outlined = OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      side: const BorderSide(color: AppColors.primaryDark, width: 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+    final elevated = ElevatedButton.styleFrom(
+      backgroundColor: AppColors.primaryDark,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+
+    List<Widget> rowPair(Widget left, Widget right) {
+      if (narrow) {
+        return [left, const SizedBox(height: 12), right];
+      }
+      return [
+        Expanded(child: left),
+        const SizedBox(width: 12),
+        Expanded(flex: 2, child: right),
+      ];
+    }
+
+    if (_currentStep == 0) {
+      final bulk = OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const BulkImportScreen()),
+          );
+        },
+        icon: const Icon(
+          LucideIcons.fileSpreadsheet,
+          color: AppColors.primaryDark,
+        ),
+        label: Text(
+          l10n.bulkImport,
+          style: const TextStyle(
+            color: AppColors.primaryDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: outlined,
+      );
+      final cont = ElevatedButton.icon(
+        onPressed: () {
+          if (_formKeyStep1.currentState!.validate()) {
+            setState(() => _currentStep = 1);
+          }
+        },
+        icon: const Icon(
+          LucideIcons.arrowRight,
+          color: AppColors.white,
+          size: 20,
+        ),
+        label: Text(
+          l10n.wizardContinue,
+          style: const TextStyle(
+            color: AppColors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: elevated,
+      );
+      return narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rowPair(bulk, cont),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: rowPair(bulk, cont),
+            );
+    }
+    if (_currentStep == 1) {
+      final back = OutlinedButton.icon(
+        onPressed: () => setState(() => _currentStep = 0),
+        icon: const Icon(
+          LucideIcons.arrowLeft,
+          color: AppColors.primaryDark,
+          size: 20,
+        ),
+        label: Text(
+          l10n.wizardBack,
+          style: const TextStyle(
+            color: AppColors.primaryDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: outlined,
+      );
+      final cont = ElevatedButton.icon(
+        onPressed: () {
+          if (_formKeyStep2.currentState!.validate()) {
+            setState(() => _currentStep = 2);
+          }
+        },
+        icon: const Icon(
+          LucideIcons.arrowRight,
+          color: AppColors.white,
+          size: 20,
+        ),
+        label: Text(
+          l10n.wizardContinue,
+          style: const TextStyle(
+            color: AppColors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: elevated,
+      );
+      return narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rowPair(back, cont),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: rowPair(back, cont),
+            );
+    }
+    final back = OutlinedButton.icon(
+      onPressed: () => setState(() => _currentStep = 1),
+      icon: const Icon(
+        LucideIcons.arrowLeft,
+        color: AppColors.primaryDark,
+        size: 20,
+      ),
+      label: Text(
+        l10n.wizardBack,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 15,
+        ),
+      ),
+      style: outlined,
+    );
+    final save = ElevatedButton.icon(
+      onPressed: _submitForm,
+      icon: const Icon(LucideIcons.plus, color: AppColors.white),
+      label: Text(
+        l10n.addProduct,
+        style: const TextStyle(
+          color: AppColors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 15,
+        ),
+      ),
+      style: elevated,
+    );
+    return narrow
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: rowPair(back, save),
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: rowPair(back, save),
+          );
   }
 
   // Helper widget to build visually distinct section containers
@@ -365,863 +714,1093 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-   @override
-   Widget build(BuildContext context) {
-     final l10n = context.read<LanguageProvider>().strings;
-     return SingleChildScrollView(
-       padding: ResponsiveHelper.screenPadding(context),
-       child: Form(
-         key: _formKey,
-         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
+    final showSupplierInfo = context.watch<AdminProvider>().showSupplierInfo;
+    final pad = ResponsiveHelper.screenPadding(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-             Padding(
-               padding: const EdgeInsets.only(left: 4, bottom: 16),
-               child: Text(
-                 l10n.addProduct,
-                 style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primaryDark,
-                ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(pad.left, pad.top, pad.right, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      l10n.addProduct,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ),
+                  _buildHorizontalStepper(l10n),
+                ],
               ),
             ),
-
-             // SECTION 1: GENERAL INFORMATION
-             _buildSection(
-               title: l10n.generalInfo,
-               icon: LucideIcons.info,
-              child: Column(
-                children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Autocomplete<Product>(
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.trim().isEmpty) {
-                            return const Iterable<Product>.empty();
-                          }
-                          final lowerQuery = textEditingValue.text
-                              .toLowerCase();
-                          return context
-                              .read<AdminProvider>()
-                              .allProducts
-                              .where((p) {
-                                return p.name.toLowerCase().contains(
-                                      lowerQuery,
-                                    ) ||
-                                    p.generic.toLowerCase().contains(
-                                      lowerQuery,
-                                    );
-                              });
-                        },
-                        displayStringForOption: (Product option) => option.name,
-                        onSelected: _loadProductInfo,
-                        fieldViewBuilder:
-                            (
-                              context,
-                              controller,
-                              focusNode,
-                              onEditingComplete,
-                            ) {
-                              _nameCtrl = controller;
-                               return _buildField(
-                                 controller: controller,
-                                 label: l10n.productName,
-                                 icon: LucideIcons.pill,
-                                focusNode: focusNode,
-                                onEditingComplete: onEditingComplete,
-                                validator: (v) =>
-                                    v == null || v.isEmpty ? 'Required' : null,
-                              );
-                            },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxHeight: 200,
-                                  maxWidth: constraints.maxWidth,
-                                ),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  itemCount: options.length,
-                                  itemBuilder:
-                                      (BuildContext context, int index) {
-                                        final Product option = options
-                                            .elementAt(index);
-                                        return InkWell(
-                                          onTap: () => onSelected(option),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(16.0),
-                                            child: Text(
-                                              option.name,
-                                              style: const TextStyle(
-                                                color: AppColors.primaryDark,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Autocomplete<String>(
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.trim().isEmpty) {
-                            return const Iterable<String>.empty();
-                          }
-                          final lowerQuery = textEditingValue.text
-                              .toLowerCase();
-                          final allGenerics = context
-                              .read<AdminProvider>()
-                              .allProducts
-                              .map((p) => p.generic)
-                              .where((g) => g.isNotEmpty)
-                              .toSet();
-                          return allGenerics.where((g) {
-                            return g.toLowerCase().contains(lowerQuery);
-                          });
-                        },
-                        onSelected: (String selection) {
-                          _genericCtrl?.text = selection;
-                        },
-                        fieldViewBuilder:
-                            (
-                              context,
-                              controller,
-                              focusNode,
-                              onEditingComplete,
-                            ) {
-                              _genericCtrl = controller;
-                               return _buildField(
-                                 controller: controller,
-                                 label: l10n.genericName,
-                                 icon: LucideIcons.fileText,
-                                focusNode: focusNode,
-                                onEditingComplete: onEditingComplete,
-                                validator: (v) =>
-                                    v == null || v.isEmpty ? 'Required' : null,
-                              );
-                            },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxHeight: 200,
-                                  maxWidth: constraints.maxWidth,
-                                ),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  itemCount: options.length,
-                                  itemBuilder:
-                                      (BuildContext context, int index) {
-                                        final String option = options.elementAt(
-                                          index,
-                                        );
-                                        return InkWell(
-                                          onTap: () => onSelected(option),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(16.0),
-                                            child: Text(
-                                              option,
-                                              style: const TextStyle(
-                                                color: AppColors.primaryDark,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Autocomplete<String>(
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.trim().isEmpty) {
-                            return const Iterable<String>.empty();
-                          }
-                          final lowerQuery = textEditingValue.text.toLowerCase();
-                          final allCompanies = context
-                              .read<AdminProvider>()
-                              .allProducts
-                              .map((p) => p.companyName)
-                              .where((c) => c != null && c.isNotEmpty)
-                              .cast<String>()
-                              .toSet();
-                          return allCompanies.where(
-                            (c) => c.toLowerCase().contains(lowerQuery),
-                          );
-                        },
-                        onSelected: (String selection) {
-                          _companyCtrl?.text = selection;
-                        },
-                        fieldViewBuilder: (
-                          context,
-                          controller,
-                          focusNode,
-                          onEditingComplete,
-                        ) {
-                          _companyCtrl = controller;
-                           return _buildField(
-                             controller: controller,
-                             label: l10n.companyName,
-                             icon: LucideIcons.building2,
-                             focusNode: focusNode,
-                             onEditingComplete: onEditingComplete,
-                           );
-                        },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxHeight: 200,
-                                  maxWidth: constraints.maxWidth,
-                                ),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  itemCount: options.length,
-                                  itemBuilder: (BuildContext context, int index) {
-                                    final String option = options.elementAt(index);
-                                    return InkWell(
-                                      onTap: () => onSelected(option),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Text(
-                                          option,
-                                          style: const TextStyle(
-                                            color: AppColors.primaryDark,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMedTypeDropdown(),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final scanButton = SizedBox(
-                        height: 58,
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final scannedCode = await Navigator.push<String>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ScannerScreen(),
-                              ),
-                            );
-                            if (!context.mounted) return;
-                            if (scannedCode != null &&
-                                scannedCode.isNotEmpty) {
-                              setState(() {
-                                _barcodeCtrl.text = scannedCode;
-                              });
-                              // Auto-load if product exists
-                              final admin = context.read<AdminProvider>();
-                              final existing = admin.allProducts
-                                  .where((p) => p.barcode == scannedCode)
-                                  .firstOrNull;
-                              if (existing != null) {
-                                _loadProductInfo(existing);
-                              }
-                            }
-                          },
-                          icon: const Icon(
-                            LucideIcons.scan,
-                            color: AppColors.white,
-                            size: 20,
-                          ),
-                           label: Text(
-                             l10n.scanBtn,
-                             style: const TextStyle(
-                               color: AppColors.white,
-                               fontWeight: FontWeight.bold,
-                               fontSize: 16,
-                             ),
-                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryDark,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ),
-                      );
-                      final barcodeField = _buildField(
-                        controller: _barcodeCtrl,
-                        label: l10n.barcodeLabel,
-                        icon: LucideIcons.scanLine,
-                        keyboardType: TextInputType.number,
-                      );
-                      if (constraints.maxWidth < 380) {
-                        return Column(
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(pad.left, 4, pad.right, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Offstage(
+                      offstage: _currentStep != 0,
+                      child: Form(
+                        key: _formKeyStep1,
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            barcodeField,
-                            const SizedBox(height: 12),
-                            scanButton,
-                          ],
-                        );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 6, child: barcodeField),
-                          const SizedBox(width: 12),
-                          Expanded(flex: 4, child: scanButton),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // SECTION 2a: PACKAGING
-            _buildSection(
-              title: l10n.packaging,
-              icon: LucideIcons.package,
-              child: LayoutBuilder(
-                builder: (context, constraints) =>
-                    Row(
-                  children: [
-                    if (MedTypeUnits.hasUnit1(_selectedMedType))
-                      Expanded(
-                        child: _buildField(
-                          controller: _stripsPerBoxCtrl,
-                          label: l10n.stripsPerBox,
-                          icon: LucideIcons.package,
-                          keyboardType: TextInputType.number,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? l10n.requiredField : null,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final spb = int.tryParse(val) ?? 1;
-                            if (spb > 0) {
-                              final boxP = double.tryParse(_priceBoxCtrl.text);
-                              if (boxP != null) {
-                                _priceStripCtrl.text = (boxP / spb).toStringAsFixed(2);
-                              }
-                              final boxes = int.tryParse(_stockBoxesCtrl.text);
-                              if (boxes != null) {
-                                _stockStripsCtrl.text = (boxes * spb).toString();
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                    if (MedTypeUnits.hasUnit1(_selectedMedType) && MedTypeUnits.hasUnit3(_selectedMedType))
-                      const SizedBox(width: 12),
-                    if (MedTypeUnits.hasUnit3(_selectedMedType))
-                      Expanded(
-                        child: _buildField(
-                          controller: _pcsPerStripCtrl,
-                          label: l10n.pcsPerStrip,
-                          icon: LucideIcons.boxes,
-                          keyboardType: TextInputType.number,
-                           hintText: _selectedMedType?.toLowerCase() == 'syrup' ? l10n.syrupHint : null,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? l10n.requiredField : null,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // SECTION 2b: PRICING
-            _buildSection(
-              title: l10n.pricing,
-              icon: LucideIcons.circleDollarSign,
-              child: LayoutBuilder(
-                builder: (context, constraints) =>
-                    Row(
-                  children: [
-                    if (MedTypeUnits.hasUnit1(_selectedMedType))
-                      Expanded(
-                        child: _buildField(
-                          controller: _priceBoxCtrl,
-                          label: '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
-                          icon: LucideIcons.shoppingCart,
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final boxPrice = double.tryParse(val);
-                            final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            if (boxPrice != null && spb > 0) {
-                              _priceStripCtrl.text =
-                                  (boxPrice / spb).toStringAsFixed(2);
-                            }
-                          },
-                        ),
-                      ),
-                    if (MedTypeUnits.hasUnit1(_selectedMedType))
-                      const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildField(
-                        controller: _priceStripCtrl,
-                        label: '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
-                        icon: LucideIcons.dollarSign,
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final stripPrice = double.tryParse(val);
-                          final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          if (stripPrice != null && spb > 0) {
-                            _priceBoxCtrl.text =
-                                (stripPrice * spb).toStringAsFixed(2);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // SECTION 2c: BUYING PRICE (COST)
-            _buildSection(
-              title: l10n.buyingPriceSection,
-              icon: LucideIcons.tag,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      if (MedTypeUnits.hasUnit1(_selectedMedType)) ...[
-                        Expanded(
-                          child: _buildField(
-                            controller: _buyingPriceBoxCtrl,
-                            label: 'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
-                            icon: LucideIcons.tag,
-                            keyboardType: TextInputType.number,
-                            onChanged: (val) {
-                              if (val.isEmpty) return;
-                              final boxCost = double.tryParse(val);
-                              final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                              if (boxCost != null && spb > 0) {
-                                _buyingPriceStripCtrl.text =
-                                    (boxCost / spb).toStringAsFixed(2);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: _buildField(
-                          controller: _buyingPriceStripCtrl,
-                          label: 'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
-                          icon: LucideIcons.tag,
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) {
-                            if (val.isEmpty) return;
-                            final stripCost = double.tryParse(val);
-                            final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                            if (stripCost != null && spb > 0) {
-                              _buyingPriceBoxCtrl.text =
-                                  (stripCost * spb).toStringAsFixed(2);
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Live profit preview
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _buyingPriceStripCtrl,
-                    builder: (_, val, __) {
-                      final cost = double.tryParse(val.text) ?? 0.0;
-                      final sell = double.tryParse(_priceStripCtrl.text) ?? 0.0;
-                      if (cost <= 0 || sell <= 0) return const SizedBox.shrink();
-                      final profit = sell - cost;
-                      final margin = sell > 0
-                          ? ((profit / sell) * 100).toStringAsFixed(1)
-                          : '0.0';
-                      final isLoss = profit < 0;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (isLoss ? AppColors.error : AppColors.success)
-                              .withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: (isLoss
-                                    ? AppColors.error
-                                    : AppColors.success)
-                                .withOpacity(0.4),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isLoss
-                                  ? LucideIcons.trendingDown
-                                  : LucideIcons.trendingUp,
-                              size: 16,
-                              color: isLoss ? AppColors.error : AppColors.success,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l10n.profitPreview(
-                                  profit.abs().toStringAsFixed(2),
-                                  margin,
-                                  isLoss,
-                                ),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isLoss
-                                      ? AppColors.error
-                                      : AppColors.success,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // SECTION 3: INVENTORY TRACKING
-            _buildSection(
-              title: l10n.inventory,
-              icon: LucideIcons.clipboardList,
-              child: Column(
-                children: [
-                  if (MedTypeUnits.hasUnit1(_selectedMedType))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildField(
-                        controller: _stockBoxesCtrl,
-                        label: '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
-                        icon: LucideIcons.box,
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final boxes = int.tryParse(val);
-                          final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                          if (boxes != null && spb > 0) {
-                            _stockStripsCtrl.text = (boxes * spb).toString();
-                          }
-                        },
-                      ),
-                    ),
-                  _buildField(
-                    controller: _stockStripsCtrl,
-                    label: '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
-                    icon: LucideIcons.layers,
-                    keyboardType: TextInputType.number,
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final strips = int.tryParse(val);
-                      final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
-                      if (strips != null && spb > 0) {
-                        _stockBoxesCtrl.text = (strips ~/ spb).toString();
-                      }
-                    },
-                  ),
-                    const SizedBox(height: 12),
-                    _buildField(
-                      controller: _lowStockWarningCtrl,
-                      label: '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
-                      icon: LucideIcons.alertTriangle,
-                      keyboardType: TextInputType.number,
-                    ),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final expiryWidget = GestureDetector(
-                        onTap: _pickExpiryDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: AppColors.secondaryAccent,
-                              width: 1.5,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            color: AppColors.surfaceLight,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                LucideIcons.calendar,
-                                color: AppColors.secondaryAccent,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _expiryDate != null
-                                      ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                      : l10n.expiryDate,
-                                  style: TextStyle(
-                                    color: _expiryDate != null
-                                        ? AppColors.primaryDark
-                                        : AppColors.secondaryAccent,
-                                    fontWeight: FontWeight.w600,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                      return ResponsiveHelper.responsiveRow(
-                        constraints: constraints,
-                        left: _buildField(
-                          controller: _batchCtrl,
-                          label: l10n.batchNumber,
-                          icon: LucideIcons.hash,
-                          keyboardType: TextInputType.text,
-                        ),
-                        right: expiryWidget,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // SECTION 4: SUPPLIER INFORMATION
-            if (context.watch<AdminProvider>().showSupplierInfo)
-              _buildSection(
-                title: l10n.supplierInfo,
-                icon: LucideIcons.truck,
-                child: Column(
-                  children: [
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Autocomplete<String>(
-                          optionsBuilder: (TextEditingValue textEditingValue) {
-                            if (textEditingValue.text.trim().isEmpty) {
-                              return const Iterable<String>.empty();
-                            }
-                            final lowerQuery = textEditingValue.text
-                                .toLowerCase();
-                            final allSuppliers = context
-                                .read<AdminProvider>()
-                                .allProducts
-                                .map((p) => p.supplierName)
-                                .where((s) => s != null && s.isNotEmpty)
-                                .cast<String>()
-                                .toSet();
-                            return allSuppliers.where(
-                              (s) => s.toLowerCase().contains(lowerQuery),
-                            );
-                          },
-                          onSelected: (String selection) {
-                            _supplierNameCtrl?.text = selection;
-                            final productWithSupplier = context
-                                .read<AdminProvider>()
-                                .allProducts
-                                .where((p) => p.supplierName == selection)
-                                .firstOrNull;
-                            if (productWithSupplier != null &&
-                                productWithSupplier.supplierPhone != null) {
-                              _supplierPhoneCtrl.text =
-                                  productWithSupplier.supplierPhone!;
-                            }
-                          },
-                          fieldViewBuilder:
-                              (
-                                context,
-                                controller,
-                                focusNode,
-                                onEditingComplete,
-                              ) {
-                                _supplierNameCtrl = controller;
-                                return _buildField(
-                                  controller: controller,
-                                  label: l10n.supplierName,
-                                  icon: LucideIcons.user,
-                                  focusNode: focusNode,
-                                  onEditingComplete: onEditingComplete,
-                                );
-                              },
-                          optionsViewBuilder: (context, onSelected, options) {
-                            return Align(
-                              alignment: Alignment.topLeft,
-                              child: Material(
-                                elevation: 4.0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxHeight: 200,
-                                    maxWidth: constraints.maxWidth,
-                                  ),
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    shrinkWrap: true,
-                                    itemCount: options.length,
-                                    itemBuilder:
-                                        (BuildContext context, int index) {
-                                          final String option = options
-                                              .elementAt(index);
-                                          return InkWell(
-                                            onTap: () => onSelected(option),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(
-                                                16.0,
+                            // SECTION 1: GENERAL INFORMATION
+                            _buildSection(
+                              title: l10n.generalInfo,
+                              icon: LucideIcons.info,
+                              child: Column(
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Autocomplete<Product>(
+                                        optionsBuilder:
+                                            (
+                                              TextEditingValue textEditingValue,
+                                            ) {
+                                              if (textEditingValue.text
+                                                  .trim()
+                                                  .isEmpty) {
+                                                return const Iterable<
+                                                  Product
+                                                >.empty();
+                                              }
+                                              final lowerQuery =
+                                                  textEditingValue.text
+                                                      .toLowerCase();
+                                              return context
+                                                  .read<AdminProvider>()
+                                                  .allProducts
+                                                  .where((p) {
+                                                    return p.name
+                                                            .toLowerCase()
+                                                            .contains(
+                                                              lowerQuery,
+                                                            ) ||
+                                                        p.generic
+                                                            .toLowerCase()
+                                                            .contains(
+                                                              lowerQuery,
+                                                            );
+                                                  });
+                                            },
+                                        displayStringForOption:
+                                            (Product option) => option.name,
+                                        onSelected: _loadProductInfo,
+                                        fieldViewBuilder:
+                                            (
+                                              context,
+                                              controller,
+                                              focusNode,
+                                              onEditingComplete,
+                                            ) {
+                                              _nameCtrl = controller;
+                                              return _buildField(
+                                                controller: controller,
+                                                label: l10n.productName,
+                                                icon: LucideIcons.pill,
+                                                focusNode: focusNode,
+                                                onEditingComplete:
+                                                    onEditingComplete,
+                                                validator: (v) =>
+                                                    v == null || v.isEmpty
+                                                    ? 'Required'
+                                                    : null,
+                                              );
+                                            },
+                                        optionsViewBuilder: (context, onSelected, options) {
+                                          return Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4.0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
-                                              child: Text(
-                                                option,
-                                                style: const TextStyle(
-                                                  color: AppColors.primaryDark,
-                                                  fontWeight: FontWeight.bold,
+                                              child: ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxHeight: 200,
+                                                  maxWidth:
+                                                      constraints.maxWidth,
+                                                ),
+                                                child: ListView.builder(
+                                                  padding: EdgeInsets.zero,
+                                                  shrinkWrap: true,
+                                                  itemCount: options.length,
+                                                  itemBuilder:
+                                                      (
+                                                        BuildContext context,
+                                                        int index,
+                                                      ) {
+                                                        final Product option =
+                                                            options.elementAt(
+                                                              index,
+                                                            );
+                                                        return InkWell(
+                                                          onTap: () =>
+                                                              onSelected(
+                                                                option,
+                                                              ),
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  16.0,
+                                                                ),
+                                                            child: Text(
+                                                              option.name,
+                                                              style: const TextStyle(
+                                                                color: AppColors
+                                                                    .primaryDark,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
                                                 ),
                                               ),
                                             ),
                                           );
                                         },
+                                      );
+                                    },
                                   ),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Autocomplete<String>(
+                                        optionsBuilder:
+                                            (
+                                              TextEditingValue textEditingValue,
+                                            ) {
+                                              if (textEditingValue.text
+                                                  .trim()
+                                                  .isEmpty) {
+                                                return const Iterable<
+                                                  String
+                                                >.empty();
+                                              }
+                                              final lowerQuery =
+                                                  textEditingValue.text
+                                                      .toLowerCase();
+                                              final allGenerics = context
+                                                  .read<AdminProvider>()
+                                                  .allProducts
+                                                  .map((p) => p.generic)
+                                                  .where((g) => g.isNotEmpty)
+                                                  .toSet();
+                                              return allGenerics.where((g) {
+                                                return g.toLowerCase().contains(
+                                                  lowerQuery,
+                                                );
+                                              });
+                                            },
+                                        onSelected: (String selection) {
+                                          _genericCtrl?.text = selection;
+                                        },
+                                        fieldViewBuilder:
+                                            (
+                                              context,
+                                              controller,
+                                              focusNode,
+                                              onEditingComplete,
+                                            ) {
+                                              _genericCtrl = controller;
+                                              return _buildField(
+                                                controller: controller,
+                                                label: l10n.genericName,
+                                                icon: LucideIcons.fileText,
+                                                focusNode: focusNode,
+                                                onEditingComplete:
+                                                    onEditingComplete,
+                                                validator: (v) =>
+                                                    v == null || v.isEmpty
+                                                    ? 'Required'
+                                                    : null,
+                                              );
+                                            },
+                                        optionsViewBuilder: (context, onSelected, options) {
+                                          return Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4.0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxHeight: 200,
+                                                  maxWidth:
+                                                      constraints.maxWidth,
+                                                ),
+                                                child: ListView.builder(
+                                                  padding: EdgeInsets.zero,
+                                                  shrinkWrap: true,
+                                                  itemCount: options.length,
+                                                  itemBuilder:
+                                                      (
+                                                        BuildContext context,
+                                                        int index,
+                                                      ) {
+                                                        final String option =
+                                                            options.elementAt(
+                                                              index,
+                                                            );
+                                                        return InkWell(
+                                                          onTap: () =>
+                                                              onSelected(
+                                                                option,
+                                                              ),
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  16.0,
+                                                                ),
+                                                            child: Text(
+                                                              option,
+                                                              style: const TextStyle(
+                                                                color: AppColors
+                                                                    .primaryDark,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return Autocomplete<String>(
+                                        optionsBuilder:
+                                            (
+                                              TextEditingValue textEditingValue,
+                                            ) {
+                                              if (textEditingValue.text
+                                                  .trim()
+                                                  .isEmpty) {
+                                                return const Iterable<
+                                                  String
+                                                >.empty();
+                                              }
+                                              final lowerQuery =
+                                                  textEditingValue.text
+                                                      .toLowerCase();
+                                              final allCompanies = context
+                                                  .read<AdminProvider>()
+                                                  .allProducts
+                                                  .map((p) => p.companyName)
+                                                  .where(
+                                                    (c) =>
+                                                        c != null &&
+                                                        c.isNotEmpty,
+                                                  )
+                                                  .cast<String>()
+                                                  .toSet();
+                                              return allCompanies.where(
+                                                (c) => c.toLowerCase().contains(
+                                                  lowerQuery,
+                                                ),
+                                              );
+                                            },
+                                        onSelected: (String selection) {
+                                          _companyCtrl?.text = selection;
+                                        },
+                                        fieldViewBuilder:
+                                            (
+                                              context,
+                                              controller,
+                                              focusNode,
+                                              onEditingComplete,
+                                            ) {
+                                              _companyCtrl = controller;
+                                              return _buildField(
+                                                controller: controller,
+                                                label: l10n.companyName,
+                                                icon: LucideIcons.building2,
+                                                focusNode: focusNode,
+                                                onEditingComplete:
+                                                    onEditingComplete,
+                                              );
+                                            },
+                                        optionsViewBuilder: (context, onSelected, options) {
+                                          return Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4.0,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxHeight: 200,
+                                                  maxWidth:
+                                                      constraints.maxWidth,
+                                                ),
+                                                child: ListView.builder(
+                                                  padding: EdgeInsets.zero,
+                                                  shrinkWrap: true,
+                                                  itemCount: options.length,
+                                                  itemBuilder:
+                                                      (
+                                                        BuildContext context,
+                                                        int index,
+                                                      ) {
+                                                        final String option =
+                                                            options.elementAt(
+                                                              index,
+                                                            );
+                                                        return InkWell(
+                                                          onTap: () =>
+                                                              onSelected(
+                                                                option,
+                                                              ),
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.all(
+                                                                  16.0,
+                                                                ),
+                                                            child: Text(
+                                                              option,
+                                                              style: const TextStyle(
+                                                                color: AppColors
+                                                                    .primaryDark,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildMedTypeDropdown(),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final scanButton = SizedBox(
+                                        height: 58,
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final scannedCode =
+                                                await Navigator.push<String>(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const ScannerScreen(),
+                                                  ),
+                                                );
+                                            if (!context.mounted) return;
+                                            if (scannedCode != null &&
+                                                scannedCode.isNotEmpty) {
+                                              setState(() {
+                                                _barcodeCtrl.text = scannedCode;
+                                              });
+                                              // Auto-load if product exists
+                                              final admin = context
+                                                  .read<AdminProvider>();
+                                              final existing = admin.allProducts
+                                                  .where(
+                                                    (p) =>
+                                                        p.barcode ==
+                                                        scannedCode,
+                                                  )
+                                                  .firstOrNull;
+                                              if (existing != null) {
+                                                _loadProductInfo(existing);
+                                              }
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            LucideIcons.scan,
+                                            color: AppColors.white,
+                                            size: 20,
+                                          ),
+                                          label: Text(
+                                            l10n.scanBtn,
+                                            style: const TextStyle(
+                                              color: AppColors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppColors.primaryDark,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                        ),
+                                      );
+                                      final barcodeField = _buildField(
+                                        controller: _barcodeCtrl,
+                                        label: l10n.barcodeLabel,
+                                        icon: LucideIcons.scanLine,
+                                        keyboardType: TextInputType.number,
+                                      );
+                                      if (constraints.maxWidth < 380) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            barcodeField,
+                                            const SizedBox(height: 12),
+                                            scanButton,
+                                          ],
+                                        );
+                                      }
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            flex: 6,
+                                            child: barcodeField,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(flex: 4, child: scanButton),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            if (showSupplierInfo)
+                              _buildSection(
+                                title: l10n.supplierInfo,
+                                icon: LucideIcons.truck,
+                                child: Column(
+                                  children: [
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        return Autocomplete<String>(
+                                          optionsBuilder:
+                                              (
+                                                TextEditingValue
+                                                textEditingValue,
+                                              ) {
+                                                if (textEditingValue.text
+                                                    .trim()
+                                                    .isEmpty) {
+                                                  return const Iterable<
+                                                    String
+                                                  >.empty();
+                                                }
+                                                final lowerQuery =
+                                                    textEditingValue.text
+                                                        .toLowerCase();
+                                                final allSuppliers = context
+                                                    .read<AdminProvider>()
+                                                    .allProducts
+                                                    .map((p) => p.supplierName)
+                                                    .where(
+                                                      (s) =>
+                                                          s != null &&
+                                                          s.isNotEmpty,
+                                                    )
+                                                    .cast<String>()
+                                                    .toSet();
+                                                return allSuppliers.where(
+                                                  (s) => s
+                                                      .toLowerCase()
+                                                      .contains(lowerQuery),
+                                                );
+                                              },
+                                          onSelected: (String selection) {
+                                            _supplierNameCtrl?.text = selection;
+                                            final productWithSupplier = context
+                                                .read<AdminProvider>()
+                                                .allProducts
+                                                .where(
+                                                  (p) =>
+                                                      p.supplierName ==
+                                                      selection,
+                                                )
+                                                .firstOrNull;
+                                            if (productWithSupplier != null &&
+                                                productWithSupplier
+                                                        .supplierPhone !=
+                                                    null) {
+                                              _supplierPhoneCtrl.text =
+                                                  productWithSupplier
+                                                      .supplierPhone!;
+                                            }
+                                          },
+                                          fieldViewBuilder:
+                                              (
+                                                context,
+                                                controller,
+                                                focusNode,
+                                                onEditingComplete,
+                                              ) {
+                                                _supplierNameCtrl = controller;
+                                                return _buildField(
+                                                  controller: controller,
+                                                  label: l10n.supplierName,
+                                                  icon: LucideIcons.user,
+                                                  focusNode: focusNode,
+                                                  onEditingComplete:
+                                                      onEditingComplete,
+                                                );
+                                              },
+                                          optionsViewBuilder: (context, onSelected, options) {
+                                            return Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Material(
+                                                elevation: 4.0,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    maxHeight: 200,
+                                                    maxWidth:
+                                                        constraints.maxWidth,
+                                                  ),
+                                                  child: ListView.builder(
+                                                    padding: EdgeInsets.zero,
+                                                    shrinkWrap: true,
+                                                    itemCount: options.length,
+                                                    itemBuilder:
+                                                        (
+                                                          BuildContext context,
+                                                          int index,
+                                                        ) {
+                                                          final String option =
+                                                              options.elementAt(
+                                                                index,
+                                                              );
+                                                          return InkWell(
+                                                            onTap: () =>
+                                                                onSelected(
+                                                                  option,
+                                                                ),
+                                                            child: Padding(
+                                                              padding:
+                                                                  const EdgeInsets.all(
+                                                                    16.0,
+                                                                  ),
+                                                              child: Text(
+                                                                option,
+                                                                style: const TextStyle(
+                                                                  color: AppColors
+                                                                      .primaryDark,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildField(
+                                      controller: _supplierPhoneCtrl,
+                                      label: l10n.supplierPhone,
+                                      icon: LucideIcons.phone,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            );
-                          },
-                        );
-                      },
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    _buildField(
-                      controller: _supplierPhoneCtrl,
-                      label: l10n.supplierPhone,
-                      icon: LucideIcons.phone,
-                      keyboardType: TextInputType.phone,
+                    Offstage(
+                      offstage: _currentStep != 1,
+                      child: Form(
+                        key: _formKeyStep2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // SECTION 2a: PACKAGING
+                            _buildSection(
+                              title: l10n.packaging,
+                              icon: LucideIcons.package,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => Row(
+                                  children: [
+                                    if (MedTypeUnits.hasUnit1(_selectedMedType))
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _stripsPerBoxCtrl,
+                                          label: l10n.stripsPerBox,
+                                          icon: LucideIcons.package,
+                                          keyboardType: TextInputType.number,
+                                          validator: (v) =>
+                                              v == null || v.isEmpty
+                                              ? l10n.requiredField
+                                              : null,
+                                          onChanged: (val) {
+                                            if (val.isEmpty) return;
+                                            final spb = int.tryParse(val) ?? 1;
+                                            if (spb > 0) {
+                                              final boxP = double.tryParse(
+                                                _priceBoxCtrl.text,
+                                              );
+                                              if (boxP != null) {
+                                                _priceStripCtrl.text =
+                                                    (boxP / spb)
+                                                        .toStringAsFixed(2);
+                                              }
+                                              final boxes = int.tryParse(
+                                                _stockBoxesCtrl.text,
+                                              );
+                                              if (boxes != null) {
+                                                _stockStripsCtrl.text =
+                                                    (boxes * spb).toString();
+                                              }
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    if (MedTypeUnits.hasUnit1(
+                                          _selectedMedType,
+                                        ) &&
+                                        MedTypeUnits.hasUnit3(_selectedMedType))
+                                      const SizedBox(width: 12),
+                                    if (MedTypeUnits.hasUnit3(_selectedMedType))
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _pcsPerStripCtrl,
+                                          label: l10n.pcsPerStrip,
+                                          icon: LucideIcons.boxes,
+                                          keyboardType: TextInputType.number,
+                                          hintText:
+                                              _selectedMedType?.toLowerCase() ==
+                                                  'syrup'
+                                              ? l10n.syrupHint
+                                              : null,
+                                          validator: (v) =>
+                                              v == null || v.isEmpty
+                                              ? l10n.requiredField
+                                              : null,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            _buildSection(
+                              title: l10n.pricing,
+                              icon: LucideIcons.circleDollarSign,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (MedTypeUnits.hasUnit1(
+                                        _selectedMedType,
+                                      )) ...[
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _priceBoxCtrl,
+                                            label:
+                                                '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                                            icon: LucideIcons.shoppingCart,
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (val) {
+                                              if (val.isEmpty) return;
+                                              final boxPrice = double.tryParse(
+                                                val,
+                                              );
+                                              final spb =
+                                                  int.tryParse(
+                                                    _stripsPerBoxCtrl.text,
+                                                  ) ??
+                                                  1;
+                                              if (boxPrice != null && spb > 0) {
+                                                _priceStripCtrl.text =
+                                                    (boxPrice / spb)
+                                                        .toStringAsFixed(2);
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _priceStripCtrl,
+                                          label:
+                                              '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
+                                          icon: LucideIcons.dollarSign,
+                                          keyboardType: TextInputType.number,
+                                          validator: (v) =>
+                                              v == null || v.isEmpty
+                                              ? 'Required'
+                                              : null,
+                                          onChanged: (val) {
+                                            if (val.isEmpty) return;
+                                            final stripPrice = double.tryParse(
+                                              val,
+                                            );
+                                            final spb =
+                                                int.tryParse(
+                                                  _stripsPerBoxCtrl.text,
+                                                ) ??
+                                                1;
+                                            if (stripPrice != null && spb > 0) {
+                                              _priceBoxCtrl.text =
+                                                  (stripPrice * spb)
+                                                      .toStringAsFixed(2);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      if (MedTypeUnits.hasUnit1(
+                                        _selectedMedType,
+                                      )) ...[
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _buyingPriceBoxCtrl,
+                                            label:
+                                                'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                                            icon: LucideIcons.tag,
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (val) {
+                                              if (val.isEmpty) return;
+                                              final boxCost = double.tryParse(
+                                                val,
+                                              );
+                                              final spb =
+                                                  int.tryParse(
+                                                    _stripsPerBoxCtrl.text,
+                                                  ) ??
+                                                  1;
+                                              if (boxCost != null && spb > 0) {
+                                                _buyingPriceStripCtrl.text =
+                                                    (boxCost / spb)
+                                                        .toStringAsFixed(2);
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _buyingPriceStripCtrl,
+                                          label:
+                                              'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
+                                          icon: LucideIcons.tag,
+                                          keyboardType: TextInputType.number,
+                                          onChanged: (val) {
+                                            if (val.isEmpty) return;
+                                            final stripCost = double.tryParse(
+                                              val,
+                                            );
+                                            final spb =
+                                                int.tryParse(
+                                                  _stripsPerBoxCtrl.text,
+                                                ) ??
+                                                1;
+                                            if (stripCost != null && spb > 0) {
+                                              _buyingPriceBoxCtrl.text =
+                                                  (stripCost * spb)
+                                                      .toStringAsFixed(2);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ListenableBuilder(
+                                    listenable: Listenable.merge([
+                                      _buyingPriceStripCtrl,
+                                      _priceStripCtrl,
+                                    ]),
+                                    builder: (context, _) {
+                                      final cost =
+                                          double.tryParse(
+                                            _buyingPriceStripCtrl.text,
+                                          ) ??
+                                          0.0;
+                                      final sell =
+                                          double.tryParse(
+                                            _priceStripCtrl.text,
+                                          ) ??
+                                          0.0;
+                                      if (cost <= 0 || sell <= 0) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      final profit = sell - cost;
+                                      final margin = sell > 0
+                                          ? ((profit / sell) * 100)
+                                                .toStringAsFixed(1)
+                                          : '0.0';
+                                      final isLoss = profit < 0;
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              (isLoss
+                                                      ? AppColors.error
+                                                      : AppColors.success)
+                                                  .withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color:
+                                                (isLoss
+                                                        ? AppColors.error
+                                                        : AppColors.success)
+                                                    .withValues(alpha: 0.4),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              isLoss
+                                                  ? LucideIcons.trendingDown
+                                                  : LucideIcons.trendingUp,
+                                              size: 16,
+                                              color: isLoss
+                                                  ? AppColors.error
+                                                  : AppColors.success,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                l10n.profitPreview(
+                                                  profit.abs().toStringAsFixed(
+                                                    2,
+                                                  ),
+                                                  margin,
+                                                  isLoss,
+                                                ),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: isLoss
+                                                      ? AppColors.error
+                                                      : AppColors.success,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Offstage(
+                      offstage: _currentStep != 2,
+                      child: Form(
+                        key: _formKeyStep3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // SECTION 3: INVENTORY TRACKING
+                            _buildSection(
+                              title: l10n.inventory,
+                              icon: LucideIcons.clipboardList,
+                              child: Column(
+                                children: [
+                                  if (MedTypeUnits.hasUnit1(_selectedMedType))
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _buildField(
+                                        controller: _stockBoxesCtrl,
+                                        label:
+                                            '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
+                                        icon: LucideIcons.box,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (val) {
+                                          if (val.isEmpty) return;
+                                          final boxes = int.tryParse(val);
+                                          final spb =
+                                              int.tryParse(
+                                                _stripsPerBoxCtrl.text,
+                                              ) ??
+                                              1;
+                                          if (boxes != null && spb > 0) {
+                                            _stockStripsCtrl.text =
+                                                (boxes * spb).toString();
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  _buildField(
+                                    controller: _stockStripsCtrl,
+                                    label:
+                                        '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
+                                    icon: LucideIcons.layers,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (val) {
+                                      if (val.isEmpty) return;
+                                      final strips = int.tryParse(val);
+                                      final spb =
+                                          int.tryParse(
+                                            _stripsPerBoxCtrl.text,
+                                          ) ??
+                                          1;
+                                      if (strips != null && spb > 0) {
+                                        _stockBoxesCtrl.text = (strips ~/ spb)
+                                            .toString();
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildField(
+                                    controller: _lowStockWarningCtrl,
+                                    label:
+                                        '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
+                                    icon: LucideIcons.alertTriangle,
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final expiryWidget = GestureDetector(
+                                        onTap: _pickExpiryDate,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: AppColors.secondaryAccent,
+                                              width: 1.5,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            color: AppColors.surfaceLight,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                LucideIcons.calendar,
+                                                color:
+                                                    AppColors.secondaryAccent,
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  _expiryDate != null
+                                                      ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
+                                                      : l10n.expiryDate,
+                                                  style: TextStyle(
+                                                    color: _expiryDate != null
+                                                        ? AppColors.primaryDark
+                                                        : AppColors
+                                                              .secondaryAccent,
+                                                    fontWeight: FontWeight.w600,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                      return ResponsiveHelper.responsiveRow(
+                                        constraints: constraints,
+                                        left: _buildField(
+                                          controller: _batchCtrl,
+                                          label: l10n.batchNumber,
+                                          icon: LucideIcons.hash,
+                                          keyboardType: TextInputType.text,
+                                        ),
+                                        right: expiryWidget,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-
-            // SUBMIT BUTTON
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _submitForm,
-                icon: const Icon(LucideIcons.plus, color: AppColors.white),
-                label: Text(
-                  l10n.addProduct,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryDark,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
             ),
-            // --- NEW BULK UPLOAD BUTTON ---
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const BulkImportScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  LucideIcons.fileSpreadsheet,
-                  color: AppColors.primaryDark,
-                ),
-                label: Text(
-                  l10n.bulkImport,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  side: const BorderSide(
-                    color: AppColors.primaryDark,
-                    width: 2,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                pad.left,
+                4,
+                pad.right,
+                pad.bottom + MediaQuery.paddingOf(context).bottom,
               ),
+              child: _buildWizardFooter(l10n, constraints.maxWidth),
             ),
-
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1234,7 +1813,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     void Function(String)? onChanged,
     FocusNode? focusNode,
     VoidCallback? onEditingComplete,
-    Widget? suffixIcon, String? hintText,
+    Widget? suffixIcon,
+    String? hintText,
   }) {
     return TextFormField(
       controller: controller,
@@ -1287,53 +1867,59 @@ class _AddProductScreenState extends State<AddProductScreen> {
       builder: (ctx) {
         final l10n = ctx.read<LanguageProvider>().strings;
         return AlertDialog(
-        backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          l10n.changeMedType,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
-            fontWeight: FontWeight.bold,
+          backgroundColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: admin.medicineTypes.length,
-            itemBuilder: (c, i) {
-              final t = admin.medicineTypes[i];
-              final isSelected = t == _selectedMedType;
-              return ListTile(
-                leading: Icon(
-                  MedTypeIcons.getIcon(t),
-                  color: MedTypeIcons.getColor(t),
-                  size: 20,
-                ),
-                title: Text(
-                  t,
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontWeight: FontWeight.w600,
+          title: Text(
+            l10n.changeMedType,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: admin.medicineTypes.length,
+              itemBuilder: (c, i) {
+                final t = admin.medicineTypes[i];
+                final isSelected = t == _selectedMedType;
+                return ListTile(
+                  leading: Icon(
+                    MedTypeIcons.getIcon(t),
+                    color: MedTypeIcons.getColor(t),
+                    size: 20,
                   ),
-                ),
-                selected: isSelected,
-                selectedTileColor: MedTypeIcons.getColor(t).withValues(alpha: 0.1),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                onTap: () {
-                  setState(() {
-                    _selectedMedType = t;
-                  });
-                  Navigator.pop(ctx);
-                },
-              );
-            },
+                  title: Text(
+                    t,
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedTileColor: MedTypeIcons.getColor(
+                    t,
+                  ).withValues(alpha: 0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedMedType = t;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Widget _buildMedTypeDropdown() {
     final l10n = context.read<LanguageProvider>().strings;
@@ -1349,7 +1935,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         child: Row(
           children: [
-            const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
+            const Icon(
+              LucideIcons.layers,
+              color: AppColors.secondaryAccent,
+              size: 20,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1375,7 +1965,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ],
               ),
             ),
-            const Icon(LucideIcons.chevronDown, color: AppColors.secondaryAccent, size: 20),
+            const Icon(
+              LucideIcons.chevronDown,
+              color: AppColors.secondaryAccent,
+              size: 20,
+            ),
           ],
         ),
       ),

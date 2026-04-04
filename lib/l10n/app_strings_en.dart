@@ -441,6 +441,8 @@ class AppStringsEn implements AppStrings {
   @override String get failedToSaveProduct => 'Failed to save product. Please try again.';
   @override String get noDate => 'No Date';
   @override String get bulkImport => 'Bulk Import CSV';
+  @override String get wizardBack => 'Back';
+  @override String get wizardContinue => 'Continue';
   @override String get changeMedType => 'Change Medicine Type';
   @override String get returns => 'Returns';
   @override String get searchBtn => 'Search';
