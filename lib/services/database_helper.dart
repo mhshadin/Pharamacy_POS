@@ -61,7 +61,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 11,
+      version: 13,
       onUpgrade: _onUpgrade,
       onCreate: _onCreate,
     );
@@ -216,6 +216,35 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE sales ADD COLUMN medType TEXT');
       } catch (_) {}
     }
+
+    if (oldVersion < 12) {
+      // Add per-batch cost price tracking
+      try {
+        await db.execute(
+          'ALTER TABLE product_batches ADD COLUMN costPricePerPc REAL DEFAULT 0',
+        );
+      } catch (_) {}
+      // Store cost at time of sale for accurate historical profit reporting
+      try {
+        await db.execute(
+          'ALTER TABLE sales ADD COLUMN costPricePerPc REAL DEFAULT 0',
+        );
+      } catch (_) {}
+    }
+
+    if (oldVersion < 13) {
+      // Robust check for missing cost tracking columns
+      try {
+        await db.execute(
+          'ALTER TABLE product_batches ADD COLUMN costPricePerPc REAL DEFAULT 0',
+        );
+      } catch (_) {}
+      try {
+        await db.execute(
+          'ALTER TABLE sales ADD COLUMN costPricePerPc REAL DEFAULT 0',
+        );
+      } catch (_) {}
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -250,6 +279,7 @@ class DatabaseHelper {
         initialPieces INTEGER NOT NULL,
         remainingPieces INTEGER NOT NULL,
         dateAdded TEXT NOT NULL,
+        costPricePerPc REAL DEFAULT 0,
         FOREIGN KEY (productId) REFERENCES products (id) ON DELETE CASCADE
       )
     ''');
@@ -265,7 +295,8 @@ class DatabaseHelper {
         batchNumber TEXT,
         isReturned INTEGER DEFAULT 0,
         returnedQuantity INTEGER DEFAULT 0,
-        medType TEXT
+        medType TEXT,
+        costPricePerPc REAL DEFAULT 0
       )
     ''');
 
@@ -765,4 +796,23 @@ class DatabaseHelper {
     if (maps.isEmpty) return null;
     return maps.first['value'] as String;
   }
+
+  // ───────── PROFIT / COST HELPERS ─────────
+
+  /// Returns the cost price per piece from the most recently added batch
+  /// for a product. Returns 0.0 if no batches exist or none have a price set.
+  /// Used to pre-fill the buying price field when restocking.
+  Future<double> getLastBatchCostPrice(String productId) async {
+    final db = await database;
+    final maps = await db.query(
+      'product_batches',
+      where: 'productId = ?',
+      whereArgs: [productId],
+      orderBy: 'dateAdded DESC',
+      limit: 1,
+    );
+    if (maps.isEmpty) return 0.0;
+    return (maps.first['costPricePerPc'] as num?)?.toDouble() ?? 0.0;
+  }
 }
+

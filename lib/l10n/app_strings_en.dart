@@ -129,6 +129,22 @@ class AppStringsEn implements AppStrings {
   @override String get addingLabel => 'Adding…';
   @override String get addStock => 'Add stock';
 
+  // ── Buying Price & Profit ───────────────────
+  @override String get buyingPriceSection => 'Buying Price (Cost)';
+  @override String get buyingPricePerPc => 'Buying Price / Pc (৳)';
+  @override String get buyingPriceHelper => 'Pre-filled from last batch. Update if price changed.';
+  @override String profitPreview(String amount, String margin, bool isLoss) =>
+      isLoss ? 'Loss: ৳$amount/strip ($margin%)' : 'Profit: ৳$amount/strip ($margin% margin)';
+  @override String get navProfitReport => 'Profit Report';
+  @override String get profitReport => 'Profit Report';
+  @override String get grossProfit => 'Gross Profit';
+  @override String get totalCost => 'Total Cost';
+  @override String get profitMargin => 'Profit Margin';
+  @override String get viewProfitReport => 'View Profit Report';
+  @override String get noCostData => 'No cost data — set buying price when restocking';
+  @override String get profitReportEmpty => 'No sales data for this period';
+  @override String get productBreakdown => 'Product Breakdown';
+
   // ── Filtering & Sorting ────────────────────────────
   @override String get filterByCompany => 'Filter by Company';
   @override String get filterByGeneric => 'Filter by Generic';
@@ -277,6 +293,8 @@ class AppStringsEn implements AppStrings {
   @override String get revenueTrend => 'Revenue Trend';
   @override String get period => 'Period';
   @override String get customRange => 'Custom range';
+  @override String get custom => 'Custom';
+  @override String get last30Days => 'Last 30 Days';
   @override String get weekly => 'Weekly';
   @override String get monthly => 'Monthly';
   @override String get yearly => 'Yearly';

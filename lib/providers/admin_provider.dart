@@ -27,11 +27,13 @@ class BulkImportRecord {
   final Product product;
   final String? batchNumber;
   final DateTime expiryDate;
+  final double costPricePerPc;
 
   BulkImportRecord({
     required this.product,
     this.batchNumber,
     required this.expiryDate,
+    this.costPricePerPc = 0.0,
   });
 }
 
@@ -465,6 +467,7 @@ class AdminProvider extends ChangeNotifier {
     required int strips,
     required int pcs,
     required int pcsPerStrip,
+    double costPricePerPc = 0.0,
   }) async {
     final totalPcs = (strips * pcsPerStrip) + pcs;
     if (totalPcs <= 0) return;
@@ -479,6 +482,7 @@ class AdminProvider extends ChangeNotifier {
       initialPieces: totalPcs,
       remainingPieces: totalPcs,
       dateAdded: DateTime.now(),
+      costPricePerPc: costPricePerPc,
     );
 
     try {
@@ -491,6 +495,12 @@ class AdminProvider extends ChangeNotifier {
       rethrow;
     }
   }
+
+  /// Fetches the buying price per piece from the most recently added batch
+  /// for a product. Used to pre-fill the buying price in RestockScreen.
+  Future<double> getLastBatchCostPrice(String productId) =>
+      _db.getLastBatchCostPrice(productId);
+
 
   Future<void> deleteBatch(String batchId) async {
     try {
@@ -708,6 +718,7 @@ class AdminProvider extends ChangeNotifier {
           initialPieces: totalPcs,
           remainingPieces: totalPcs,
           dateAdded: now,
+          costPricePerPc: record.costPricePerPc,
         ),
       );
     }
@@ -777,6 +788,14 @@ class AdminProvider extends ChangeNotifier {
     return _sales
         .where((s) => s.date.isAfter(todayStart) && s.effectiveQuantity > 0)
         .length;
+  }
+
+  double get totalProfitToday {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    return _sales
+        .where((s) => s.date.isAfter(todayStart))
+        .fold(0.0, (sum, s) => sum + s.grossProfit);
   }
 
   double get weeklySales {
@@ -965,6 +984,9 @@ class AdminProvider extends ChangeNotifier {
     _pendingSubWarningDays = null;
     notifyListeners();
   }
+
+  Future<List<SaleRecord>> fetchSalesInRange(DateTime start, DateTime end) =>
+      _db.getSalesInRange(start, end);
 }
 
 class _TopSellingAcc {

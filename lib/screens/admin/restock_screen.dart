@@ -25,22 +25,34 @@ class _RestockScreenState extends State<RestockScreen> {
   final _batchCtrl = TextEditingController();
   final _stockBoxesCtrl = TextEditingController();
   final _stockStripsCtrl = TextEditingController();
+  final _buyingPriceCtrl = TextEditingController();
   DateTime? _expiryDate;
   bool _submitting = false;
+  bool _loadingLastPrice = true;
 
   Product get _p => widget.product;
 
   @override
   void initState() {
     super.initState();
-    // Default until settings apply on first frame.
     _expiryDate = DateTime.now().add(const Duration(days: 180));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final admin = context.read<AdminProvider>();
+      // Set expiry delay
       setState(() {
         _expiryDate =
             DateTime.now().add(Duration(days: admin.expiryDelayMonths * 30));
+      });
+
+      // Pre-fill buying price from the last batch of this product
+      final lastCost = await admin.getLastBatchCostPrice(_p.id);
+      if (!mounted) return;
+      setState(() {
+        _loadingLastPrice = false;
+        if (lastCost > 0) {
+          _buyingPriceCtrl.text = lastCost.toStringAsFixed(2);
+        }
       });
     });
   }
@@ -50,6 +62,7 @@ class _RestockScreenState extends State<RestockScreen> {
     _batchCtrl.dispose();
     _stockBoxesCtrl.dispose();
     _stockStripsCtrl.dispose();
+    _buyingPriceCtrl.dispose();
     super.dispose();
   }
 
@@ -138,6 +151,9 @@ class _RestockScreenState extends State<RestockScreen> {
       return;
     }
 
+    final costPricePerPc =
+        double.tryParse(_buyingPriceCtrl.text.trim()) ?? 0.0;
+
     setState(() => _submitting = true);
     try {
       await context.read<AdminProvider>().addBatch(
@@ -147,6 +163,7 @@ class _RestockScreenState extends State<RestockScreen> {
             strips: totalStrips,
             pcs: 0,
             pcsPerStrip: pps,
+            costPricePerPc: costPricePerPc,
           );
       if (!mounted) return;
       await context.read<POSProvider>().loadProducts();
@@ -229,6 +246,8 @@ class _RestockScreenState extends State<RestockScreen> {
     String? Function(String?)? validator,
     void Function(String)? onChanged,
     List<TextInputFormatter>? inputFormatters,
+    String? helperText,
+    Color? prefixIconColor,
   }) {
     return TextFormField(
       controller: controller,
@@ -246,7 +265,13 @@ class _RestockScreenState extends State<RestockScreen> {
           color: AppColors.secondaryAccent,
           fontWeight: FontWeight.w500,
         ),
-        prefixIcon: Icon(icon, color: AppColors.secondaryAccent, size: 20),
+        helperText: helperText,
+        helperStyle: const TextStyle(fontSize: 11),
+        prefixIcon: Icon(
+          icon,
+          color: prefixIconColor ?? AppColors.secondaryAccent,
+          size: 20,
+        ),
         filled: true,
         fillColor: AppColors.surfaceLight,
         border: OutlineInputBorder(
@@ -289,6 +314,7 @@ class _RestockScreenState extends State<RestockScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Product info card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -354,6 +380,8 @@ class _RestockScreenState extends State<RestockScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+
+              // Batch & Expiry
               _buildSection(
                 title: l10n.batchAndExpiry,
                 icon: LucideIcons.calendar,
@@ -415,6 +443,8 @@ class _RestockScreenState extends State<RestockScreen> {
                   },
                 ),
               ),
+
+              // Quantity
               _buildSection(
                 title: l10n.quantityToAdd,
                 icon: LucideIcons.package,
@@ -446,6 +476,105 @@ class _RestockScreenState extends State<RestockScreen> {
                   },
                 ),
               ),
+
+              // Buying Price
+              _buildSection(
+                title: l10n.buyingPriceSection,
+                icon: LucideIcons.tag,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _loadingLastPrice
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : _buildField(
+                            controller: _buyingPriceCtrl,
+                            label: l10n.buyingPricePerPc,
+                            icon: LucideIcons.coins,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d*'),
+                              ),
+                            ],
+                            helperText: l10n.buyingPriceHelper,
+                            prefixIconColor: AppColors.success,
+                          ),
+                    const SizedBox(height: 8),
+                    // Live profit preview
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _buyingPriceCtrl,
+                      builder: (_, val, __) {
+                        final cost = double.tryParse(val.text) ?? 0.0;
+                        final sellPc = _p.pricePc;
+                        if (cost <= 0 || sellPc <= 0) return const SizedBox.shrink();
+                        final profit = sellPc - cost;
+                        final margin = sellPc > 0
+                            ? ((profit / sellPc) * 100).toStringAsFixed(1)
+                            : '0.0';
+                        final isLoss = profit < 0;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (isLoss
+                                    ? AppColors.error
+                                    : AppColors.success)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: (isLoss
+                                      ? AppColors.error
+                                      : AppColors.success)
+                                  .withOpacity(0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLoss
+                                    ? LucideIcons.trendingDown
+                                    : LucideIcons.trendingUp,
+                                size: 16,
+                                color: isLoss
+                                    ? AppColors.error
+                                    : AppColors.success,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  l10n.profitPreview(
+                                    profit.abs().toStringAsFixed(2),
+                                    margin,
+                                    isLoss,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isLoss
+                                        ? AppColors.error
+                                        : AppColors.success,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Submit button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(

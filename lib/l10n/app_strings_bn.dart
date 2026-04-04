@@ -129,6 +129,22 @@ class AppStringsBn implements AppStrings {
   @override String get addingLabel => 'যোগ করা হচ্ছে…';
   @override String get addStock => 'স্টক যোগ করুন';
 
+  // ── Buying Price & Profit ───────────────────
+  @override String get buyingPriceSection => 'ক্রয় মূল্য (খরচ)';
+  @override String get buyingPricePerPc => 'ক্রয় মূল্য / পিস (৳)';
+  @override String get buyingPriceHelper => 'শেষ ব্যাচ থেকে পূরণ করা হয়েছে। মূল্য পরিবর্তন হলে আপডেট করুন।';
+  @override String profitPreview(String amount, String margin, bool isLoss) =>
+      isLoss ? 'লোকসান: ৳$amount/স্ট্রিপ ($margin%)' : 'লাভ: ৳$amount/স্ট্রিপ ($margin% মার্জিন)';
+  @override String get navProfitReport => 'লাভের রিপোর্ট';
+  @override String get profitReport => 'লাভের রিপোর্ট';
+  @override String get grossProfit => 'মোট লাভ';
+  @override String get totalCost => 'মোট খরচ';
+  @override String get profitMargin => 'লাভের হার';
+  @override String get viewProfitReport => 'লাভের রিপোর্ট দেখুন';
+  @override String get noCostData => 'কোন খরচের তথ্য নেই — রিস্টক করার সময় ক্রয় মূল্য সেট করুন';
+  @override String get profitReportEmpty => 'এই সময়ের জন্য কোন বিক্রয়ের তথ্য নেই';
+  @override String get productBreakdown => 'পণ্য ভিত্তিক বিবরণ';
+
   // ── Filtering & Sorting ────────────────────────────
   @override String get filterByCompany => 'কোম্পানি অনুযায়ী ফিল্টার';
   @override String get filterByGeneric => 'জেনেরিক অনুযায়ী ফিল্টার';
@@ -277,6 +293,8 @@ class AppStringsBn implements AppStrings {
   @override String get revenueTrend => 'রাজস্ব প্রবণতা';
   @override String get period => 'সময়কাল';
   @override String get customRange => 'কাস্টম রেঞ্জ';
+  @override String get custom => 'কাস্টম';
+  @override String get last30Days => 'গত ৩০ দিন';
   @override String get weekly => 'সাপ্তাহিক';
   @override String get monthly => 'মাসিক';
   @override String get yearly => 'বার্ষিক';

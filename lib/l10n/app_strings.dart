@@ -127,6 +127,21 @@ abstract class AppStrings {
   String get addingLabel;
   String get addStock;
 
+  // ── Buying Price & Profit ──────────────────────────
+  String get buyingPriceSection;
+  String get buyingPricePerPc;
+  String get buyingPriceHelper;
+  String profitPreview(String amount, String margin, bool isLoss);
+  String get navProfitReport;
+  String get profitReport;
+  String get grossProfit;
+  String get totalCost;
+  String get profitMargin;
+  String get viewProfitReport;
+  String get noCostData;
+  String get profitReportEmpty;
+  String get productBreakdown;
+
   // ── Filtering & Sorting ────────────────────────────
   String get filterByCompany;
   String get filterByGeneric;
@@ -322,6 +337,8 @@ abstract class AppStrings {
   String get revenueTrend;
   String get period;
   String get customRange;
+  String get custom;
+  String get last30Days;
   String get weekly;
   String get monthly;
   String get yearly;

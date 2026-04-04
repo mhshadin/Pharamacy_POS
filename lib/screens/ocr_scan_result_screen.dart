@@ -48,11 +48,11 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
       _results.where((r) => r.status == OcrStatus.accepted).length;
 
   bool get _hasUnresolvedPartials => _results.any(
-        (r) =>
-            r.status != OcrStatus.rejected &&
-            r.matchType == OcrMatchType.partial &&
-            r.selectedProduct == null,
-      );
+    (r) =>
+        r.status != OcrStatus.rejected &&
+        r.matchType == OcrMatchType.partial &&
+        r.selectedProduct == null,
+  );
 
   Future<void> _retake() async {
     setState(() => _isRetaking = true);
@@ -70,15 +70,22 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
       final imageFile = File(file.path);
 
       if (!mounted) return;
-      final newResults =
-          await OcrService.process(imageFile, widget.allProducts);
+      final newResults = await OcrService.process(
+        imageFile,
+        widget.allProducts,
+      );
 
       if (!mounted) return;
       if (newResults.isEmpty) {
         setState(() => _isRetaking = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.read<LanguageProvider>().strings.noMedicineDetectedTryAgain),
+            content: Text(
+              context
+                  .read<LanguageProvider>()
+                  .strings
+                  .noMedicineDetectedTryAgain,
+            ),
             backgroundColor: AppColors.warningOrange,
           ),
         );
@@ -100,7 +107,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.read<LanguageProvider>().strings.voiceError(e.toString())),
+            content: Text(
+              context.read<LanguageProvider>().strings.voiceError(e.toString()),
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -122,8 +131,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
         (c) => c.product.id == product.id,
       );
       final currentPcs = existing >= 0 ? provider.cart[existing].pcQuantity : 0;
-      final currentStrips =
-          existing >= 0 ? provider.cart[existing].stripQuantity : 0;
+      final currentStrips = existing >= 0
+          ? provider.cart[existing].stripQuantity
+          : 0;
       provider.setQuantities(product, currentStrips, currentPcs + 1);
       addedCount++;
     }
@@ -133,12 +143,17 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
     if (addedCount > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.read<LanguageProvider>().strings.productsAddedToCart(addedCount)),
+          content: Text(
+            context.read<LanguageProvider>().strings.productsAddedToCart(
+              addedCount,
+            ),
+          ),
           backgroundColor: AppColors.success,
         ),
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.watch<LanguageProvider>().strings;
@@ -192,10 +207,7 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: AppColors.primaryDark,
-                  width: 2,
-                ),
+                border: Border.all(color: AppColors.primaryDark, width: 2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Image.file(_image, fit: BoxFit.cover),
@@ -216,7 +228,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  context.read<LanguageProvider>().strings.itemsDetected(_results.length),
+                  context.read<LanguageProvider>().strings.itemsDetected(
+                    _results.length,
+                  ),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -250,7 +264,10 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
                   ),
                   child: Text(
                     context.read<LanguageProvider>().strings.retake,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
         ],
@@ -261,7 +278,8 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   Widget _buildResultCard(OcrMatchResult result) {
     final isRejected = result.status == OcrStatus.rejected;
     final isAccepted = result.status == OcrStatus.accepted;
-    final needsSelection = result.matchType == OcrMatchType.partial &&
+    final needsSelection =
+        result.matchType == OcrMatchType.partial &&
         result.selectedProduct == null &&
         !isRejected;
 
@@ -323,11 +341,11 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   }
 
   Widget _buildCardHeader(OcrMatchResult result) {
-    final scorePercent =
-        (result.matchScore * 100).toStringAsFixed(0);
+    final scorePercent = (result.matchScore * 100).toStringAsFixed(0);
     final isHighConfidence = result.matchScore >= 0.80;
-    final confidenceColor =
-        isHighConfidence ? AppColors.success : AppColors.warningOrange;
+    final confidenceColor = isHighConfidence
+        ? AppColors.success
+        : AppColors.warningOrange;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,7 +383,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
                       ),
                     ),
                     child: Text(
-                      context.read<LanguageProvider>().strings.matchPercent(int.parse(scorePercent)),
+                      context.read<LanguageProvider>().strings.matchPercent(
+                        int.parse(scorePercent),
+                      ),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -668,8 +688,12 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
                   result.selectedProduct == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content:
-                        Text(context.read<LanguageProvider>().strings.selectProductFirst),
+                    content: Text(
+                      context
+                          .read<LanguageProvider>()
+                          .strings
+                          .selectProductFirst,
+                    ),
                     backgroundColor: AppColors.warningOrange,
                   ),
                 );
@@ -680,10 +704,12 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
             icon: const Icon(LucideIcons.check, size: 14),
             label: Text(context.read<LanguageProvider>().strings.accept),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isAccepted ? AppColors.success : AppColors.surfaceLight,
-              foregroundColor:
-                  isAccepted ? AppColors.white : AppColors.primaryDark,
+              backgroundColor: isAccepted
+                  ? AppColors.success
+                  : AppColors.surfaceLight,
+              foregroundColor: isAccepted
+                  ? AppColors.white
+                  : AppColors.primaryDark,
               elevation: isAccepted ? 1 : 0,
               side: isAccepted
                   ? null
@@ -698,12 +724,17 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
       ],
     );
   }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(LucideIcons.scanLine, size: 56, color: AppColors.secondaryAccent),
+          const Icon(
+            LucideIcons.scanLine,
+            size: 56,
+            color: AppColors.secondaryAccent,
+          ),
           const SizedBox(height: 16),
           Text(
             context.read<LanguageProvider>().strings.noMatchesFound,
@@ -780,7 +811,10 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
               label: Text(
                 canCommit
                     ? context.read<LanguageProvider>().strings.commitValidItems
-                    : context.read<LanguageProvider>().strings.resolveSelectionsFirst,
+                    : context
+                          .read<LanguageProvider>()
+                          .strings
+                          .resolveSelectionsFirst,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,

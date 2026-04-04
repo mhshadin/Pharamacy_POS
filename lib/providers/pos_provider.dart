@@ -239,7 +239,7 @@ class POSProvider extends ChangeNotifier {
         final double batchAmount =
             (deductAmount / originalTotalPieces) * totalItemAmount;
 
-        // 1. Record the sale for this batch specifically
+        // 1. Record the sale for this batch specifically, capturing cost at time of sale
         final sale = SaleRecord(
           id: 'ORD-${DateTime.now().millisecondsSinceEpoch}-${item.product.id}-${batch.id}',
           productName: item.product.name,
@@ -249,6 +249,7 @@ class POSProvider extends ChangeNotifier {
           date: DateTime.now(),
           invoiceNumber: invoiceNumber,
           batchNumber: batch.batchNumber,
+          costPricePerPc: batch.costPricePerPc,
         );
         await _db.insertSale(sale);
 
@@ -262,7 +263,6 @@ class POSProvider extends ChangeNotifier {
       }
 
       // Note: If totalPiecesToDeduct > 0 here, it means we oversold beyond tracked batches.
-      // In a real system, you'd either block the sale beforehand, or record a "MISSING-BATCH" sale.
       if (totalPiecesToDeduct > 0) {
         final double batchAmount =
             (totalPiecesToDeduct / originalTotalPieces) * totalItemAmount;
@@ -274,6 +274,7 @@ class POSProvider extends ChangeNotifier {
           date: DateTime.now(),
           invoiceNumber: invoiceNumber,
           batchNumber: 'OVERSOLD',
+          costPricePerPc: 0.0,
         );
         await _db.insertSale(sale);
       }

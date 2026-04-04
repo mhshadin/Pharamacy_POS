@@ -7,6 +7,10 @@ class StockBatch {
   int remainingPieces;
   final DateTime dateAdded;
 
+  /// Buying/cost price per piece for this specific batch.
+  /// Allows per-batch cost tracking as market prices fluctuate.
+  final double costPricePerPc;
+
   StockBatch({
     required this.id,
     required this.productId,
@@ -15,6 +19,7 @@ class StockBatch {
     required this.initialPieces,
     required this.remainingPieces,
     required this.dateAdded,
+    this.costPricePerPc = 0.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +31,7 @@ class StockBatch {
       'initialPieces': initialPieces,
       'remainingPieces': remainingPieces,
       'dateAdded': dateAdded.toIso8601String(),
+      'costPricePerPc': costPricePerPc,
     };
   }
 
@@ -38,6 +44,7 @@ class StockBatch {
       initialPieces: map['initialPieces'] as int,
       remainingPieces: map['remainingPieces'] as int,
       dateAdded: DateTime.parse(map['dateAdded'] as String),
+      costPricePerPc: (map['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

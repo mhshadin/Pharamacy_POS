@@ -27,6 +27,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _barcodeCtrl = TextEditingController();
   final _priceBoxCtrl = TextEditingController();
   final _priceStripCtrl = TextEditingController();
+  final _buyingPriceBoxCtrl = TextEditingController();
+  final _buyingPriceStripCtrl = TextEditingController();
   final _stripsPerBoxCtrl = TextEditingController(text: '10');
   final _pcsPerStripCtrl = TextEditingController(text: '10');
   final _stockBoxesCtrl = TextEditingController();
@@ -61,6 +63,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _barcodeCtrl.dispose();
     _priceBoxCtrl.dispose();
     _priceStripCtrl.dispose();
+    _buyingPriceBoxCtrl.dispose();
+    _buyingPriceStripCtrl.dispose();
     _stripsPerBoxCtrl.dispose();
     _pcsPerStripCtrl.dispose();
     _stockBoxesCtrl.dispose();
@@ -166,6 +170,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final stripPrice = double.tryParse(_priceStripCtrl.text) ?? 0;
     final pricePc = pps > 0 ? stripPrice / pps : 0.0;
 
+    final costPricePerPc = _buyingPriceStripCtrl.text.isNotEmpty
+        ? (double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0) /
+              (pps > 0 ? pps : 1)
+        : (_buyingPriceBoxCtrl.text.isNotEmpty
+            ? (double.tryParse(_buyingPriceBoxCtrl.text) ?? 0.0) /
+                  ((spb > 0 ? spb : 1) * (pps > 0 ? pps : 1))
+            : 0.0);
+
     try {
       if (existingProduct != null) {
         final updatedProduct = Product(
@@ -201,13 +213,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
         await context.read<AdminProvider>().updateProduct(updatedProduct);
         if (!mounted) return;
         if (finalStrips > 0 || finalPcs > 0) {
-          await context.read<AdminProvider>().addBatch(
+        await context.read<AdminProvider>().addBatch(
             productId: updatedProduct.id,
             batchNumber: _batchCtrl.text.trim(),
             expiryDate: _expiryDate!,
             strips: finalStrips,
             pcs: finalPcs,
             pcsPerStrip: pps,
+            costPricePerPc: costPricePerPc,
           );
         }
       } else {
@@ -270,6 +283,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _barcodeCtrl.clear();
     _priceBoxCtrl.clear();
     _priceStripCtrl.clear();
+    _buyingPriceBoxCtrl.clear();
+    _buyingPriceStripCtrl.clear();
     _stripsPerBoxCtrl.text = '1';
     _pcsPerStripCtrl.text = '10';
     _stockBoxesCtrl.clear();
@@ -811,6 +826,117 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            // SECTION 2c: BUYING PRICE (COST)
+            _buildSection(
+              title: l10n.buyingPriceSection,
+              icon: LucideIcons.tag,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      if (MedTypeUnits.hasUnit1(_selectedMedType)) ...[
+                        Expanded(
+                          child: _buildField(
+                            controller: _buyingPriceBoxCtrl,
+                            label: 'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                            icon: LucideIcons.tag,
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) {
+                              if (val.isEmpty) return;
+                              final boxCost = double.tryParse(val);
+                              final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                              if (boxCost != null && spb > 0) {
+                                _buyingPriceStripCtrl.text =
+                                    (boxCost / spb).toStringAsFixed(2);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: _buildField(
+                          controller: _buyingPriceStripCtrl,
+                          label: 'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
+                          icon: LucideIcons.tag,
+                          keyboardType: TextInputType.number,
+                          onChanged: (val) {
+                            if (val.isEmpty) return;
+                            final stripCost = double.tryParse(val);
+                            final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                            if (stripCost != null && spb > 0) {
+                              _buyingPriceBoxCtrl.text =
+                                  (stripCost * spb).toStringAsFixed(2);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Live profit preview
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _buyingPriceStripCtrl,
+                    builder: (_, val, __) {
+                      final cost = double.tryParse(val.text) ?? 0.0;
+                      final sell = double.tryParse(_priceStripCtrl.text) ?? 0.0;
+                      if (cost <= 0 || sell <= 0) return const SizedBox.shrink();
+                      final profit = sell - cost;
+                      final margin = sell > 0
+                          ? ((profit / sell) * 100).toStringAsFixed(1)
+                          : '0.0';
+                      final isLoss = profit < 0;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (isLoss ? AppColors.error : AppColors.success)
+                              .withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: (isLoss
+                                    ? AppColors.error
+                                    : AppColors.success)
+                                .withOpacity(0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLoss
+                                  ? LucideIcons.trendingDown
+                                  : LucideIcons.trendingUp,
+                              size: 16,
+                              color: isLoss ? AppColors.error : AppColors.success,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                l10n.profitPreview(
+                                  profit.abs().toStringAsFixed(2),
+                                  margin,
+                                  isLoss,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isLoss
+                                      ? AppColors.error
+                                      : AppColors.success,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
 

@@ -41,15 +41,15 @@ class OcrMatchResult {
   Product? get resolvedProduct => exactProduct ?? selectedProduct;
 
   OcrMatchResult copyWithCrop(Uint8List? bytes) => OcrMatchResult(
-        rawText: rawText,
-        matchType: matchType,
-        matchScore: matchScore,
-        exactProduct: exactProduct,
-        partialOptions: partialOptions,
-        croppedBytes: bytes,
-        selectedProduct: selectedProduct,
-        status: status,
-      );
+    rawText: rawText,
+    matchType: matchType,
+    matchScore: matchScore,
+    exactProduct: exactProduct,
+    partialOptions: partialOptions,
+    croppedBytes: bytes,
+    selectedProduct: selectedProduct,
+    status: status,
+  );
 }
 
 class OcrService {
@@ -165,13 +165,15 @@ class OcrService {
 
       if (top.score >= 0.80) {
         matchedProductIds.add(top.product.id);
-        results.add(OcrMatchResult(
-          rawText: text,
-          matchType: OcrMatchType.exact,
-          exactProduct: top.product,
-          matchScore: top.score,
-          status: OcrStatus.accepted,
-        ));
+        results.add(
+          OcrMatchResult(
+            rawText: text,
+            matchType: OcrMatchType.exact,
+            exactProduct: top.product,
+            matchScore: top.score,
+            status: OcrStatus.accepted,
+          ),
+        );
       } else {
         final availableOptions = scoredProducts
             .take(3)
@@ -180,13 +182,15 @@ class OcrService {
             .toList();
         if (availableOptions.isEmpty) continue;
 
-        results.add(OcrMatchResult(
-          rawText: text,
-          matchType: OcrMatchType.partial,
-          partialOptions: availableOptions,
-          matchScore: top.score,
-          status: OcrStatus.pending,
-        ));
+        results.add(
+          OcrMatchResult(
+            rawText: text,
+            matchType: OcrMatchType.partial,
+            partialOptions: availableOptions,
+            matchScore: top.score,
+            status: OcrStatus.pending,
+          ),
+        );
       }
     }
 
@@ -218,10 +222,8 @@ class OcrService {
         Rect.fromLTWH(0, 0, pw.toDouble(), ph.toDouble()),
         Paint(),
       );
-      final cropped =
-          await recorder.endRecording().toImage(pw, ph);
-      final bd =
-          await cropped.toByteData(format: ui.ImageByteFormat.png);
+      final cropped = await recorder.endRecording().toImage(pw, ph);
+      final bd = await cropped.toByteData(format: ui.ImageByteFormat.png);
       src.dispose();
       cropped.dispose();
       return bd?.buffer.asUint8List();
@@ -258,8 +260,10 @@ class OcrService {
       containBonus = 0.15;
     }
 
-    return ((bestTokenScore * 0.55) + (fullScore * 0.30) + containBonus)
-        .clamp(0.0, 1.0);
+    return ((bestTokenScore * 0.55) + (fullScore * 0.30) + containBonus).clamp(
+      0.0,
+      1.0,
+    );
   }
 
   static double _levenshteinSimilarity(String a, String b) {
@@ -272,20 +276,30 @@ class OcrService {
   static int _levenshtein(String a, String b) {
     final int m = a.length;
     final int n = b.length;
-    final List<List<int>> dp =
-        List.generate(m + 1, (_) => List.filled(n + 1, 0));
+    final List<List<int>> dp = List.generate(
+      m + 1,
+      (_) => List.filled(n + 1, 0),
+    );
 
-    for (int i = 0; i <= m; i++) { dp[i][0] = i; }
-    for (int j = 0; j <= n; j++) { dp[0][j] = j; }
+    for (int i = 0; i <= m; i++) {
+      dp[i][0] = i;
+    }
+    for (int j = 0; j <= n; j++) {
+      dp[0][j] = j;
+    }
 
     for (int i = 1; i <= m; i++) {
       for (int j = 1; j <= n; j++) {
         if (a[i - 1] == b[j - 1]) {
           dp[i][j] = dp[i - 1][j - 1];
         } else {
-          dp[i][j] = 1 +
-              [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]]
-                  .reduce((x, y) => x < y ? x : y);
+          dp[i][j] =
+              1 +
+              [
+                dp[i - 1][j],
+                dp[i][j - 1],
+                dp[i - 1][j - 1],
+              ].reduce((x, y) => x < y ? x : y);
         }
       }
     }

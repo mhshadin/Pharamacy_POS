@@ -18,6 +18,7 @@ import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'top_products_screen.dart';
+import 'profit_report_screen.dart';
 import '../../widgets/taka_symbol.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -41,9 +42,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItemData(icon: LucideIcons.clock, labelKey: (l10n) => l10n.navExpiringSoon),           // 4
     _NavItemData(icon: LucideIcons.rotateCcw, labelKey: (l10n) => l10n.navReturns),           // 5
     _NavItemData(icon: LucideIcons.barChart3, labelKey: (l10n) => l10n.navSalesReport),        // 6
-    _NavItemData(icon: LucideIcons.trendingUp, labelKey: (l10n) => l10n.navTopProducts),       // 7
-    _NavItemData(icon: LucideIcons.settings, labelKey: (l10n) => l10n.navSettings),            // 8
-    _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),                 // 9
+    _NavItemData(icon: LucideIcons.lineChart, labelKey: (l10n) => l10n.navProfitReport),       // 7
+    _NavItemData(icon: LucideIcons.trendingUp, labelKey: (l10n) => l10n.navTopProducts),       // 8
+    _NavItemData(icon: LucideIcons.settings, labelKey: (l10n) => l10n.navSettings),            // 9
+    _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),                 // 10
   ];
 
   void _navigateTo(int index, {bool fromDrawer = false}) {
@@ -88,10 +90,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 6:
         return const SalesReportScreen();
       case 7:
-        return const TopProductsScreen();
+        return const ProfitReportScreen();
       case 8:
-        return const SettingsScreen();
+        return const TopProductsScreen();
       case 9:
+        return const SettingsScreen();
+      case 10:
         return const ProfileScreen();
       default:
         return _buildDashboardPage();
@@ -487,6 +491,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             alpha: 0.1,
                           ),
                           onTap: () => _navigateTo(4),
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _StatCard(
+                          title: l10n.profitReport,
+                          value: '${admin.totalProfitToday.toStringAsFixed(2)}',
+                          isTaka: true,
+                          icon: LucideIcons.lineChart,
+                          iconColor: AppColors.primaryDark,
+                          iconBg: AppColors.primaryDark.withValues(
+                            alpha: 0.1,
+                          ),
+                          onTap: () => _navigateTo(7),
                         ),
                       ),
                     ],

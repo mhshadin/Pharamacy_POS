@@ -27,6 +27,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     'Generic',
     'Barcode',
     'PriceBox',
+    'BuyingPriceBox',
     'StripsPerBox',
     'PcsPerStrip',
     'StockBoxes',
@@ -43,6 +44,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     'Paracetamol',
     '1234567890123',
     '20',
+    '15',
     '10',
     '10',
     '5',
@@ -212,8 +214,11 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
         final totalPcs = stockBoxes * spb * pps;
 
         final priceBox = getDouble('PriceBox');
+        final buyingPriceBox = getDouble('BuyingPriceBox');
         final priceStrip = spb > 0 ? priceBox / spb : 0.0;
         final pricePc = pps > 0 ? priceStrip / pps : 0.0;
+        
+        final costPricePerPc = (spb > 0 && pps > 0) ? (buyingPriceBox / (spb * pps)) : 0.0;
 
         final minStockBoxes = getInt('MinStock');
         final minStockLevel = minStockBoxes * spb;
@@ -259,6 +264,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           product: product,
           batchNumber: batchNumber,
           expiryDate: expiry,
+          costPricePerPc: costPricePerPc,
         ));
       } catch (e) {
         _errors.add(l10n.rowSkippedDataError(i + 1, e.toString()));

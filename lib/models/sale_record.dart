@@ -10,6 +10,10 @@ class SaleRecord {
   final int returnedQuantity;
   final String? medType;
 
+  /// Cost price per piece at the time of this sale (from the batch).
+  /// Stored at sale time so profit remains accurate even if buying prices change later.
+  final double costPricePerPc;
+
   SaleRecord({
     required this.id,
     required this.productName,
@@ -21,11 +25,18 @@ class SaleRecord {
     this.isReturned = false,
     this.returnedQuantity = 0,
     this.medType,
+    this.costPricePerPc = 0.0,
   });
 
   int get effectiveQuantity => quantity - returnedQuantity;
   double get effectiveAmount =>
       quantity > 0 ? (amount / quantity) * effectiveQuantity : 0.0;
+
+  /// Total cost for the effective (non-returned) quantity of this sale line.
+  double get effectiveCost => costPricePerPc * effectiveQuantity;
+
+  /// Gross profit for this sale line (revenue - cost).
+  double get grossProfit => effectiveAmount - effectiveCost;
 
   Map<String, dynamic> toMap() {
     return {
@@ -39,6 +50,7 @@ class SaleRecord {
       'isReturned': isReturned ? 1 : 0,
       'returnedQuantity': returnedQuantity,
       'medType': medType,
+      'costPricePerPc': costPricePerPc,
     };
   }
 
@@ -54,6 +66,8 @@ class SaleRecord {
       isReturned: (map['isReturned'] as int?) == 1,
       returnedQuantity: map['returnedQuantity'] as int? ?? 0,
       medType: map['medType'] as String?,
+      costPricePerPc: (map['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
+
