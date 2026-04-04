@@ -520,9 +520,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
 
-    List<Widget> rowPair(Widget left, Widget right) {
+    List<Widget> rowPair(
+      Widget left,
+      Widget right, {
+      bool equalWidths = false,
+    }) {
       if (narrow) {
         return [left, const SizedBox(height: 12), right];
+      }
+      if (equalWidths) {
+        return [
+          Expanded(child: left),
+          const SizedBox(width: 12),
+          Expanded(child: right),
+        ];
       }
       return [
         Expanded(child: left),
@@ -577,11 +588,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return narrow
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: rowPair(bulk, cont),
+              children: rowPair(bulk, cont, equalWidths: true),
             )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: rowPair(bulk, cont),
+              children: rowPair(bulk, cont, equalWidths: true),
             );
     }
     if (_currentStep == 1) {
@@ -1111,10 +1122,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                   const SizedBox(height: 12),
                                   LayoutBuilder(
                                     builder: (context, constraints) {
-                                      final scanButton = SizedBox(
-                                        height: 58,
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
+                                      Widget scanButton() {
+                                        final btn = ElevatedButton.icon(
                                           onPressed: () async {
                                             final scannedCode =
                                                 await Navigator.push<String>(
@@ -1165,10 +1174,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
-                                            padding: EdgeInsets.zero,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            alignment: Alignment.center,
                                           ),
-                                        ),
-                                      );
+                                        );
+                                        return btn;
+                                      }
+
                                       final barcodeField = _buildField(
                                         controller: _barcodeCtrl,
                                         label: l10n.barcodeLabel,
@@ -1178,25 +1194,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       if (constraints.maxWidth < 380) {
                                         return Column(
                                           crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                              CrossAxisAlignment.stretch,
                                           children: [
                                             barcodeField,
                                             const SizedBox(height: 12),
-                                            scanButton,
+                                            scanButton(),
                                           ],
                                         );
                                       }
-                                      return Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            flex: 6,
-                                            child: barcodeField,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(flex: 4, child: scanButton),
-                                        ],
+                                      return IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              flex: 6,
+                                              child: barcodeField,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              flex: 4,
+                                              child: scanButton(),
+                                            ),
+                                          ],
+                                        ),
                                       );
                                     },
                                   ),
