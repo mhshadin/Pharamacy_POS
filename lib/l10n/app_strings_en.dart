@@ -1227,6 +1227,8 @@ class AppStringsEn implements AppStrings {
   @override
   String get manualAddTitle => 'Manual Add';
   @override
+  String get doneBtn => 'Done';
+  @override
   String setQuantityFor(String type, String name) =>
       'Set $type Quantity:\n$name';
   @override

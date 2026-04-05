@@ -107,6 +107,11 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
     _pulseController.stop();
   }
 
+  void _closeManualAdd() {
+    _searchFocus.unfocus();
+    Navigator.of(context).pop();
+  }
+
   void _handleFinalSpeechResult(POSProvider posProvider, String text) {
     final products = posProvider.products;
     final best = ProductMatcher.findBestMatch(text, products);
@@ -258,8 +263,20 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
         ),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft, color: AppColors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _closeManualAdd,
         ),
+        actions: [
+          TextButton(
+            onPressed: _closeManualAdd,
+            child: Text(
+              l10n.doneBtn,
+              style: const TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [

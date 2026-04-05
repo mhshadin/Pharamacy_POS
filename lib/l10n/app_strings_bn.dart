@@ -1239,6 +1239,8 @@ class AppStringsBn implements AppStrings {
   @override
   String get manualAddTitle => 'ম্যানুয়াল যোগ';
   @override
+  String get doneBtn => 'সম্পন্ন';
+  @override
   String setQuantityFor(String type, String name) =>
       '$type পরিমাণ নির্ধারণ করুন:\n$name';
   @override

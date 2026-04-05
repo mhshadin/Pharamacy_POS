@@ -575,6 +575,7 @@ abstract class AppStrings {
 
   // ── Manual Add ────────────────────────────────────
   String get manualAddTitle;
+  String get doneBtn;
   String setQuantityFor(String type, String name);
   String get enterAmount;
 
