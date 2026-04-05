@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -26,6 +27,7 @@ import '../widgets/drawer/pos_drawer.dart';
 import '../services/speech_service.dart';
 import '../utils/product_matcher.dart';
 import '../widgets/subscription_warning_dialog.dart';
+import '../widgets/taka_symbol.dart';
 import 'subscription_screen.dart';
 import 'admin/notification_screen.dart';
 
@@ -94,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (Platform.isWindows || !_isCameraActive) return;
+    if (Platform.isWindows || !_isCameraActive || !_isScannerExpanded) return;
 
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
@@ -390,13 +392,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── Dialogs ───────────────────────────────────────────────────────────────
 
-  void _showModal({required String type, required String message}) {
+  void _showClearCartDialog() {
     final l10n = context.read<LanguageProvider>().strings;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        final isSuccess = type == 'success';
         final theme = Theme.of(ctx);
         final screenWidth = MediaQuery.of(ctx).size.width;
         final isNarrow = screenWidth < 380;
@@ -408,12 +409,12 @@ class _HomeScreenState extends State<HomeScreen>
           backgroundColor: AppColors.white,
           surfaceTintColor: AppColors.white,
           icon: Icon(
-            isSuccess ? LucideIcons.checkCircle2 : LucideIcons.trash2,
+            LucideIcons.trash2,
             size: iconSize,
-            color: isSuccess ? AppColors.success : AppColors.error,
+            color: AppColors.error,
           ),
           title: Text(
-            isSuccess ? l10n.saleComplete : l10n.clearCart,
+            l10n.clearCart,
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
@@ -421,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           content: Text(
-            message,
+            l10n.clearCartConfirm,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
@@ -431,55 +432,61 @@ class _HomeScreenState extends State<HomeScreen>
           actionsAlignment: MainAxisAlignment.center,
           actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           actions: [
-            if (type == 'clear') ...[
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(l10n.cancelBtn),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l10n.cancelBtn),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                context.read<POSProvider>().clearCart();
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
               ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  context.read<POSProvider>().clearCart();
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: AppColors.white,
-                ),
-                child: Text(l10n.yesClr),
-              ),
-            ] else
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final pos = context.read<POSProvider>();
-                    final admin = context.read<AdminProvider>();
-                    final invoiceNumber = await pos.completeSale();
-                    await admin.refreshSales();
-                    await admin.loadData();
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('${l10n.saleComplete}! ${l10n.invoicePrefix} $invoiceNumber'),
-                            backgroundColor: AppColors.success,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  child: Text(l10n.newSale),
-                ),
-              ),
+              child: Text(l10n.yesClr),
+            ),
           ],
         );
       },
+    );
+  }
+
+  Future<void> _completeCheckoutSale() async {
+    final pos = context.read<POSProvider>();
+    final admin = context.read<AdminProvider>();
+    final l10n = context.read<LanguageProvider>().strings;
+    final saleTotal = pos.calculateTotal;
+
+    try {
+      await pos.completeSale();
+      await admin.refreshSales();
+      await admin.loadData();
+    } catch (e, st) {
+      debugPrint('Checkout failed: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.checkoutFailed,
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _SaleCompleteAutoCloseDialog(saleTotal: saleTotal),
     );
   }
 
@@ -537,26 +544,26 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _navigateFromDrawer(Future<void> Function() navigate) async {
     if (!context.mounted) return;
     Navigator.pop(context);
-    final bool wasOn = _isCameraActive;
-    if (wasOn && !Platform.isWindows) _cameraController.stop();
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop && !Platform.isWindows) _cameraController.stop();
     await navigate();
-    if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
+    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
   }
 
   Future<void> _handleManualAdd() async {
-    final bool wasOn = _isCameraActive;
-    if (wasOn && !Platform.isWindows) _cameraController.stop();
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop && !Platform.isWindows) _cameraController.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ManualAddScreen()),
     );
-    if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
+    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
   }
 
   Future<void> _handleOcrScan() async {
     final l10n = context.read<LanguageProvider>().strings;
-    final bool wasOn = _isCameraActive;
-    if (wasOn) _cameraController.stop();
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop) _cameraController.stop();
 
     bool loadingDialogOpen = false;
 
@@ -569,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       if (file == null) {
-        if (wasOn && mounted) _cameraController.start();
+        if (canStop && mounted) _cameraController.start();
         return;
       }
 
@@ -618,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen>
             backgroundColor: AppColors.warningOrange,
           ),
         );
-        if (wasOn && mounted) _cameraController.start();
+        if (canStop && mounted) _cameraController.start();
         return;
       }
 
@@ -646,7 +653,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
-      if (wasOn && mounted && !Platform.isWindows) _cameraController.start();
+      if (canStop && mounted && !Platform.isWindows) _cameraController.start();
     }
   }
 
@@ -658,7 +665,6 @@ class _HomeScreenState extends State<HomeScreen>
     final posProvider = context.watch<POSProvider>();
     final cart = posProvider.cart;
     final filteredCart = posProvider.filteredCart;
-    final l10n = context.watch<LanguageProvider>().strings;
 
     // Subscription warning
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -727,9 +733,9 @@ class _HomeScreenState extends State<HomeScreen>
         if (Platform.isWindows) return;
         setState(() {
           _isCameraActive = !_isCameraActive;
-          if (_isCameraActive) {
+          if (_isCameraActive && _isScannerExpanded) {
             _cameraController.start();
-          } else {
+          } else if (!_isCameraActive && _isScannerExpanded) {
             _cameraController.stop();
           }
         });
@@ -758,28 +764,12 @@ class _HomeScreenState extends State<HomeScreen>
     Widget checkoutFooter = PosCheckoutFooter(
       cart: cart,
       total: posProvider.calculateTotal,
-      onClear: () => _showModal(
-        type: 'clear',
-        message: l10n.clearCartConfirm,
-      ),
+      onClear: _showClearCartDialog,
       onCheckout: () {
         if (_isAnyItemOutOfStock(cart)) {
-          _showStockWarning(
-            context,
-            () {
-              _showModal(
-                type: 'success',
-                message:
-                    '${l10n.successfullyCharged} ${posProvider.calculateTotal.toStringAsFixed(2)} ${l10n.taka}',
-              );
-            },
-          );
+          _showStockWarning(context, _completeCheckoutSale);
         } else {
-          _showModal(
-            type: 'success',
-            message:
-                '${l10n.successfullyCharged} ${posProvider.calculateTotal.toStringAsFixed(2)} ${l10n.taka}',
-          );
+          _completeCheckoutSale();
         }
       },
     );
@@ -1184,6 +1174,99 @@ class _VoiceSearchBarState extends State<_VoiceSearchBar> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SaleCompleteAutoCloseDialog extends StatefulWidget {
+  const _SaleCompleteAutoCloseDialog({required this.saleTotal});
+
+  final double saleTotal;
+
+  @override
+  State<_SaleCompleteAutoCloseDialog> createState() =>
+      _SaleCompleteAutoCloseDialogState();
+}
+
+class _SaleCompleteAutoCloseDialogState
+    extends State<_SaleCompleteAutoCloseDialog> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(seconds: 2), () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 380;
+    final amountSize = isNarrow ? 36.0 : 44.0;
+    final takaSize = isNarrow ? 34.0 : 42.0;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: AppColors.white,
+      surfaceTintColor: AppColors.white,
+      icon: Icon(
+        LucideIcons.checkCircle2,
+        size: isNarrow ? 60.0 : 72.0,
+        color: AppColors.success,
+      ),
+      title: Text(
+        l10n.saleComplete,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryDark,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l10n.totalPayable,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondaryAccent,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              TakaSymbol(
+                size: takaSize,
+                color: AppColors.primaryDark,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.saleTotal.toStringAsFixed(2),
+                style: TextStyle(
+                  fontSize: amountSize,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primaryDark,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1334,6 +1334,9 @@ class AppStringsEn implements AppStrings {
   @override
   String get checkout => 'Checkout';
   @override
+  String get checkoutFailed =>
+      'Checkout failed. Please try again.';
+  @override
   String get itemWord => 'item';
   @override
   String get itemsWord => 'items';

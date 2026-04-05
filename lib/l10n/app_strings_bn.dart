@@ -1347,6 +1347,9 @@ class AppStringsBn implements AppStrings {
   @override
   String get checkout => 'চেকআউট করো';
   @override
+  String get checkoutFailed =>
+      'চেকআউট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
+  @override
   String get itemWord => 'ওষুধ';
   @override
   String get itemsWord => 'ওষুধ';

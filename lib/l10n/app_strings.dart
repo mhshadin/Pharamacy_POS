@@ -631,6 +631,7 @@ abstract class AppStrings {
   String get scanItemToBegin;
   String get totalPayable;
   String get checkout;
+  String get checkoutFailed;
   String get itemWord;
   String get itemsWord;
   String get navHome;
