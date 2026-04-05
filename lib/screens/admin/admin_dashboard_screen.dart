@@ -489,6 +489,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           iconBg: AppColors.secondaryAccent.withValues(
                             alpha: 0.1,
                           ),
+                          onTap: () => _navigateTo(
+                            6,
+                            openSalesReportWithTodayFilter: true,
+                          ),
                         ),
                       ),
                       SizedBox(
