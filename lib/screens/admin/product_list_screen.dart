@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -211,330 +213,347 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return list;
   }
 
-  void _showCompanySheet(List<String> allCompanies, AppStrings l10n) {
-    showModalBottomSheet(
+  void _showRightFilterPanel(Widget Function(BuildContext dialogContext) body) {
+    showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        String sheetSearch = '';
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final visible = sheetSearch.isEmpty
-                ? allCompanies
-                : allCompanies
-                    .where((c) =>
-                        c.toLowerCase().contains(sheetSearch.toLowerCase()))
-                    .toList();
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.5,
-              maxChildSize: 0.85,
-              minChildSize: 0.3,
-              builder: (_, controller) => Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.divider,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          l10n.filterByCompany,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setSheetState(() {});
-                            setState(() => _selectedCompanies.clear());
-                          },
-                          child: const Text(
-                            'Clear All',
-                            style: TextStyle(color: AppColors.secondaryAccent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: TextField(
-                        onChanged: (v) =>
-                            setSheetState(() => sheetSearch = v),
-                        decoration: InputDecoration(
-                          hintText: l10n.searchCompanies,
-                          hintStyle: TextStyle(
-                            color: AppColors.secondaryAccent
-                                .withValues(alpha: 0.6),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          prefixIcon: const Icon(
-                            LucideIcons.search,
-                            color: AppColors.secondaryAccent,
-                            size: 18,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 1, color: AppColors.divider),
-                  Expanded(
-                    child: visible.isEmpty
-                        ? Center(
-                            child: Text(
-                              l10n.noCompaniesFound,
-                              style: const TextStyle(
-                                color: AppColors.secondaryAccent,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          )
-                        : ListView(
-                            controller: controller,
-                            children: visible.map((company) {
-                              final isSelected =
-                                  _selectedCompanies.contains(company);
-                              return CheckboxListTile(
-                                value: isSelected,
-                                title: Text(
-                                  company,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryDark,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                activeColor: AppColors.primaryDark,
-                                onChanged: (val) {
-                                  setSheetState(() {
-                                    if (val == true) {
-                                      _selectedCompanies.add(company);
-                                    } else {
-                                      _selectedCompanies.remove(company);
-                                    }
-                                  });
-                                  setState(() {});
-                                },
-                              );
-                            }).toList(),
-                          ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.applyBtn,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+      barrierDismissible: true,
+      barrierLabel:
+          MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        final panelWidth = min(size.width * 0.88, 420.0);
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: AppColors.background,
+            elevation: 12,
+            shadowColor: AppColors.primaryDark.withValues(alpha: 0.15),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox(
+              width: panelWidth,
+              height: size.height,
+              child: SafeArea(
+                left: false,
+                child: body(dialogContext),
               ),
-            );
-          },
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+          ),
+          child: child,
         );
       },
     );
   }
 
-  void _showGenericSheet(List<String> allGenerics, AppStrings l10n) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        String sheetSearch = '';
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            final visible = sheetSearch.isEmpty
-                ? allGenerics
-                : allGenerics
-                    .where((g) =>
-                        g.toLowerCase().contains(sheetSearch.toLowerCase()))
-                    .toList();
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.5,
-              maxChildSize: 0.85,
-              minChildSize: 0.3,
-              builder: (_, controller) => Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.divider,
-                      borderRadius: BorderRadius.circular(2),
+  void _showCompanySheet(List<String> allCompanies, AppStrings l10n) {
+    _showRightFilterPanel((dialogContext) {
+      String sheetSearch = '';
+      return StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final visible = sheetSearch.isEmpty
+              ? allCompanies
+              : allCompanies
+                  .where((c) =>
+                      c.toLowerCase().contains(sheetSearch.toLowerCase()))
+                  .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      color: AppColors.secondaryAccent,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          l10n.filterByGeneric,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
-                          ),
+                    Expanded(
+                      child: Text(
+                        l10n.filterByCompany,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryDark,
                         ),
-                        TextButton(
-                          onPressed: () {
-                            setSheetState(() {});
-                            setState(() => _selectedGenericNames.clear());
-                          },
-                          child: const Text(
-                            'Clear All',
-                            style: TextStyle(color: AppColors.secondaryAccent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.divider),
                       ),
-                      child: TextField(
-                        onChanged: (v) =>
-                            setSheetState(() => sheetSearch = v),
-                        decoration: InputDecoration(
-                          hintText: l10n.searchGenerics,
-                          hintStyle: TextStyle(
-                            color: AppColors.secondaryAccent
-                                .withValues(alpha: 0.6),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {});
+                        setState(() => _selectedCompanies.clear());
+                      },
+                      child: const Text(
+                        'Clear All',
+                        style: TextStyle(color: AppColors.secondaryAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: TextField(
+                    onChanged: (v) => setSheetState(() => sheetSearch = v),
+                    decoration: InputDecoration(
+                      hintText: l10n.searchCompanies,
+                      hintStyle: TextStyle(
+                        color: AppColors.secondaryAccent.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: const Icon(
+                        LucideIcons.search,
+                        color: AppColors.secondaryAccent,
+                        size: 18,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.divider),
+              Expanded(
+                child: visible.isEmpty
+                    ? Center(
+                        child: Text(
+                          l10n.noCompaniesFound,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
                             fontWeight: FontWeight.w500,
                           ),
-                          prefixIcon: const Icon(
-                            LucideIcons.search,
-                            color: AppColors.secondaryAccent,
-                            size: 18,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
                         ),
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 1, color: AppColors.divider),
-                  Expanded(
-                    child: visible.isEmpty
-                        ? Center(
-                            child: Text(
-                              l10n.noGenericsFound,
+                      )
+                    : ListView(
+                        children: visible.map((company) {
+                          final isSelected =
+                              _selectedCompanies.contains(company);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(
+                              company,
                               style: const TextStyle(
-                                color: AppColors.secondaryAccent,
-                                fontWeight: FontWeight.w500,
+                                color: AppColors.primaryDark,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          )
-                        : ListView(
-                            controller: controller,
-                            children: visible.map((generic) {
-                              final isSelected =
-                                  _selectedGenericNames.contains(generic);
-                              return CheckboxListTile(
-                                value: isSelected,
-                                title: Text(
-                                  generic,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryDark,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                activeColor: AppColors.primaryDark,
-                                onChanged: (val) {
-                                  setSheetState(() {
-                                    if (val == true) {
-                                      _selectedGenericNames.add(generic);
-                                    } else {
-                                      _selectedGenericNames.remove(generic);
-                                    }
-                                  });
-                                  setState(() {});
-                                },
-                              );
-                            }).toList(),
-                          ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.applyBtn,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
+                            activeColor: AppColors.primaryDark,
+                            onChanged: (val) {
+                              setSheetState(() {
+                                if (val == true) {
+                                  _selectedCompanies.add(company);
+                                } else {
+                                  _selectedCompanies.remove(company);
+                                }
+                              });
+                              setState(() {});
+                            },
+                          );
+                        }).toList(),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryDark,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.applyBtn,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            );
-          },
-        );
-      },
-    );
+            ],
+          );
+        },
+      );
+    });
+  }
+
+  void _showGenericSheet(List<String> allGenerics, AppStrings l10n) {
+    _showRightFilterPanel((dialogContext) {
+      String sheetSearch = '';
+      return StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final visible = sheetSearch.isEmpty
+              ? allGenerics
+              : allGenerics
+                  .where((g) =>
+                      g.toLowerCase().contains(sheetSearch.toLowerCase()))
+                  .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      color: AppColors.secondaryAccent,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
+                    ),
+                    Expanded(
+                      child: Text(
+                        l10n.filterByGeneric,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {});
+                        setState(() => _selectedGenericNames.clear());
+                      },
+                      child: const Text(
+                        'Clear All',
+                        style: TextStyle(color: AppColors.secondaryAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: TextField(
+                    onChanged: (v) => setSheetState(() => sheetSearch = v),
+                    decoration: InputDecoration(
+                      hintText: l10n.searchGenerics,
+                      hintStyle: TextStyle(
+                        color: AppColors.secondaryAccent.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: const Icon(
+                        LucideIcons.search,
+                        color: AppColors.secondaryAccent,
+                        size: 18,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.divider),
+              Expanded(
+                child: visible.isEmpty
+                    ? Center(
+                        child: Text(
+                          l10n.noGenericsFound,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        children: visible.map((generic) {
+                          final isSelected =
+                              _selectedGenericNames.contains(generic);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(
+                              generic,
+                              style: const TextStyle(
+                                color: AppColors.primaryDark,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            activeColor: AppColors.primaryDark,
+                            onChanged: (val) {
+                              setSheetState(() {
+                                if (val == true) {
+                                  _selectedGenericNames.add(generic);
+                                } else {
+                                  _selectedGenericNames.remove(generic);
+                                }
+                              });
+                              setState(() {});
+                            },
+                          );
+                        }).toList(),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryDark,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.applyBtn,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   void _toggleSelectAll(List<Product> filteredProducts) {
@@ -1248,118 +1267,104 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _showMedTypeSheet(List<String> types, AppStrings l10n) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.5,
-              maxChildSize: 0.85,
-              minChildSize: 0.3,
-              builder: (_, controller) => Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.divider,
-                      borderRadius: BorderRadius.circular(2),
+    _showRightFilterPanel((dialogContext) {
+      return StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      color: AppColors.secondaryAccent,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          l10n.filterByType,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setSheetState(() => _selectedMedTypes.clear());
-                            setState(() {});
-                          },
-                          child: const Text(
-                            'Clear All',
-                            style: TextStyle(color: AppColors.secondaryAccent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, color: AppColors.divider),
-                  Expanded(
-                    child: ListView(
-                      controller: controller,
-                      children: types.map((type) {
-                        final isSelected = _selectedMedTypes.contains(type);
-                        return CheckboxListTile(
-                          value: isSelected,
-                          title: Text(
-                            type,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          activeColor: AppColors.primaryDark,
-                          onChanged: (val) {
-                            setSheetState(() {
-                              if (val == true) {
-                                _selectedMedTypes.add(type);
-                              } else {
-                                _selectedMedTypes.remove(type);
-                              }
-                            });
-                            setState(() {});
-                          },
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.applyBtn,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
+                    Expanded(
+                      child: Text(
+                        l10n.filterByType,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() => _selectedMedTypes.clear());
+                        setState(() {});
+                      },
+                      child: const Text(
+                        'Clear All',
+                        style: TextStyle(color: AppColors.secondaryAccent),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-        );
-      },
-    );
+              const Divider(height: 1, color: AppColors.divider),
+              Expanded(
+                child: ListView(
+                  children: types.map((type) {
+                    final isSelected = _selectedMedTypes.contains(type);
+                    return CheckboxListTile(
+                      value: isSelected,
+                      title: Text(
+                        type,
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      activeColor: AppColors.primaryDark,
+                      onChanged: (val) {
+                        setSheetState(() {
+                          if (val == true) {
+                            _selectedMedTypes.add(type);
+                          } else {
+                            _selectedMedTypes.remove(type);
+                          }
+                        });
+                        setState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryDark,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.applyBtn,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 }
 
