@@ -18,6 +18,8 @@ import '../services/google_drive_auth.dart';
 import '../services/time_service.dart';
 import '../utils/inventory_alert_tiers.dart';
 import 'package:intl/intl.dart';
+import 'package:alarm/alarm.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Any UI that mutates product or batch data (including returns)
 /// should also trigger `POSProvider.loadProducts()` so the POS view
@@ -27,13 +29,11 @@ class BulkImportRecord {
   final Product product;
   final String? batchNumber;
   final DateTime expiryDate;
-  final double costPricePerPc;
 
   BulkImportRecord({
     required this.product,
     this.batchNumber,
     required this.expiryDate,
-    this.costPricePerPc = 0.0,
   });
 }
 
@@ -53,6 +53,7 @@ class AdminProvider extends ChangeNotifier {
   int _moderateExpiryDays = 60;
   int _expiryDelayMonths = 6; // Default to 6 months
   bool _showSupplierInfo = false;
+  bool _adminBiometricEnabled = false;
   int _defaultOrderBoxes = 100;
   List<String> _medicineTypes = [];
   static const List<String> defaultMedicineTypes = [
@@ -69,6 +70,12 @@ class AdminProvider extends ChangeNotifier {
     'Powder',
     'Suppository',
   ];
+
+  // Extra Reminder Alarm
+  bool _extraReminderEnabled = false;
+  List<int> _reminderDays = []; // 1 (Mon) to 7 (Sun)
+  TimeOfDay _reminderTime = const TimeOfDay(hour: 10, minute: 0);
+  String? _reminderAudioPath;
 
   // Google Drive Sync
   String? _googleDriveFileId;
@@ -93,6 +100,15 @@ class AdminProvider extends ChangeNotifier {
 
   AuthSession? _authSession;
 
+  /// Reloads the authentication session from storage.
+  /// Called after login or when tokens are rotated.
+  Future<void> reloadAuthSession() async {
+    developer.log("AdminProvider: Reloading auth session from storage...");
+    _authSession = await const AuthStorage().loadAuth();
+    notifyListeners();
+    developer.log("AdminProvider: Session reloaded. RefreshToken present: ${_authSession?.refreshToken.isNotEmpty}");
+  }
+
   bool get isAdminLoggedIn => _isAdminLoggedIn;
   AuthSession? get authSession => _authSession;
   List<Product> get allProducts => _products;
@@ -103,6 +119,7 @@ class AdminProvider extends ChangeNotifier {
   int get moderateExpiryDays => _moderateExpiryDays;
   int get expiryDelayMonths => _expiryDelayMonths;
   bool get showSupplierInfo => _showSupplierInfo;
+  bool get adminBiometricEnabled => _adminBiometricEnabled;
   int get defaultOrderBoxes => _defaultOrderBoxes;
   List<String> get medicineTypes => _medicineTypes;
 
@@ -111,6 +128,11 @@ class AdminProvider extends ChangeNotifier {
   DateTime? get lastSyncTime => _lastSyncTime;
   bool get isSyncing => _isSyncing;
   String? get syncError => _syncError;
+
+  bool get extraReminderEnabled => _extraReminderEnabled;
+  List<int> get reminderDays => _reminderDays;
+  TimeOfDay get reminderTime => _reminderTime;
+  String? get reminderAudioPath => _reminderAudioPath;
 
   // Product Filtering & Sorting Getters
   String get searchQuery => _productSearchQuery;
@@ -125,12 +147,23 @@ class AdminProvider extends ChangeNotifier {
       _selectedGenerics.isEmpty &&
       _selectedTypes.isEmpty;
 
-  List<String> get allCompanies =>
-      _products.map((p) => p.companyName ?? 'Unknown').toSet().toList()..sort();
-  List<String> get allGenerics =>
-      _products.map((p) => p.generic).toSet().toList()..sort();
   List<String> get allTypes =>
       _products.map((p) => p.medType ?? 'Tablet').toSet().toList()..sort();
+
+  Product? getProductByName(String name, {String? medType}) {
+    try {
+      return _products.firstWhere((p) {
+        final sameName =
+            p.name.trim().toLowerCase() == name.trim().toLowerCase();
+        if (medType != null) {
+          return sameName && (p.medType ?? 'Tablet') == medType;
+        }
+        return sameName;
+      });
+    } catch (_) {
+      return null;
+    }
+  }
 
   bool login(String pin) {
     if (pin == _currentPin) {
@@ -139,6 +172,12 @@ class AdminProvider extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  /// Call only after [BiometricAuthService.authenticate] succeeds.
+  void completeBiometricLogin() {
+    _isAdminLoggedIn = true;
+    notifyListeners();
   }
 
   void logout() {
@@ -154,6 +193,7 @@ class AdminProvider extends ChangeNotifier {
         loadProducts(notify: false),
         loadSales(notify: false),
       ]);
+      await fetchBackendAdminPin();
       notifyListeners();
       await checkForNotifications();
       await checkSubscriptionStatus();
@@ -246,27 +286,15 @@ class AdminProvider extends ChangeNotifier {
     _expiryDelayMonths = int.tryParse(settings['expiryDelayMonths'] ?? '') ?? 6;
     _clampExpiryThresholds();
     _showSupplierInfo = settings['showSupplierInfo'] == 'true';
+    _adminBiometricEnabled = settings['adminBiometricEnabled'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
 
     // Load auth session for user info
     _authSession = await const AuthStorage().loadAuth();
 
-    // Load PIN - try backend first if online, otherwise local
+    // Load local PIN
     _currentPin = settings['adminPin'] ?? '12345';
-    if (_authSession != null) {
-      try {
-        final backendPin = await const AuthService().getAdminPin(
-          _authSession!.licenseToken,
-        );
-        if (backendPin != _currentPin) {
-          _currentPin = backendPin;
-          await _db.saveSetting('adminPin', backendPin);
-        }
-      } catch (e) {
-        developer.log("Failed to fetch admin PIN from backend", error: e);
-      }
-    }
 
     // Load read notification IDs
     final readLowStockStr = settings['readLowStockIds'] ?? '';
@@ -298,7 +326,70 @@ class AdminProvider extends ChangeNotifier {
       _lastSyncTime = DateTime.tryParse(lastSyncStr);
     }
 
+    _extraReminderEnabled = (await _db.getSetting('extraReminderEnabled')) == 'true';
+    final daysStr = await _db.getSetting('reminderDays') ?? '';
+    _reminderDays = daysStr.split(',').where((s) => s.isNotEmpty).map(int.parse).toList();
+    final timeStr = await _db.getSetting('reminderTime') ?? '10:00';
+    final parts = timeStr.split(':');
+    if (parts.length == 2) {
+      _reminderTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    _reminderAudioPath = await _db.getSetting('reminderAudioPath');
+
     if (notify) notifyListeners();
+  }
+
+  /// Secure Just-In-Time fetch of Admin PIN from backend
+  Future<void> fetchBackendAdminPin() async {
+    if (_authSession == null) return;
+    
+    bool needRetry = false;
+    try {
+      final backendPin = await const AuthService().getAdminPin(
+        _authSession!.licenseToken,
+      );
+      if (backendPin != _currentPin) {
+        _currentPin = backendPin;
+        await _db.saveSetting('adminPin', backendPin);
+      }
+    } on AuthException catch (e) {
+      if (e.statusCode == 401) {
+        needRetry = true;
+      } else {
+        developer.log("Failed to fetch admin PIN from backend", error: e);
+      }
+    } catch (e) {
+      developer.log("Failed to fetch admin PIN from backend", error: e);
+    }
+
+    if (needRetry) {
+      try {
+        // Attempt JWT Refresh
+        developer.log("JWT expired, attempting auto-refresh...");
+        final result = await const AuthService().refreshJwtToken(
+          _authSession!.refreshToken,
+        );
+        
+        // Update storage (this saves both the new license_token and the new rotated refresh_token)
+        await const AuthStorage().saveAuth(result);
+        
+        // Reload in-memory auth session so UI uses the new tokens
+        _authSession = await const AuthStorage().loadAuth();
+        notifyListeners();
+
+        // Retry the PIN fetch with the fresh token
+        final backendPin = await const AuthService().getAdminPin(
+          _authSession!.licenseToken,
+        );
+        if (backendPin != _currentPin) {
+          _currentPin = backendPin;
+          await _db.saveSetting('adminPin', backendPin);
+        }
+        developer.log("JWT auto-refresh and retry successful.");
+      } catch (retryException) {
+        developer.log("JWT retry failure on admin PIN", error: retryException);
+      }
+    }
   }
 
   void _clampExpiryThresholds() {
@@ -346,14 +437,13 @@ class AdminProvider extends ChangeNotifier {
       return;
     }
 
-    // Attempt a silent token refresh. On failure fall back to the stored token
-    // (may still be valid if it hasn't expired yet) rather than aborting.
-    final refreshed = await refreshGoogleAccessToken();
-    final googleToken = refreshed ?? storedToken;
-    if (refreshed != null) {
-      developer.log("Drive sync: access token refreshed successfully.");
-    } else {
-      developer.log("Drive sync: silent refresh failed, using stored token.");
+    // Attempt a silent token refresh. On failure, we no longer fall back to the
+    // stored token, as it is almost certainly expired (tokens last 1 hour).
+    final googleToken = await refreshGoogleAccessToken();
+    if (googleToken == null) {
+      _syncError = "Google Drive session expired. Please reconnect in Settings.";
+      notifyListeners();
+      return;
     }
 
     _isSyncing = true;
@@ -392,7 +482,12 @@ class AdminProvider extends ChangeNotifier {
       await saveSetting('lastSyncTime', _lastSyncTime!.toIso8601String());
     } catch (e, stack) {
       developer.log("Drive Sync Exception", error: e, stackTrace: stack);
-      _syncError = e.toString();
+      final errMsg = e.toString().toLowerCase();
+      if (errMsg.contains('401') || errMsg.contains('unauthorized') || errMsg.contains('403')) {
+        _syncError = "Google Drive session expired. Please sign in again.";
+      } else {
+        _syncError = e.toString();
+      }
     } finally {
       _isSyncing = false;
       notifyListeners();
@@ -467,7 +562,6 @@ class AdminProvider extends ChangeNotifier {
     required int strips,
     required int pcs,
     required int pcsPerStrip,
-    double costPricePerPc = 0.0,
   }) async {
     final totalPcs = (strips * pcsPerStrip) + pcs;
     if (totalPcs <= 0) return;
@@ -482,7 +576,6 @@ class AdminProvider extends ChangeNotifier {
       initialPieces: totalPcs,
       remainingPieces: totalPcs,
       dateAdded: DateTime.now(),
-      costPricePerPc: costPricePerPc,
     );
 
     try {
@@ -495,12 +588,6 @@ class AdminProvider extends ChangeNotifier {
       rethrow;
     }
   }
-
-  /// Fetches the buying price per piece from the most recently added batch
-  /// for a product. Used to pre-fill the buying price in RestockScreen.
-  Future<double> getLastBatchCostPrice(String productId) =>
-      _db.getLastBatchCostPrice(productId);
-
 
   Future<void> deleteBatch(String batchId) async {
     try {
@@ -588,7 +675,9 @@ class AdminProvider extends ChangeNotifier {
               await File(dbPath).writeAsBytes(downloadResponse.bodyBytes);
               await loadData();
             } else {
-              developer.log("Download failed with status ${downloadResponse.statusCode}");
+              developer.log(
+                "Download failed with status ${downloadResponse.statusCode}",
+              );
             }
           }
         }
@@ -718,7 +807,6 @@ class AdminProvider extends ChangeNotifier {
           initialPieces: totalPcs,
           remainingPieces: totalPcs,
           dateAdded: now,
-          costPricePerPc: record.costPricePerPc,
         ),
       );
     }
@@ -788,14 +876,6 @@ class AdminProvider extends ChangeNotifier {
     return _sales
         .where((s) => s.date.isAfter(todayStart) && s.effectiveQuantity > 0)
         .length;
-  }
-
-  double get totalProfitToday {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    return _sales
-        .where((s) => s.date.isAfter(todayStart))
-        .fold(0.0, (sum, s) => sum + s.grossProfit);
   }
 
   double get weeklySales {
@@ -985,8 +1065,138 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<SaleRecord>> fetchSalesInRange(DateTime start, DateTime end) =>
-      _db.getSalesInRange(start, end);
+  // --- EXTRA REMINDER ALARM LOGIC ---
+
+  Future<void> toggleExtraReminder(bool enabled) async {
+    _extraReminderEnabled = enabled;
+    await saveSetting('extraReminderEnabled', enabled.toString());
+    if (enabled) {
+      await scheduleAllAlarms();
+    } else {
+      await cancelAllAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateReminderDays(List<int> days) async {
+    _reminderDays = days;
+    await saveSetting('reminderDays', days.join(','));
+    if (_extraReminderEnabled) {
+      await scheduleAllAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateReminderTime(TimeOfDay time) async {
+    _reminderTime = time;
+    await saveSetting('reminderTime', '${time.hour}:${time.minute}');
+    if (_extraReminderEnabled) {
+      await scheduleAllAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateReminderAudioPath(String? path) async {
+    if (path == null) {
+      _reminderAudioPath = null;
+    } else {
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final fileName = path.split(Platform.isWindows ? '\\' : '/').last;
+        final newPath = '${appDir.path}/$fileName';
+        final file = File(path);
+        
+        // Only copy if it's a new path and not already in app documents
+        if (path != newPath) {
+          await file.copy(newPath);
+          _reminderAudioPath = newPath;
+        } else {
+          _reminderAudioPath = path;
+        }
+      } catch (e) {
+        developer.log("Error copying audio file: $e");
+        _reminderAudioPath = path; // Fallback to original path if copy fails
+      }
+    }
+    await saveSetting('reminderAudioPath', _reminderAudioPath ?? '');
+    if (_extraReminderEnabled) {
+      await scheduleAllAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> scheduleAllAlarms() async {
+    await cancelAllAlarms();
+    if (!_extraReminderEnabled || _reminderDays.isEmpty) return;
+
+    for (final day in _reminderDays) {
+      final now = DateTime.now();
+      DateTime scheduledDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        _reminderTime.hour,
+        _reminderTime.minute,
+      );
+
+      // Find the next occurrence of this day
+      // now.weekday is 1-7 (Mon-Sun)
+      int daysUntil = day - now.weekday;
+      if (daysUntil < 0 || (daysUntil == 0 && scheduledDate.isBefore(now))) {
+        daysUntil += 7;
+      }
+      scheduledDate = scheduledDate.add(Duration(days: daysUntil));
+
+      final alarmSettings = AlarmSettings(
+        id: day, // Unique ID per weekday 1-7
+        dateTime: scheduledDate,
+        assetAudioPath: _reminderAudioPath ?? 'assets/alarm.mp3',
+        loopAudio: true,
+        vibrate: true,
+        notificationSettings: const NotificationSettings(
+          title: 'Stock & Expiry Reminder',
+          body: 'Check your inventory for low stock or expiring meds.',
+          stopButton: 'Dismiss',
+        ),
+        volumeSettings: VolumeSettings.fade(
+          volume: 1.0,
+          fadeDuration: const Duration(seconds: 3),
+        ),
+        warningNotificationOnKill: true,
+        androidFullScreenIntent: true,
+      );
+
+      await Alarm.set(alarmSettings: alarmSettings);
+      developer.log("Scheduled alarm for day $day at $scheduledDate");
+    }
+  }
+
+  Future<void> cancelAllAlarms() async {
+    for (int i = 1; i <= 7; i++) {
+      await Alarm.stop(i);
+    }
+  }
+
+  /// Triggers an interactive Google Sign-In to refresh the session token.
+  Future<void> reconnectGoogle() async {
+    try {
+      final account = await googleSignInClient.signIn();
+      if (account == null) return; // User canceled
+
+      final auth = await account.authentication;
+      final token = auth.accessToken;
+      if (token != null && token.isNotEmpty) {
+        await const AuthStorage().setGoogleAccessToken(token);
+        _syncError = null;
+        notifyListeners();
+        // Immediately try a sync with the fresh token
+        await scheduleSync(immediate: true);
+      }
+    } catch (e) {
+      _syncError = "Failed to sign in to Google: $e";
+      notifyListeners();
+    }
+  }
 }
 
 class _TopSellingAcc {

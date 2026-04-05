@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../models/alarm_slot.dart';
+import '../../services/biometric_auth_service.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -199,8 +202,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         activeThumbColor: AppColors.primaryDark,
                         contentPadding: EdgeInsets.zero,
                       ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: Text(
+                          l10n.expandOptionalFields,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          l10n.expandOptionalFieldsHelper,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                        value: context.watch<AdminProvider>().expandOptionalFields,
+                        onChanged: (val) {
+                          context.read<AdminProvider>().saveSetting(
+                            'expandOptionalFields',
+                            val.toString(),
+                          );
+                        },
+                        activeThumbColor: AppColors.primaryDark,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  _buildSecuritySection(context),
+                  const SizedBox(height: 24),
+                  _buildStockReminderSection(context),
                   const SizedBox(height: 24),
                   _buildMedicineTypesSection(context),
                   const SizedBox(height: 24),
@@ -342,6 +376,343 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildStockReminderSection(BuildContext context) {
+    return Consumer<AdminProvider>(
+      builder: (context, admin, child) {
+        final isEnabled = admin.stockReminderMasterEnabled;
+
+        return _buildSectionCard(
+      title: 'Persistent Stock Reminders',
+      icon: LucideIcons.alarmClock,
+      children: [
+        SwitchListTile(
+          title: const Text(
+            'Enable Alarm Reminders',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+              fontSize: 14,
+            ),
+          ),
+          subtitle: const Text(
+            'Alarms will ring like a normal alarm clock even if the app is closed. Use this to ensure you check low stock and expiring items.',
+            style: TextStyle(
+              color: AppColors.secondaryAccent,
+              fontSize: 12,
+            ),
+          ),
+          value: isEnabled,
+          onChanged: (val) {
+            admin.toggleStockReminderMaster(val);
+          },
+          activeThumbColor: AppColors.primaryDark,
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (isEnabled) ...[
+          const Divider(height: 32, color: AppColors.divider),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Scheduled Alarms',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryDark,
+                  fontSize: 14,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _showAddAlarmDialog(context),
+                icon: const Icon(LucideIcons.plus, size: 16),
+                label: const Text('Add Alarm'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (admin.alarmSlots.isEmpty)
+            const Text(
+              'No alarms set. Add one above.',
+              style: TextStyle(color: AppColors.secondaryAccent, fontSize: 13),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: admin.alarmSlots.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final slot = admin.alarmSlots[index];
+                return _buildAlarmSlotCard(context, slot);
+              },
+            ),
+          const Divider(height: 32, color: AppColors.divider),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Alarm Ringtone',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      admin.customRingtonePath != null
+                          ? p.basename(admin.customRingtonePath!)
+                          : 'Default Device Alarm Sound',
+                      style: const TextStyle(
+                        color: AppColors.secondaryAccent,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton(
+                onPressed: () async {
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(
+                    type: FileType.audio,
+                  );
+                  if (result != null && result.files.single.path != null) {
+                    admin.setCustomRingtone(result.files.single.path);
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  side: const BorderSide(color: AppColors.primaryDark),
+                ),
+                child: const Text('Change'),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+    });
+  }
+
+  Widget _buildAlarmSlotCard(BuildContext context, AlarmSlot slot) {
+    // Format time
+    final timeStr = '${slot.time.hour.toString().padLeft(2, '0')}:${slot.time.minute.toString().padLeft(2, '0')}';
+    final daysStr = slot.days.map((d) {
+      switch (d) {
+        case 1: return 'Mon';
+        case 2: return 'Tue';
+        case 3: return 'Wed';
+        case 4: return 'Thu';
+        case 5: return 'Fri';
+        case 6: return 'Sat';
+        case 7: return 'Sun';
+        default: return '';
+      }
+    }).join(', ');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: slot.isEnabled ? AppColors.primaryDark.withValues(alpha: 0.5) : AppColors.divider,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        title: Text(
+          timeStr,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: slot.isEnabled ? AppColors.primaryDark : AppColors.secondaryAccent,
+          ),
+        ),
+        subtitle: Text(
+          daysStr,
+          style: TextStyle(
+            color: slot.isEnabled ? AppColors.primaryDark : AppColors.secondaryAccent,
+            fontSize: 12,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: slot.isEnabled,
+              onChanged: (val) {
+                final upd = slot.copyWith(isEnabled: val);
+                context.read<AdminProvider>().saveAlarmSlot(upd);
+              },
+              activeThumbColor: AppColors.primaryDark,
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.trash2, color: Colors.red, size: 20),
+              onPressed: () {
+                context.read<AdminProvider>().deleteAlarmSlot(slot.id);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddAlarmDialog(BuildContext context) async {
+    TimeOfDay selectedTime = TimeOfDay.now();
+    Set<int> selectedDays = {1, 2, 3, 4, 5, 6, 7}; // Default all days
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Add New Alarm',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x, color: AppColors.secondaryAccent),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: AppColors.divider),
+                      ),
+                      title: const Text('Time'),
+                      trailing: Text(
+                        '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                      onTap: () async {
+                        final res = await showTimePicker(
+                          context: ctx,
+                          initialTime: selectedTime,
+                        );
+                        if (res != null) {
+                          setModalState(() => selectedTime = res);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Repeat Days',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [1, 2, 3, 4, 5, 6, 7].map((day) {
+                        final isSel = selectedDays.contains(day);
+                        String label = '';
+                        switch (day) {
+                          case 1: label = 'Mon'; break;
+                          case 2: label = 'Tue'; break;
+                          case 3: label = 'Wed'; break;
+                          case 4: label = 'Thu'; break;
+                          case 5: label = 'Fri'; break;
+                          case 6: label = 'Sat'; break;
+                          case 7: label = 'Sun'; break;
+                        }
+                        return FilterChip(
+                          label: Text(label),
+                          selected: isSel,
+                          selectedColor: AppColors.primaryDark.withValues(alpha: 0.2),
+                          checkmarkColor: AppColors.primaryDark,
+                          onSelected: (val) {
+                            setModalState(() {
+                              if (val) {
+                                selectedDays.add(day);
+                              } else {
+                                selectedDays.remove(day);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: selectedDays.isEmpty
+                          ? null
+                          : () {
+                              final slot = AlarmSlot(
+                                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                time: selectedTime,
+                                days: selectedDays,
+                              );
+                              context.read<AdminProvider>().saveAlarmSlot(slot);
+                              Navigator.pop(ctx);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save Alarm',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -884,6 +1255,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSecuritySection(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    return _buildSectionCard(
+      title: l10n.adminAccessSecurity,
+      icon: LucideIcons.fingerprint,
+      children: const [
+        _BiometricAdminSwitch(),
+      ],
+    );
+  }
+}
+
+class _BiometricAdminSwitch extends StatefulWidget {
+  const _BiometricAdminSwitch();
+
+  @override
+  State<_BiometricAdminSwitch> createState() => _BiometricAdminSwitchState();
+}
+
+class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
+  bool? _hardwareReady;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkHardware();
+  }
+
+  Future<void> _checkHardware() async {
+    final ok = await BiometricAuthService.instance.isReadyForUse();
+    if (mounted) setState(() => _hardwareReady = ok);
+  }
+
+  Future<void> _onToggle(bool wantEnabled) async {
+    final l10n = context.read<LanguageProvider>().strings;
+    final admin = context.read<AdminProvider>();
+
+    if (_hardwareReady != true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.biometricNotAvailable,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final prompt = wantEnabled
+        ? l10n.biometricPromptEnable
+        : l10n.biometricPromptDisable;
+    final ok = await BiometricAuthService.instance.authenticate(
+      localizedReason: prompt,
+    );
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.biometricAuthFailed,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await admin.saveSetting('adminBiometricEnabled', wantEnabled.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    final admin = context.watch<AdminProvider>();
+    final ready = _hardwareReady == true;
+    final checking = _hardwareReady == null;
+
+    return SwitchListTile(
+      title: Text(
+        l10n.biometricUnlockAdmin,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryDark,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        checking
+            ? '…'
+            : (ready
+                ? l10n.biometricUnlockAdminHelper
+                : l10n.biometricNotAvailable),
+        style: const TextStyle(
+          color: AppColors.secondaryAccent,
+          fontSize: 12,
+        ),
+      ),
+      value: admin.adminBiometricEnabled,
+      onChanged: checking || !ready
+          ? null
+          : (v) => _onToggle(v),
+      activeThumbColor: AppColors.primaryDark,
+      contentPadding: EdgeInsets.zero,
     );
   }
 }

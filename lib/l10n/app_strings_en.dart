@@ -749,6 +749,43 @@ class AppStringsEn implements AppStrings {
   @override
   String get minFourDigits => 'Min 4 digits';
   @override
+  String get adminAccessSecurity => 'Admin access';
+  @override
+  String get biometricUnlockAdmin => 'Unlock admin with biometrics';
+  @override
+  String get biometricUnlockAdminHelper =>
+      'Use fingerprint, Face ID, or your device’s biometric to open the admin portal quickly. PIN stays available as a backup.';
+  @override
+  String get biometricNotAvailable =>
+      'Biometrics are not available or not set up on this device.';
+  @override
+  String get biometricPromptEnable =>
+      'Confirm with your fingerprint or face to turn on biometric admin unlock.';
+  @override
+  String get biometricPromptDisable =>
+      'Confirm with your fingerprint or face to turn off biometric admin unlock.';
+  @override
+  String get biometricAuthFailed =>
+      'Biometric authentication did not succeed.';
+  @override
+  String get adminLoginTitle => 'Admin login';
+  @override
+  String get adminLoginEnterPin => 'Enter admin PIN to continue';
+  @override
+  String get adminLoginWrongPin => 'Wrong PIN. Try again.';
+  @override
+  String get adminLoginPinEmpty => 'Please enter the PIN';
+  @override
+  String get adminLoginBtn => 'Login';
+  @override
+  String get biometricUnlockReason => 'Unlock admin portal';
+  @override
+  String get biometricUseFace => 'Use Face ID';
+  @override
+  String get biometricUseFingerprint => 'Use fingerprint';
+  @override
+  String get biometricUseGeneric => 'Use biometrics';
+  @override
   String get passwordSet => 'Password set successfully!';
   @override
   String get adminRole => 'Admin';

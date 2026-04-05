@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
+import '../l10n/app_strings.dart';
 import '../utils/colors.dart';
 import '../providers/admin_provider.dart';
-import 'package:provider/provider.dart';
+import '../providers/language_provider.dart';
+import '../services/biometric_auth_service.dart';
 
 class AdminLoginDialog extends StatefulWidget {
   const AdminLoginDialog({super.key});
@@ -15,6 +19,82 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
   final TextEditingController _pinController = TextEditingController();
   String? _errorText;
   bool _obscure = true;
+  bool _biometricReady = false;
+  bool _biometricChecked = false;
+  String _biometricButtonLabel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareBiometricUi();
+  }
+
+  Future<void> _prepareBiometricUi() async {
+    final admin = context.read<AdminProvider>();
+    if (!admin.adminBiometricEnabled) {
+      if (mounted) {
+        setState(() {
+          _biometricChecked = true;
+          _biometricReady = false;
+        });
+      }
+      return;
+    }
+
+    final ready = await BiometricAuthService.instance.isReadyForUse();
+    List<BiometricType> types = [];
+    if (ready) {
+      types = await BiometricAuthService.instance.getEnrolledTypes();
+    }
+    if (!mounted) return;
+    final l10n = context.read<LanguageProvider>().strings;
+    setState(() {
+      _biometricChecked = true;
+      _biometricReady = ready;
+      _biometricButtonLabel = _labelForBiometricTypes(types, l10n);
+    });
+
+    if (ready) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _tryBiometricLogin(auto: true);
+      });
+    }
+  }
+
+  static String _labelForBiometricTypes(
+    List<BiometricType> types,
+    AppStrings l10n,
+  ) {
+    if (types.contains(BiometricType.face)) return l10n.biometricUseFace;
+    if (types.contains(BiometricType.fingerprint)) {
+      return l10n.biometricUseFingerprint;
+    }
+    if (types.contains(BiometricType.iris)) return l10n.biometricUseGeneric;
+    return l10n.biometricUseGeneric;
+  }
+
+  Future<void> _tryBiometricLogin({bool auto = false}) async {
+    final l10n = context.read<LanguageProvider>().strings;
+    final ok = await BiometricAuthService.instance.authenticate(
+      localizedReason: l10n.biometricUnlockReason,
+    );
+    if (!mounted) return;
+    if (ok) {
+      context.read<AdminProvider>().completeBiometricLogin();
+      Navigator.pop(context, true);
+    } else if (!auto) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.biometricAuthFailed,
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -22,23 +102,29 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  void _submitPin() {
+    final l10n = context.read<LanguageProvider>().strings;
     final pin = _pinController.text.trim();
     if (pin.isEmpty) {
-      setState(() => _errorText = 'Please enter the PIN');
+      setState(() => _errorText = l10n.adminLoginPinEmpty);
       return;
     }
     final admin = context.read<AdminProvider>();
     if (admin.login(pin)) {
       Navigator.pop(context, true);
     } else {
-      setState(() => _errorText = 'Wrong PIN. Try again.');
+      setState(() => _errorText = l10n.adminLoginWrongPin);
       _pinController.clear();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    final admin = context.watch<AdminProvider>();
+    final showBiometric =
+        admin.adminBiometricEnabled && _biometricChecked && _biometricReady;
+
     return Dialog(
       backgroundColor: AppColors.background,
       shape: RoundedRectangleBorder(
@@ -50,7 +136,6 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Lock icon
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -64,9 +149,9 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Admin Login',
-              style: TextStyle(
+            Text(
+              l10n.adminLoginTitle,
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: AppColors.primaryDark,
@@ -74,22 +159,52 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Enter admin PIN to continue',
-              style: TextStyle(
+            Text(
+              l10n.adminLoginEnterPin,
+              style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.secondaryAccent,
                 fontWeight: FontWeight.w500,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            // PIN field
+            if (showBiometric) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _tryBiometricLogin(auto: false),
+                  icon: const Icon(LucideIcons.fingerprint, size: 20),
+                  label: Text(
+                    _biometricButtonLabel.isEmpty
+                        ? l10n.biometricUseGeneric
+                        : _biometricButtonLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: const BorderSide(
+                      color: AppColors.primaryDark,
+                      width: 2,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
             TextField(
               controller: _pinController,
               obscureText: _obscure,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              autofocus: true,
+              autofocus: !showBiometric,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -135,10 +250,9 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
-              onSubmitted: (_) => _submit(),
+              onSubmitted: (_) => _submitPin(),
             ),
             const SizedBox(height: 24),
-            // Buttons
             Row(
               children: [
                 Expanded(
@@ -154,9 +268,9 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(
+                    child: Text(
+                      l10n.cancelBtn,
+                      style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -167,7 +281,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _submit,
+                    onPressed: _submitPin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryDark,
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -175,9 +289,9 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(
+                    child: Text(
+                      l10n.adminLoginBtn,
+                      style: const TextStyle(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

@@ -757,6 +757,43 @@ class AppStringsBn implements AppStrings {
   @override
   String get minFourDigits => 'কমপক্ষে ৪ ডিজিট';
   @override
+  String get adminAccessSecurity => 'অ্যাডমিন প্রবেশ';
+  @override
+  String get biometricUnlockAdmin => 'বায়োমেট্রিক দিয়ে অ্যাডমিন খুলুন';
+  @override
+  String get biometricUnlockAdminHelper =>
+      'অ্যাডমিন পোর্টাল দ্রুত খুলতে আঙুলের ছাপ, ফেস আইডি বা ডিভাইসের বায়োমেট্রিক ব্যবহার করুন। ব্যাকআপ হিসেবে পিন থাকবে।';
+  @override
+  String get biometricNotAvailable =>
+      'এই ডিভাইসে বায়োমেট্রিক নেই বা সেটআপ করা নেই।';
+  @override
+  String get biometricPromptEnable =>
+      'বায়োমেট্রিক অ্যাডমিন আনলক চালু করতে আঙুলের ছাপ বা মুখ দিয়ে নিশ্চিত করুন।';
+  @override
+  String get biometricPromptDisable =>
+      'বায়োমেট্রিক অ্যাডমিন আনলক বন্ধ করতে আঙুলের ছাপ বা মুখ দিয়ে নিশ্চিত করুন।';
+  @override
+  String get biometricAuthFailed =>
+      'বায়োমেট্রিক যাচাইকরণ সফল হয়নি।';
+  @override
+  String get adminLoginTitle => 'অ্যাডমিন লগইন';
+  @override
+  String get adminLoginEnterPin => 'চালিয়ে যেতে অ্যাডমিন পিন লিখুন';
+  @override
+  String get adminLoginWrongPin => 'ভুল পিন। আবার চেষ্টা করুন।';
+  @override
+  String get adminLoginPinEmpty => 'পিন লিখুন';
+  @override
+  String get adminLoginBtn => 'লগইন';
+  @override
+  String get biometricUnlockReason => 'অ্যাডমিন পোর্টাল আনলক করুন';
+  @override
+  String get biometricUseFace => 'ফেস আইডি ব্যবহার করুন';
+  @override
+  String get biometricUseFingerprint => 'আঙুলের ছাপ ব্যবহার করুন';
+  @override
+  String get biometricUseGeneric => 'বায়োমেট্রিক ব্যবহার করুন';
+  @override
   String get passwordSet => 'পাসওয়ার্ড সফলভাবে তৈরি হয়েছে!';
   @override
   String get adminRole => 'প্রশাসক';

@@ -46,6 +46,8 @@ dependencies:
   webview_flutter: ^4.10.0
   flutter_secure_storage: ^9.2.2
   connectivity_plus: ^6.1.1
+  android_alarm_manager_plus: ^5.0.0
+  local_auth: ^3.0.1
 
 
 dependency_overrides:
