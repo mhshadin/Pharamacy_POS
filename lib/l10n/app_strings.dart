@@ -254,6 +254,9 @@ abstract class AppStrings {
   String get defaultExpiryDelayHelper;
   String get showSupplierInfo;
   String get showSupplierInfoHelper;
+  String get expandOptionalFields;
+  String get expandOptionalFieldsHelper;
+  String get optionalDetails;
   String get saveSettings;
   String get settingsSaved;
   String get expiryOrderError;
@@ -461,6 +464,8 @@ abstract class AppStrings {
   String get editThisRow;
   String get deleteThisRow;
   String get subscriptionTitle;
+  String subscriptionRenewalDaysLeft(int daysRemaining);
+  String get subscriptionRenewalUnavailable;
   String get subscribeBtn;
   String get currentPlan;
   String get expiresOn;
@@ -608,4 +613,30 @@ abstract class AppStrings {
   String get enterCodeHere;
   String get getStartedSubscription;
   String get epsSafePayment;
+
+  // ── Missing Home / Drawer Strings ─────────────────
+  String get hide;
+  String get manual;
+  String get ocr;
+  String get voice;
+  String get scannerActiveExpand;
+  String get scannerPausedExpand;
+  String get cameraPaused;
+  String get tapToResume;
+  String get tapScannerToPauseResume;
+  String get scannerPausedTapToResume;
+  String get collapse;
+  String get cartIsEmpty;
+  String get scanItemToBegin;
+  String get totalPayable;
+  String get checkout;
+  String get itemWord;
+  String get itemsWord;
+  String get navHome;
+  String get navManagement;
+  String get navInventory;
+  String get driveBackupNotSynced;
+  String get driveBackupSyncing;
+  String get driveBackupFailed;
+  String syncedAt(String time);
 }

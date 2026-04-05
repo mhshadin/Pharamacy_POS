@@ -12,8 +12,8 @@ import 'add_product_screen.dart';
 import 'sales_report_screen.dart';
 import 'expiring_soon_screen.dart';
 import 'low_stock_screen.dart';
-import 'package:intl/intl.dart';
 import 'returns_screen.dart';
+import '../../services/auth_storage.dart';
 import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
@@ -31,6 +31,7 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // Navigation stack: [0] is always dashboard at the bottom
   final List<int> _navStack = [0];
+  bool _salesReportInitialToday = false;
 
   int get _currentIndex => _navStack.last;
 
@@ -48,14 +49,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _NavItemData(icon: LucideIcons.user, labelKey: (l10n) => l10n.navProfile),                 // 10
   ];
 
-  void _navigateTo(int index, {bool fromDrawer = false}) {
-    if (fromDrawer) Navigator.pop(context); // close drawer
-    if (index == _currentIndex) return;
+  void _navigateTo(
+    int index, {
+    bool isMenuNavigation = false,
+    bool closeDrawer = false,
+    bool openSalesReportWithTodayFilter = false,
+  }) {
+    if (closeDrawer) Navigator.pop(context);
+    if (!isMenuNavigation && index == _currentIndex) return;
+
     setState(() {
-      if (index == 0) {
-        // Going to dashboard clears the stack
+      if (index == 6) {
+        _salesReportInitialToday = openSalesReportWithTodayFilter;
+      }
+      if (index == 0 || isMenuNavigation) {
+        // Going to dashboard or navigating via menu clears the internal history
         _navStack.clear();
         _navStack.add(0);
+        if (index != 0) {
+          _navStack.add(index);
+        }
       } else {
         // Remove any existing occurrence so we don't duplicate
         _navStack.remove(index);
@@ -88,9 +101,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 5:
         return const ReturnsScreen();
       case 6:
-        return const SalesReportScreen();
+        return SalesReportScreen(
+          onNavigateToProfit: () => _navigateTo(7),
+          initialTransactionFilterToday: _salesReportInitialToday,
+        );
       case 7:
-        return const ProfitReportScreen();
+        return const ProfitReportScreen(showAppBar: false);
       case 8:
         return const TopProductsScreen();
       case 9:
@@ -257,7 +273,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               itemCount: _navItemsData.length,
               itemBuilder: (_, idx) =>
-                  _buildNavTile(idx, l10n, onTap: () => _navigateTo(idx)),
+                  _buildNavTile(idx, l10n, onTap: () => _navigateTo(idx, isMenuNavigation: true)),
             ),
           ),
           const Divider(color: AppColors.secondaryAccent, height: 1),
@@ -337,7 +353,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 itemBuilder: (_, idx) => _buildNavTile(
                   idx,
                   l10n,
-                  onTap: () => _navigateTo(idx, fromDrawer: true),
+                  onTap: () => _navigateTo(idx, isMenuNavigation: true, closeDrawer: true),
                 ),
               ),
             ),
@@ -400,38 +416,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       color: AppColors.primaryDark,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryDark.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.calendar,
-                          size: 14,
-                          color: AppColors.primaryDark,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          l10n.lastUpdated(
-                            DateFormat('MMM dd, yyyy • hh:mm a', Provider.of<LanguageProvider>(context, listen: false).currentLocale)
-                                .format(DateTime.now()),
-                          ),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Last-updated date/time chip (hidden per product request)
+                  // Container(
+                  //   padding: const EdgeInsets.symmetric(
+                  //     horizontal: 12,
+                  //     vertical: 6,
+                  //   ),
+                  //   decoration: BoxDecoration(
+                  //     color: AppColors.primaryDark.withValues(alpha: 0.1),
+                  //     borderRadius: BorderRadius.circular(20),
+                  //   ),
+                  //   child: Row(
+                  //     mainAxisSize: MainAxisSize.min,
+                  //     children: [
+                  //       const Icon(
+                  //         LucideIcons.calendar,
+                  //         size: 14,
+                  //         color: AppColors.primaryDark,
+                  //       ),
+                  //       const SizedBox(width: 8),
+                  //       Text(
+                  //         l10n.lastUpdated(
+                  //           DateFormat('MMM dd, yyyy • hh:mm a',
+                  //                   Provider.of<LanguageProvider>(context, listen: false).currentLocale)
+                  //               .format(DateTime.now()),
+                  //         ),
+                  //         style: const TextStyle(
+                  //           fontSize: 13,
+                  //           fontWeight: FontWeight.bold,
+                  //           color: AppColors.primaryDark,
+                  //         ),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -455,6 +473,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: LucideIcons.dollarSign,
                           iconColor: AppColors.success,
                           iconBg: AppColors.success.withValues(alpha: 0.1),
+                          onTap: () => _navigateTo(
+                            6,
+                            openSalesReportWithTodayFilter: true,
+                          ),
                         ),
                       ),
                       SizedBox(
@@ -497,7 +519,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         width: cardWidth,
                         child: _StatCard(
                           title: l10n.profitReport,
-                          value: '${admin.totalProfitToday.toStringAsFixed(2)}',
+                          value: admin.totalProfitToday.toStringAsFixed(2),
                           isTaka: true,
                           icon: LucideIcons.lineChart,
                           iconColor: AppColors.primaryDark,
@@ -505,6 +527,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             alpha: 0.1,
                           ),
                           onTap: () => _navigateTo(7),
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _SubscriptionRenewalCard(
+                          l10n: l10n,
+                          session: admin.authSession,
+                          onTap: () => _navigateTo(10),
                         ),
                       ),
                     ],
@@ -520,16 +550,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     (admin.lowStockProducts.isEmpty &&
                         admin.expiringSoonProducts.isEmpty)
                     ? Padding(
-                        padding: const EdgeInsets.all(24.0),
+                        padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 24.0),
                         child: Center(
-                          child: Text(
-                            l10n.allStockGood,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.secondaryAccent,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  LucideIcons.checkCircle2,
+                                  size: 32,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                l10n.allStockGood,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.primaryDark,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.noLowStockExpiring,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.secondaryAccent,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       )
@@ -752,6 +809,133 @@ class _NavItemData {
   final IconData icon;
   final String Function(AppStrings) labelKey;
   _NavItemData({required this.icon, required this.labelKey});
+}
+
+class _SubscriptionRenewalCard extends StatelessWidget {
+  final AppStrings l10n;
+  final AuthSession? session;
+  final VoidCallback onTap;
+
+  const _SubscriptionRenewalCard({
+    required this.l10n,
+    required this.session,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final raw = session?.subscriptionValidUntil.trim() ?? '';
+    late final Color accent;
+    late final double fill;
+    late final String headline;
+    String? dateLine;
+
+    if (raw.isEmpty) {
+      accent = AppColors.secondaryAccent;
+      fill = 0;
+      headline = l10n.subscriptionRenewalUnavailable;
+    } else {
+      try {
+        final validUntil = DateTime.parse(raw);
+        final daysRemaining = validUntil.difference(DateTime.now()).inDays;
+        final tier = subscriptionRenewalTier(daysRemaining);
+        accent = tier.accentColor;
+        fill = daysRemaining >= 0
+            ? (daysRemaining / 90.0).clamp(0.0, 1.0)
+            : 0.0;
+        headline = l10n.subscriptionRenewalDaysLeft(daysRemaining);
+        dateLine = raw.split(' ').first;
+      } catch (_) {
+        accent = AppColors.secondaryAccent;
+        fill = 0;
+        headline = l10n.subscriptionRenewalUnavailable;
+      }
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primaryDark.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    l10n.subscriptionTitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.secondaryAccent,
+                      letterSpacing: 0.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    LucideIcons.calendarClock,
+                    size: 16,
+                    color: accent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              headline,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: AppColors.primaryDark,
+              ),
+            ),
+            if (dateLine != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                dateLine,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.secondaryAccent,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fill,
+                backgroundColor: accent.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+                minHeight: 6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _StatCard extends StatelessWidget {

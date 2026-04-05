@@ -46,3 +46,11 @@ InventoryAlertTier computeExpiryTier({
   if (daysUntilExpiry <= moderateExpiryDays) return InventoryAlertTier.moderate;
   return InventoryAlertTier.mild;
 }
+
+/// Urgency for subscription renewal (dashboard card); uses same accent colors as low stock.
+InventoryAlertTier subscriptionRenewalTier(int daysRemaining) {
+  if (daysRemaining < 0) return InventoryAlertTier.critical;
+  if (daysRemaining <= 7) return InventoryAlertTier.critical;
+  if (daysRemaining <= 30) return InventoryAlertTier.moderate;
+  return InventoryAlertTier.mild;
+}

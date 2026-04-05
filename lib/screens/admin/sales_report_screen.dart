@@ -14,7 +14,14 @@ import '../../l10n/app_strings.dart';
 import 'profit_report_screen.dart';
 
 class SalesReportScreen extends StatefulWidget {
-  const SalesReportScreen({super.key});
+  final VoidCallback? onNavigateToProfit;
+  final bool initialTransactionFilterToday;
+
+  const SalesReportScreen({
+    super.key,
+    this.onNavigateToProfit,
+    this.initialTransactionFilterToday = false,
+  });
 
   @override
   State<SalesReportScreen> createState() => _SalesReportScreenState();
@@ -211,6 +218,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       },
     );
     if (picked != null) {
+      if (!mounted) return;
       final l10n = context.read<LanguageProvider>().strings;
       setState(() {
         _customStart = picked.start;
@@ -225,7 +233,9 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     super.didChangeDependencies();
     if (!_initialized) {
       final l10n = context.read<LanguageProvider>().strings;
-      _listFilter = l10n.thisWeek;
+      _listFilter = widget.initialTransactionFilterToday
+          ? l10n.today
+          : l10n.thisWeek;
       _sortBy = l10n.newestFirst;
       _initialized = true;
     }
@@ -1139,10 +1149,14 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   Widget _buildProfitReportCTA(BuildContext context, AppStrings l10n) {
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfitReportScreen()),
-        );
+        if (widget.onNavigateToProfit != null) {
+          widget.onNavigateToProfit!();
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfitReportScreen()),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -1155,7 +1169,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primaryDark.withOpacity(0.3),
+              color: AppColors.primaryDark.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1166,7 +1180,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -1191,7 +1205,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   Text(
                     l10n.buyingPriceHelper,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withValues(alpha: 0.8),
                       fontSize: 12,
                     ),
                   ),
