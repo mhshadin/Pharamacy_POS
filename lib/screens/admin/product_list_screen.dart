@@ -1025,15 +1025,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             }
                           },
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (_isSelectionMode)
                                   Padding(
-                                    padding: const EdgeInsets.only(right: 12),
+                                    padding: const EdgeInsets.only(right: 8),
                                     child: Checkbox(
                                       value: isSelected,
                                       onChanged: (val) {
@@ -1052,20 +1053,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     ),
                                   ),
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(7),
                                   decoration: BoxDecoration(
                                     color: AppColors.secondaryAccent.withValues(
                                       alpha: 0.1,
                                     ),
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
                                     product.medType != null ? MedTypeIcons.getIcon(product.medType) : LucideIcons.pill,
                                     color: product.medType != null ? MedTypeIcons.getColor(product.medType) : AppColors.secondaryAccent,
-                                    size: 20,
+                                    size: 18,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -1075,9 +1076,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         product.name,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          fontSize: 15,
                                           color: AppColors.primaryDark,
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
@@ -1087,146 +1090,140 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             : product.generic,
                                         style: const TextStyle(
                                           color: AppColors.secondaryAccent,
-                                          fontSize: 12,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w500,
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: lowAccent != null
-                                              ? lowAccent.withValues(alpha: 0.1)
-                                              : AppColors.success
-                                                  .withValues(alpha: 0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: lowAccent != null
-                                                ? lowAccent.withValues(
-                                                    alpha: 0.3)
-                                                : AppColors.success
-                                                    .withValues(alpha: 0.3),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          lowAccent != null
-                                              ? l10n.lowStockBadge
-                                              : l10n.inStock,
-                                          style: TextStyle(
-                                            color: lowAccent ??
-                                                AppColors.success,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 6),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value: stockRatio,
-                                          minHeight: 6,
-                                          backgroundColor: stockBarColor
-                                              .withValues(alpha: 0.12),
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                  stockBarColor),
-                                        ),
-                                      ),
-                                      if (minL > 0) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          l10n.stockLevelPercent(
-                                            (stockRatio * 100)
-                                                .round()
-                                                .clamp(0, 100),
-                                          ),
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: stockBarColor,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                      if (product.medType != null) ...[
-                                        const SizedBox(height: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: MedTypeIcons.getColor(
-                                                    product.medType)
-                                                .withValues(alpha: 0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                            border: Border.all(
-                                              color: MedTypeIcons.getColor(
-                                                      product.medType)
-                                                  .withValues(alpha: 0.3),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets
+                                                .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: lowAccent != null
+                                                  ? lowAccent
+                                                      .withValues(alpha: 0.1)
+                                                  : AppColors.success
+                                                      .withValues(
+                                                          alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: lowAccent != null
+                                                    ? lowAccent.withValues(
+                                                        alpha: 0.3)
+                                                    : AppColors.success
+                                                        .withValues(
+                                                            alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              lowAccent != null
+                                                  ? l10n.lowStockBadge
+                                                  : l10n.inStock,
+                                              style: TextStyle(
+                                                color: lowAccent ??
+                                                    AppColors.success,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
                                             ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                MedTypeIcons.getIcon(
-                                                    product.medType),
-                                                size: 12,
-                                                color: MedTypeIcons.getColor(
-                                                    product.medType),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                              child:
+                                                  LinearProgressIndicator(
+                                                value: stockRatio,
+                                                minHeight: 4,
+                                                backgroundColor:
+                                                    stockBarColor.withValues(
+                                                        alpha: 0.12),
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(stockBarColor),
                                               ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                product.medType!,
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: MedTypeIcons.getColor(
-                                                      product.medType),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          if (minL > 0) ...[
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                l10n.stockLevelPercent(
+                                                  (stockRatio * 100)
+                                                      .round()
+                                                      .clamp(0, 100),
+                                                ),
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: stockBarColor,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.end,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                _StockBadge(
-                                  label: l10n.boxes,
-                                  value: '${product.stockBoxes}',
-                                  lowStockAccent: lowAccent,
+                                Expanded(
+                                  child: _StockBadge(
+                                    label: l10n.boxes,
+                                    value: '${product.stockBoxes}',
+                                    lowStockAccent: lowAccent,
+                                    compact: true,
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                _StockBadge(
-                                  label: l10n.strips,
-                                  value: '${product.remainingStrips}',
-                                  lowStockAccent: lowAccent,
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _StockBadge(
+                                    label: l10n.strips,
+                                    value: '${product.remainingStrips}',
+                                    lowStockAccent: lowAccent,
+                                    compact: true,
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                _StockBadge(
-                                  label: l10n.pcs,
-                                  value: '${product.totalPieces}',
-                                  lowStockAccent: null,
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _StockBadge(
+                                    label: l10n.pcs,
+                                    value: '${product.totalPieces}',
+                                    lowStockAccent: null,
+                                    compact: true,
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                _StockBadge(
-                                  label: l10n.stripPrice,
-                                  value: product.priceStrip.toStringAsFixed(2),
-                                  isTaka: true,
-                                  lowStockAccent: null,
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _StockBadge(
+                                    label: l10n.stripPrice,
+                                    value: product.priceStrip.toStringAsFixed(2),
+                                    isTaka: true,
+                                    lowStockAccent: null,
+                                    compact: true,
+                                  ),
                                 ),
                               ],
                             ),
                             if (widget.isAdmin) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
@@ -1240,21 +1237,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           ),
                                         ).then((_) => setState(() {}));
                                       },
-                                      icon: const Icon(LucideIcons.edit, size: 16, color: AppColors.primaryDark),
+                                      icon: const Icon(LucideIcons.edit, size: 14, color: AppColors.primaryDark),
                                       label: Text(
                                         l10n.editBtn,
-                                        style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 13),
+                                        style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 12),
                                       ),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.surfaceLight,
                                         elevation: 0,
                                         side: const BorderSide(color: AppColors.divider),
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: () {
@@ -1265,16 +1262,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           ),
                                         ).then((_) => setState(() {}));
                                       },
-                                      icon: const Icon(LucideIcons.packagePlus, size: 16, color: AppColors.white),
+                                      icon: const Icon(LucideIcons.packagePlus, size: 14, color: AppColors.white),
                                       label: Text(
                                         l10n.restockBtn,
-                                        style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                        style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12),
                                       ),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.primaryDark,
-                                        elevation: 2,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        elevation: 1,
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
                                     ),
                                   ),
@@ -1541,24 +1538,32 @@ class _StockBadge extends StatelessWidget {
   /// When set, product is low stock and this color reflects severity (green/amber/red).
   final Color? lowStockAccent;
   final bool isTaka;
+  final bool compact;
 
   const _StockBadge({
     required this.label,
     required this.value,
     required this.lowStockAccent,
     this.isTaka = false,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final accent = lowStockAccent;
+    final hPad = compact ? 6.0 : 10.0;
+    final vPad = compact ? 4.0 : 6.0;
+    final valueSize = compact ? 12.0 : 14.0;
+    final labelSize = compact ? 8.0 : 10.0;
+    final radius = compact ? 6.0 : 8.0;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       decoration: BoxDecoration(
         color: accent != null
             ? accent.withValues(alpha: 0.08)
             : (isTaka ? AppColors.secondaryAccent.withValues(alpha: 0.05) : AppColors.surfaceLight),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(
           color: accent != null
               ? accent.withValues(alpha: 0.2)
@@ -1566,29 +1571,39 @@ class _StockBadge extends StatelessWidget {
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (isTaka)
-                const Padding(
-                  padding: EdgeInsets.only(right: 2),
-                  child: TakaSymbol(size: 12),
+                Padding(
+                  padding: const EdgeInsets.only(right: 2),
+                  child: TakaSymbol(size: compact ? 10 : 12),
                 ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  color: accent ?? AppColors.primaryDark,
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: valueSize,
+                    color: accent ?? AppColors.primaryDark,
+                  ),
                 ),
               ),
             ],
           ),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 10,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: labelSize,
               fontWeight: FontWeight.bold,
               color: AppColors.secondaryAccent,
             ),
