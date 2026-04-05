@@ -959,6 +959,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     final lowAccent = admin.isProductLowStock(product)
                         ? admin.lowStockTierFor(product).accentColor
                         : null;
+                    final minL = product.minStockLevel;
+                    final stockRatio = minL > 0
+                        ? (product.stockStrips / minL).clamp(0.0, 1.0)
+                        : 1.0;
+                    final stockBarColor = lowAccent ?? AppColors.success;
                     return DecoratedBox(
                       decoration: BoxDecoration(
                         color: isSelected
@@ -1086,67 +1091,111 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: lowAccent != null
+                                              ? lowAccent.withValues(alpha: 0.1)
+                                              : AppColors.success
+                                                  .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: lowAccent != null
+                                                ? lowAccent.withValues(
+                                                    alpha: 0.3)
+                                                : AppColors.success
+                                                    .withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          lowAccent != null
+                                              ? l10n.lowStockBadge
+                                              : l10n.inStock,
+                                          style: TextStyle(
+                                            color: lowAccent ??
+                                                AppColors.success,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value: stockRatio,
+                                          minHeight: 6,
+                                          backgroundColor: stockBarColor
+                                              .withValues(alpha: 0.12),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  stockBarColor),
+                                        ),
+                                      ),
+                                      if (minL > 0) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          l10n.stockLevelPercent(
+                                            (stockRatio * 100)
+                                                .round()
+                                                .clamp(0, 100),
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: stockBarColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                      if (product.medType != null) ...[
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: MedTypeIcons.getColor(
+                                                    product.medType)
+                                                .withValues(alpha: 0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: MedTypeIcons.getColor(
+                                                      product.medType)
+                                                  .withValues(alpha: 0.3),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                MedTypeIcons.getIcon(
+                                                    product.medType),
+                                                size: 12,
+                                                color: MedTypeIcons.getColor(
+                                                    product.medType),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                product.medType!,
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: MedTypeIcons.getColor(
+                                                      product.medType),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  alignment: WrapAlignment.end,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: lowAccent != null ? lowAccent.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: lowAccent != null ? lowAccent.withValues(alpha: 0.3) : AppColors.success.withValues(alpha: 0.3),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        lowAccent != null ? l10n.lowStockBadge : l10n.inStock,
-                                        style: TextStyle(
-                                          color: lowAccent ?? AppColors.success,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                    if (product.medType != null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(
-                                            color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.3),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              MedTypeIcons.getIcon(product.medType),
-                                              size: 12,
-                                              color: MedTypeIcons.getColor(product.medType),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              product.medType!,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: MedTypeIcons.getColor(product.medType),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                ],
-                              ),
+                              ],
+                            ),
                             const SizedBox(height: 12),
                             Row(
                               children: [
