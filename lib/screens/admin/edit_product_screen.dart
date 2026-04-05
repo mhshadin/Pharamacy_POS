@@ -9,6 +9,7 @@ import '../../providers/language_provider.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/product.dart';
 import '../../models/stock_batch.dart';
+import '../../utils/med_type_units.dart';
 import '../scanner_screen.dart';
 
 class EditProductScreen extends StatefulWidget {
@@ -27,10 +28,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late TextEditingController _supplierNameCtrl;
   late TextEditingController _supplierPhoneCtrl;
   late TextEditingController _barcodeCtrl;
+  late TextEditingController _priceBoxCtrl; // New
   late TextEditingController _priceStripCtrl;
   late TextEditingController _pricePcCtrl;
   late TextEditingController _pcsPerStripCtrl;
-  late TextEditingController _lowStockWarningCtrl; // New field
+  late TextEditingController _stripsPerBoxCtrl; // New
+  late TextEditingController _buyingPriceBoxCtrl; // New
+  late TextEditingController _buyingPriceStripCtrl; // New
+  late TextEditingController _lowStockWarningCtrl;
   DateTime? _selectedExpiryDate;
   String? _selectedMedType;
 
@@ -59,22 +64,40 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _pcsPerStripCtrl = TextEditingController(
       text: widget.product.pcsPerStrip.toString(),
     );
+    _stripsPerBoxCtrl = TextEditingController(
+      text: widget.product.stripsPerBox.toString(),
+    );
+    _priceBoxCtrl = TextEditingController(
+      text: (widget.product.priceStrip * widget.product.stripsPerBox)
+          .toStringAsFixed(2),
+    );
+    _buyingPriceBoxCtrl = TextEditingController();
+    _buyingPriceStripCtrl = TextEditingController();
+
     _lowStockWarningCtrl = TextEditingController(
       text: (widget.product.minStockLevel / widget.product.stripsPerBox)
           .toStringAsFixed(0),
     );
-    _loadBatches();
+    _loadBatchesAndInitialCost();
   }
 
-  Future<void> _loadBatches() async {
+  Future<void> _loadBatchesAndInitialCost() async {
     setState(() => _isLoadingBatches = true);
-    final batches = await context.read<AdminProvider>().getBatchesForProduct(
-      widget.product.id,
-    );
+    final admin = context.read<AdminProvider>();
+    
+    // Load batches
+    final batches = await admin.getBatchesForProduct(widget.product.id);
+    
+    // Load latest cost
+    final lastCost = await admin.getLastBatchCostPrice(widget.product.id);
+    final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+
     if (!mounted) return;
     setState(() {
       _batches = batches;
       _isLoadingBatches = false;
+      _buyingPriceStripCtrl.text = lastCost.toStringAsFixed(2);
+      _buyingPriceBoxCtrl.text = (lastCost * spb).toStringAsFixed(2);
     });
   }
 
@@ -86,9 +109,13 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _supplierNameCtrl.dispose();
     _supplierPhoneCtrl.dispose();
     _barcodeCtrl.dispose();
+    _priceBoxCtrl.dispose();
     _priceStripCtrl.dispose();
     _pricePcCtrl.dispose();
     _pcsPerStripCtrl.dispose();
+    _stripsPerBoxCtrl.dispose();
+    _buyingPriceBoxCtrl.dispose();
+    _buyingPriceStripCtrl.dispose();
     _lowStockWarningCtrl.dispose();
     super.dispose();
   }
@@ -123,9 +150,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final showSupplierInfo = context.read<AdminProvider>().showSupplierInfo;
-    int pps = int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-    if (pps <= 0) pps = 10;
+    final admin = context.read<AdminProvider>();
+    final showSupplierInfo = admin.showSupplierInfo;
+    
+    int pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
+    if (pps <= 0) pps = 1;
+    
+    int spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+    if (spb <= 0) spb = 1;
 
     final updatedProduct = Product(
       id: widget.product.id,
@@ -133,17 +165,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
       generic: _genericCtrl.text.trim(),
       priceStrip: double.tryParse(_priceStripCtrl.text) ?? 0,
       pricePc: double.tryParse(_pricePcCtrl.text) ?? 0,
+      priceBox: double.tryParse(_priceBoxCtrl.text) ?? 0,
       pcsPerStrip: pps,
-      stockStrips: 0,
-      stockPcs: 0,
+      stripsPerBox: spb,
+      stockStrips: 0, // Not updated here
+      stockPcs: 0,    // Not updated here
       barcode: _barcodeCtrl.text.trim().isEmpty
           ? null
           : _barcodeCtrl.text.trim(),
       expiryDate: _selectedExpiryDate,
       minStockLevel:
           (int.tryParse(_lowStockWarningCtrl.text) ??
-              context.read<AdminProvider>().lowStockThreshold) *
-          pps,
+              admin.lowStockThreshold) *
+          spb * pps,
       companyName: _companyCtrl.text.trim().isEmpty
           ? null
           : _companyCtrl.text.trim(),
@@ -160,8 +194,20 @@ class _EditProductScreenState extends State<EditProductScreen> {
       medType: _selectedMedType,
     );
 
-    // Update product info
-    await context.read<AdminProvider>().updateProduct(updatedProduct);
+    // Active stock batches override product.expiryDate on load; sync them first so the new date sticks.
+    if (_selectedExpiryDate != null) {
+      await admin.updateActiveBatchesExpiry(widget.product.id, _selectedExpiryDate!);
+    }
+
+    // 1. Update product metadata
+    await admin.updateProduct(updatedProduct);
+
+    // 2. Update active batches cost if buying price is set
+    final newCostStrip = double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0;
+    final newCostPerPc = newCostStrip / pps;
+    if (newCostPerPc > 0) {
+      await admin.updateProductCostPrice(widget.product.id, newCostPerPc);
+    }
 
     if (!mounted) return;
     await context.read<POSProvider>().loadProducts();
@@ -192,395 +238,517 @@ class _EditProductScreenState extends State<EditProductScreen> {
   Widget build(BuildContext context) {
     final l10n = context.watch<LanguageProvider>().strings;
     final showSupplierInfo = context.watch<AdminProvider>().showSupplierInfo;
+    final unitLabels = MedTypeUnits.getLabels(_selectedMedType, l10n);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
+        elevation: 0,
         title: Text(
           l10n.editProductTitle(widget.product.name),
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.white),
+        ),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.chevronLeft, color: AppColors.white),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
-          ),
+        child: Form(
+          key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
+              // SECTION 1: GENERAL INFO
+              _buildSection(
+                title: l10n.generalInfo,
+                icon: LucideIcons.info,
+                child: Column(
                   children: [
-                    const Icon(
-                      LucideIcons.edit3,
-                      color: AppColors.primaryDark,
-                      size: 22,
+                    _buildField(
+                      controller: _nameCtrl,
+                      label: l10n.productName,
+                      icon: LucideIcons.pill,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? l10n.required : null,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.productDetailsTitle,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark,
-                      ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _genericCtrl,
+                      label: l10n.genericDescription,
+                      icon: LucideIcons.fileText,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? l10n.required : null,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _companyCtrl,
+                      label: l10n.companyNameOptional,
+                      icon: LucideIcons.building2,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMedTypeDropdown(l10n),
+                    const SizedBox(height: 12),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final scanButton = SizedBox(
+                          height: 58,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final scannedCode = await Navigator.push<String>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ScannerScreen(),
+                                ),
+                              );
+                              if (!mounted) return;
+                              if (scannedCode != null && scannedCode.isNotEmpty) {
+                                setState(() {
+                                  _barcodeCtrl.text = scannedCode;
+                                });
+                              }
+                            },
+                            icon: const Icon(LucideIcons.scan, color: AppColors.white, size: 20),
+                            label: Text(l10n.scan,
+                                style: const TextStyle(
+                                    color: AppColors.white, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryDark,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        );
+                        final barcodeField = _buildField(
+                          controller: _barcodeCtrl,
+                          label: l10n.barcodeLabelOptional,
+                          icon: LucideIcons.scanLine,
+                        );
+                        return IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: barcodeField),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 100,
+                                child: scanButton,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1, color: AppColors.divider),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
+
+              // SECTION 2: PACKAGING
+              _buildSection(
+                title: l10n.packaging,
+                icon: LucideIcons.package2,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ResponsiveHelper.responsiveRow(
+                    constraints: constraints,
+                    left: _buildField(
+                      controller: _stripsPerBoxCtrl,
+                      label: unitLabels['unit1'] != null
+                          ? '${unitLabels['unit2'] ?? l10n.strips} / ${unitLabels['unit1']}'
+                          : l10n.stripsPerBox,
+                      icon: LucideIcons.layers,
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) {
+                        if (val.isEmpty) return;
+                        final spb = int.tryParse(val) ?? 1;
+                        final stripPrice = double.tryParse(_priceStripCtrl.text) ?? 0;
+                        final stripCost = double.tryParse(_buyingPriceStripCtrl.text) ?? 0;
+                        if (spb > 0) {
+                          _priceBoxCtrl.text = (stripPrice * spb).toStringAsFixed(2);
+                          _buyingPriceBoxCtrl.text = (stripCost * spb).toStringAsFixed(2);
+                        }
+                      },
+                    ),
+                    right: _buildField(
+                      controller: _pcsPerStripCtrl,
+                      label: unitLabels['unit3'] != null
+                          ? '${unitLabels['unit3']} / ${unitLabels['unit2'] ?? l10n.strips}'
+                          : l10n.pcsPerStrip,
+                      icon: LucideIcons.boxes,
+                      keyboardType: TextInputType.number,
+                      validator: (v) => v == null || v.isEmpty ? l10n.required : null,
+                      onChanged: (val) {
+                        if (val.isEmpty) return;
+                        final pps = int.tryParse(val) ?? 1;
+                        final stripPrice = double.tryParse(_priceStripCtrl.text) ?? 0;
+                        if (pps > 0) {
+                          _pricePcCtrl.text = (stripPrice / pps).toStringAsFixed(2);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
+              // SECTION 3: SELLING PRICE
+              _buildSection(
+                title: l10n.pricing,
+                icon: LucideIcons.circleDollarSign,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Row(
                     children: [
-                      _buildField(
-                        controller: _nameCtrl,
-                        label: l10n.productName,
-                        icon: LucideIcons.pill,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? l10n.required : null,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildField(
-                        controller: _genericCtrl,
-                        label: l10n.genericDescription,
-                        icon: LucideIcons.fileText,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? l10n.required : null,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildField(
-                        controller: _companyCtrl,
-                        label: l10n.companyNameOptional,
-                        icon: LucideIcons.building2,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildMedTypeDropdown(l10n),
-                      if (showSupplierInfo) ...[
-                        const SizedBox(height: 12),
-                        _buildField(
-                          controller: _supplierNameCtrl,
-                          label: l10n.supplierNameOptional,
-                          icon: LucideIcons.user,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildField(
-                          controller: _supplierPhoneCtrl,
-                          label: l10n.supplierPhoneOptional,
-                          icon: LucideIcons.phone,
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final scanButton = SizedBox(
-                            height: 58,
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final scannedCode =
-                                    await Navigator.push<String>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const ScannerScreen(),
-                                      ),
-                                    );
-                                if (!mounted) return;
-                                if (scannedCode != null &&
-                                    scannedCode.isNotEmpty) {
-                                  setState(() {
-                                    _barcodeCtrl.text = scannedCode;
-                                  });
-                                }
-                              },
-                              icon: const Icon(
-                                LucideIcons.scan,
-                                color: AppColors.white,
-                                size: 20,
-                              ),
-                              label: Text(
-                                l10n.scan,
-                                style: const TextStyle(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryDark,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                padding: EdgeInsets.zero,
-                              ),
-                            ),
-                          );
-                          final barcodeField = _buildField(
-                            controller: _barcodeCtrl,
-                            label: l10n.barcodeOptional,
-                            icon: LucideIcons.scanLine,
-                            keyboardType: TextInputType.number,
-                          );
-                          if (constraints.maxWidth < 380) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                barcodeField,
-                                const SizedBox(height: 12),
-                                scanButton,
-                              ],
-                            );
-                          }
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(flex: 6, child: barcodeField),
-                              const SizedBox(width: 12),
-                              Expanded(flex: 4, child: scanButton),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: () => _selectExpiryDate(context),
-                        borderRadius: BorderRadius.circular(10),
-                        child: IgnorePointer(
+                      if (MedTypeUnits.hasUnit1(_selectedMedType))
+                        Expanded(
                           child: _buildField(
-                            controller: TextEditingController(
-                              text: _selectedExpiryDate != null
-                                  ? '${_selectedExpiryDate!.year}-${_selectedExpiryDate!.month.toString().padLeft(2, '0')}-${_selectedExpiryDate!.day.toString().padLeft(2, '0')}'
-                                  : '',
-                            ),
-                            label: l10n.expiryDateOptional,
-                            icon: LucideIcons.calendar,
-                            keyboardType: TextInputType.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      LayoutBuilder(
-                        builder: (context, constraints) =>
-                            ResponsiveHelper.responsiveRow(
-                          constraints: constraints,
-                          left: _buildField(
-                            controller: _priceStripCtrl,
-                            label: l10n.pricePerStripLabel,
-                            icon: LucideIcons.dollarSign,
+                            controller: _priceBoxCtrl,
+                            label: '${l10n.price} / ${unitLabels['unit1'] ?? l10n.boxes}',
+                            icon: LucideIcons.shoppingCart,
                             keyboardType: TextInputType.number,
-                            validator: (v) =>
-                                v == null || v.isEmpty ? l10n.required : null,
                             onChanged: (val) {
                               if (val.isEmpty) return;
-                              final stripPrice = double.tryParse(val);
-                              final pps =
-                                  int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                              if (stripPrice != null && pps > 0) {
-                                _pricePcCtrl.text = (stripPrice / pps)
-                                    .toStringAsFixed(2);
-                              }
-                            },
-                          ),
-                          right: _buildField(
-                            controller: _pricePcCtrl,
-                            label: l10n.pricePerPcLabel,
-                            icon: LucideIcons.dollarSign,
-                            keyboardType: TextInputType.number,
-                            validator: (v) =>
-                                v == null || v.isEmpty ? l10n.required : null,
-                            onChanged: (val) {
-                              if (val.isEmpty) return;
-                              final pcPrice = double.tryParse(val);
-                              final pps =
-                                  int.tryParse(_pcsPerStripCtrl.text) ?? 10;
-                              if (pcPrice != null && pps > 0) {
-                                _priceStripCtrl.text = (pcPrice * pps)
-                                    .toStringAsFixed(2);
+                              final boxPrice = double.tryParse(val);
+                               final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                              if (boxPrice != null && spb > 0) {
+                                _priceStripCtrl.text = (boxPrice / spb).toStringAsFixed(2);
+                                final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
+                                _pricePcCtrl.text = (boxPrice / (spb * pps)).toStringAsFixed(2);
                               }
                             },
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildField(
-                        controller: _pcsPerStripCtrl,
-                        label: l10n.pcsPerStrip,
-                        icon: LucideIcons.boxes,
-                        keyboardType: TextInputType.number,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? l10n.required : null,
-                        onChanged: (val) {
-                          if (val.isEmpty) return;
-                          final pps = int.tryParse(val) ?? 10;
-                          if (pps > 0) {
-                            final stripP = double.tryParse(
-                              _priceStripCtrl.text,
-                            );
-                            if (stripP != null) {
-                              _pricePcCtrl.text = (stripP / pps)
-                                  .toStringAsFixed(2);
+                      if (MedTypeUnits.hasUnit1(_selectedMedType)) const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildField(
+                          controller: _priceStripCtrl,
+                          label: '${l10n.price} / ${unitLabels['unit2'] ?? l10n.strips}',
+                          icon: LucideIcons.dollarSign,
+                          keyboardType: TextInputType.number,
+                          validator: (v) => v == null || v.isEmpty ? l10n.required : null,
+                          onChanged: (val) {
+                            if (val.isEmpty) return;
+                            final stripPrice = double.tryParse(val);
+                            final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                            final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
+                            if (stripPrice != null) {
+                              if (spb > 0) _priceBoxCtrl.text = (stripPrice * spb).toStringAsFixed(2);
+                              if (pps > 0) _pricePcCtrl.text = (stripPrice / pps).toStringAsFixed(2);
                             }
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _buildField(
-                        controller: _lowStockWarningCtrl,
-                        label: l10n.lowStockWarningBox,
-                        icon: LucideIcons.alertTriangle,
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 20),
-                      // ─── ACTIVE BATCHES SECTION ───
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            l10n.activeBatches,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 1, color: AppColors.divider),
-                      if (_isLoadingBatches)
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else if (_batches == null || _batches!.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Center(
-                            child: Text(
-                              l10n.noActiveBatches,
-                              style: const TextStyle(color: AppColors.textSecondary),
-                            ),
-                          ),
-                        )
-                      else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _batches!.length,
-                          itemBuilder: (context, index) {
-                            final batch = _batches![index];
-                            final isExpired = batch.isExpired;
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: isExpired
-                                    ? AppColors.error.withValues(alpha: 0.1)
-                                    : AppColors.surfaceLight,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isExpired
-                                      ? AppColors.error
-                                      : AppColors.divider,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${l10n.batchNumber}: ${batch.batchNumber}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        l10n.expiresDate(batch.expiryDate),
-                                        style: TextStyle(
-                                          color: isExpired
-                                              ? AppColors.error
-                                              : AppColors.textSecondary,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        l10n.pcsSuffixCount(batch.remainingPieces),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: AppColors.primaryDark,
-                                        ),
-                                      ),
-                                      if (widget.product.pcsPerStrip > 0)
-                                        Text(
-                                          l10n.batchRemaining(
-                                            batch.remainingPieces ~/ widget.product.pcsPerStrip,
-                                            batch.remainingPieces % widget.product.pcsPerStrip,
-                                          ),
-                                          style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
                           },
-                        ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _submitForm,
-                          icon: const Icon(
-                            LucideIcons.save,
-                            color: AppColors.white,
-                          ),
-                          label: Text(
-                            l10n.saveChanges,
-                            style: const TextStyle(
-                              color: AppColors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryDark,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
+
+              // SECTION 4: BUYING PRICE (COST)
+              _buildSection(
+                title: l10n.buyingPriceSection,
+                icon: LucideIcons.tag,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        if (MedTypeUnits.hasUnit1(_selectedMedType)) ...[
+                          Expanded(
+                            child: _buildField(
+                              controller: _buyingPriceBoxCtrl,
+                              label: '${l10n.price} / ${unitLabels['unit1'] ?? l10n.boxes}',
+                              icon: LucideIcons.tag,
+                              keyboardType: TextInputType.number,
+                              onChanged: (val) {
+                                if (val.isEmpty) return;
+                                final boxCost = double.tryParse(val);
+                                final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                                if (boxCost != null && spb > 0) {
+                                  _buyingPriceStripCtrl.text = (boxCost / spb).toStringAsFixed(2);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          child: _buildField(
+                            controller: _buyingPriceStripCtrl,
+                            label: '${l10n.price} / ${unitLabels['unit2'] ?? l10n.strips}',
+                            icon: LucideIcons.tag,
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) {
+                              if (val.isEmpty) return;
+                              final stripCost = double.tryParse(val);
+                              final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                              if (stripCost != null && spb > 0) {
+                                _buyingPriceBoxCtrl.text = (stripCost * spb).toStringAsFixed(2);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Live profit preview
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _buyingPriceStripCtrl,
+                      builder: (_, val, _) {
+                        final cost = double.tryParse(val.text) ?? 0.0;
+                        final sell = double.tryParse(_priceStripCtrl.text) ?? 0.0;
+                        if (cost <= 0 || sell <= 0) return const SizedBox.shrink();
+                        final profit = sell - cost;
+                        final margin = sell > 0 ? ((profit / sell) * 100).toStringAsFixed(1) : '0.0';
+                        final isLoss = profit < 0;
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: (isLoss ? AppColors.error : AppColors.success).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: (isLoss ? AppColors.error : AppColors.success).withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(isLoss ? LucideIcons.trendingDown : LucideIcons.trendingUp,
+                                  size: 16, color: isLoss ? AppColors.error : AppColors.success),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  l10n.profitPreview(profit.abs().toStringAsFixed(2), margin, isLoss),
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: isLoss ? AppColors.error : AppColors.success),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // SECTION 5: STOCK & EXPIRY
+              _buildSection(
+                title: l10n.inventory,
+                icon: LucideIcons.clipboardList,
+                child: Column(
+                  children: [
+                    _buildField(
+                      controller: _lowStockWarningCtrl,
+                      label: '${l10n.minStockLevel} (${unitLabels['unit1'] ?? unitLabels['unit2'] ?? l10n.boxes})',
+                      icon: LucideIcons.alertTriangle,
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () => _selectExpiryDate(context),
+                      borderRadius: BorderRadius.circular(10),
+                      child: IgnorePointer(
+                        child: _buildField(
+                          controller: TextEditingController(
+                            text: _selectedExpiryDate != null
+                                ? '${_selectedExpiryDate!.year}-${_selectedExpiryDate!.month.toString().padLeft(2, '0')}-${_selectedExpiryDate!.day.toString().padLeft(2, '0')}'
+                                : '',
+                          ),
+                          label: l10n.expiryDateOptional,
+                          icon: LucideIcons.calendar,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // SECTION 6: SUPPLIER (if enabled)
+              if (showSupplierInfo)
+                _buildSection(
+                  title: l10n.supplierInfo,
+                  icon: LucideIcons.truck,
+                  child: Column(
+                    children: [
+                      _buildSupplierAutocomplete(l10n),
+                      const SizedBox(height: 12),
+                      _buildField(
+                        controller: _supplierPhoneCtrl,
+                        label: l10n.supplierPhoneOptional,
+                        icon: LucideIcons.phone,
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ],
+                  ),
+                ),
+
+              // SECTION 7: ACTIVE BATCHES
+              _buildSection(
+                title: l10n.activeBatches,
+                icon: LucideIcons.boxes,
+                child: _isLoadingBatches
+                    ? const Center(child: CircularProgressIndicator())
+                    : (_batches == null || _batches!.isEmpty)
+                        ? Center(child: Text(l10n.noActiveBatches, style: const TextStyle(color: AppColors.textSecondary)))
+                        : Column(
+                            children: _batches!.map((batch) {
+                              final isExpired = batch.isExpired;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isExpired ? AppColors.error.withValues(alpha: 0.05) : AppColors.surfaceLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: isExpired ? AppColors.error.withValues(alpha: 0.3) : AppColors.divider),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('${l10n.batchNumber}: ${batch.batchNumber}',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                        const SizedBox(height: 2),
+                                        Text(l10n.expiresDate(batch.expiryDate),
+                                            style: TextStyle(
+                                                color: isExpired ? AppColors.error : AppColors.textSecondary,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500)),
+                                        const SizedBox(height: 4),
+                                        Text('Cost: ৳${batch.costPricePerPc.toStringAsFixed(2)}/pc',
+                                            style: const TextStyle(fontSize: 11, color: AppColors.secondaryAccent, fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(l10n.pcsSuffixCount(batch.remainingPieces),
+                                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryDark)),
+                                        if (widget.product.pcsPerStrip > 0)
+                                          Text(
+                                            l10n.batchRemaining(
+                                              batch.remainingPieces ~/ widget.product.pcsPerStrip,
+                                              batch.remainingPieces % widget.product.pcsPerStrip,
+                                            ),
+                                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+              ),
+
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryDark,
+                    foregroundColor: AppColors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
+                  ),
+                  child: Text(
+                    l10n.saveChanges,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSection({required String title, required IconData icon, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryDark.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.divider.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                Icon(icon, color: AppColors.primaryDark, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primaryDark,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.divider),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupplierAutocomplete(AppStrings l10n) {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
+        final lowerQuery = textEditingValue.text.toLowerCase();
+        final suppliers = context
+            .read<AdminProvider>()
+            .allProducts
+            .map((p) => p.supplierName)
+            .where((s) => s != null && s.isNotEmpty)
+            .cast<String>()
+            .toSet();
+        return suppliers.where((s) => s.toLowerCase().contains(lowerQuery));
+      },
+      onSelected: (String selection) {
+        _supplierNameCtrl.text = selection;
+        final productWithSupplier = context
+            .read<AdminProvider>()
+            .allProducts
+            .firstWhere((p) => p.supplierName == selection);
+        if (productWithSupplier.supplierPhone != null) {
+          _supplierPhoneCtrl.text = productWithSupplier.supplierPhone!;
+        }
+      },
+      fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+        if (controller.text.isEmpty && _supplierNameCtrl.text.isNotEmpty) {
+          controller.text = _supplierNameCtrl.text;
+        }
+        controller.addListener(() {
+          _supplierNameCtrl.text = controller.text;
+        });
+        return _buildField(
+          controller: controller,
+          label: l10n.supplierNameOptional,
+          icon: LucideIcons.user,
+          focusNode: focusNode,
+        );
+      },
     );
   }
 
@@ -591,86 +759,50 @@ class _EditProductScreenState extends State<EditProductScreen> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
-    Widget? suffixIcon,
+    FocusNode? focusNode,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       validator: validator,
       onChanged: onChanged,
-      style: const TextStyle(
-        color: AppColors.primaryDark,
-        fontWeight: FontWeight.w600,
-      ),
+      style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-          color: AppColors.secondaryAccent,
-          fontWeight: FontWeight.w500,
-        ),
-        prefixIcon: Icon(icon, color: AppColors.secondaryAccent, size: 20),
-        suffixIcon: suffixIcon,
+        labelStyle: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.w600, fontSize: 13),
+        prefixIcon: Icon(icon, color: AppColors.secondaryAccent, size: 18),
         filled: true,
         fillColor: AppColors.surfaceLight,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(
-            color: AppColors.secondaryAccent,
-            width: 1.5,
-          ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(
-            color: AppColors.secondaryAccent,
-            width: 1.5,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
-        ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryDark, width: 2)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
       ),
     );
   }
- 
+
   Widget _buildMedTypeDropdown(AppStrings l10n) {
     final admin = context.watch<AdminProvider>();
     return DropdownButtonFormField<String>(
-      value: _selectedMedType,
+      initialValue: _selectedMedType,
+      style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 15),
       decoration: InputDecoration(
         labelText: l10n.medicineType,
-        labelStyle: const TextStyle(
-          color: AppColors.secondaryAccent,
-          fontWeight: FontWeight.w500,
-        ),
-        prefixIcon: const Icon(LucideIcons.layers, color: AppColors.secondaryAccent, size: 20),
+        labelStyle: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.w600, fontSize: 13),
+        prefixIcon: const Icon(LucideIcons.shapes, color: AppColors.secondaryAccent, size: 18),
         filled: true,
         fillColor: AppColors.surfaceLight,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.secondaryAccent, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.primaryDark, width: 2),
-        ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.divider)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryDark, width: 2)),
       ),
       items: admin.medicineTypes.map((type) {
-        return DropdownMenuItem(
-          value: type,
-          child: Text(
-            type,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
+        return DropdownMenuItem(value: type, child: Text(type));
       }).toList(),
       onChanged: (val) {
         setState(() => _selectedMedType = val);

@@ -555,6 +555,10 @@ class AdminProvider extends ChangeNotifier {
     return await _db.getBatchesForProduct(productId);
   }
 
+  Future<void> updateActiveBatchesExpiry(String productId, DateTime expiry) async {
+    await _db.updateActiveBatchesExpiryDate(productId, expiry);
+  }
+
   Future<void> addBatch({
     required String productId,
     required String batchNumber,

@@ -501,6 +501,21 @@ class DatabaseHelper {
     );
   }
 
+  /// Active batches drive [Product.expiryDate] via [_populateProductStock]; keep them in sync when
+  /// the user edits expiry on the product so the change survives reload.
+  Future<void> updateActiveBatchesExpiryDate(
+    String productId,
+    DateTime expiry,
+  ) async {
+    final db = await database;
+    await db.update(
+      'product_batches',
+      {'expiryDate': expiry.toIso8601String()},
+      where: 'productId = ? AND remainingPieces > 0',
+      whereArgs: [productId],
+    );
+  }
+
   Future<void> deleteBatch(String batchId) async {
     final db = await database;
     await db.delete('product_batches', where: 'id = ?', whereArgs: [batchId]);
@@ -705,6 +720,47 @@ class DatabaseHelper {
     }
   }
 
+  /// Voids an entire invoice by fully returning every sale record in [sales].
+  /// For each record, marks returnedQuantity = quantity (fully returned) and
+  /// restores the stock to the original batch. Call this before loading an
+  /// invoice into the cart for replacement, so the Sales Report is not inflated.
+  Future<void> voidInvoice(List<SaleRecord> sales) async {
+    final db = await database;
+    for (final sale in sales) {
+      final remainingQty = sale.quantity - sale.returnedQuantity;
+      if (remainingQty <= 0) continue; // already fully returned
+
+      // Mark fully returned
+      await db.update(
+        'sales',
+        {'isReturned': 1, 'returnedQuantity': sale.quantity},
+        where: 'id = ?',
+        whereArgs: [sale.id],
+      );
+
+      // Restore stock to batch
+      if (sale.batchNumber != null &&
+          sale.batchNumber!.isNotEmpty &&
+          sale.batchNumber != 'OVERSOLD') {
+        final batchMaps = await db.query(
+          'product_batches',
+          where: 'batchNumber = ?',
+          whereArgs: [sale.batchNumber],
+        );
+        if (batchMaps.isNotEmpty) {
+          final batch = batchMaps.first;
+          final int remaining = batch['remainingPieces'] as int;
+          await db.update(
+            'product_batches',
+            {'remainingPieces': remaining + remainingQty},
+            where: 'id = ?',
+            whereArgs: [batch['id']],
+          );
+        }
+      }
+    }
+  }
+
   Future<List<SaleRecord>> getAllSales() async {
     final db = await database;
     final maps = await db.query('sales', orderBy: 'date DESC');
@@ -813,6 +869,20 @@ class DatabaseHelper {
     );
     if (maps.isEmpty) return 0.0;
     return (maps.first['costPricePerPc'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  /// Updates the costPricePerPc for all batches of a product that still have stock.
+  Future<void> updateActiveBatchesCostPrice(
+    String productId,
+    double newCostPricePerPc,
+  ) async {
+    final db = await database;
+    await db.update(
+      'product_batches',
+      {'costPricePerPc': newCostPricePerPc},
+      where: 'productId = ? AND remainingPieces > 0',
+      whereArgs: [productId],
+    );
   }
 }
 
