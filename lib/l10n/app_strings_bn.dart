@@ -292,6 +292,10 @@ class AppStringsBn implements AppStrings {
   @override
   String get filterByType => 'ধরণ অনুযায়ী ফিল্টার';
   @override
+  String get filterByStockStatus => 'স্টক অবস্থা অনুযায়ী ফিল্টার';
+  @override
+  String get filterByExpiryUrgency => 'মেয়াদ শেষের জরুরিতা অনুযায়ী ফিল্টার';
+  @override
   String get searchCompanies => 'কোম্পানি খুঁজুন...';
   @override
   String get searchGenerics => 'জেনেরিক খুঁজুন...';

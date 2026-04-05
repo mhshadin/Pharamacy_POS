@@ -146,6 +146,8 @@ abstract class AppStrings {
   String get filterByCompany;
   String get filterByGeneric;
   String get filterByType;
+  String get filterByStockStatus;
+  String get filterByExpiryUrgency;
   String get searchCompanies;
   String get searchGenerics;
   String get clearAll;

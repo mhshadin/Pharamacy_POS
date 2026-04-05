@@ -287,6 +287,10 @@ class AppStringsEn implements AppStrings {
   @override
   String get filterByType => 'Filter by Type';
   @override
+  String get filterByStockStatus => 'Filter by stock status';
+  @override
+  String get filterByExpiryUrgency => 'Filter by expiry urgency';
+  @override
   String get searchCompanies => 'Search companies...';
   @override
   String get searchGenerics => 'Search generics...';

@@ -13,6 +13,9 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
+import '../../widgets/shared/empty_state_widget.dart';
+import '../../widgets/shared/right_filter_panel.dart';
+import '../../l10n/app_strings.dart';
 import 'restock_screen.dart';
 
 class ExpiringSoonScreen extends StatefulWidget {
@@ -103,120 +106,255 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     return list;
   }
 
-  void _showCompanySheet(List<String> allCompanies) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.5,
-              maxChildSize: 0.85,
-              minChildSize: 0.3,
-              builder: (_, controller) => Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.divider,
-                      borderRadius: BorderRadius.circular(2),
+  void _showExpiryUrgencyFilterPanel(AppStrings l10n) {
+    showRightFilterPanel(context, (dialogContext) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(LucideIcons.x),
+                  color: AppColors.secondaryAccent,
+                  onPressed: () => Navigator.pop(dialogContext),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                ),
+                Expanded(
+                  child: Text(
+                    l10n.filterByExpiryUrgency,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primaryDark,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          context.read<LanguageProvider>().strings.filterByCompany,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setSheetState(() {});
-                            setState(() => _selectedCompanies.clear());
-                          },
-                          child: Text(
-                            context.read<LanguageProvider>().strings.clearAll,
-                            style: const TextStyle(color: AppColors.secondaryAccent),
-                          ),
-                        ),
-                      ],
-                    ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _filter = 'All');
+                    Navigator.pop(dialogContext);
+                  },
+                  child: Text(
+                    l10n.clearAll,
+                    style: const TextStyle(color: AppColors.secondaryAccent),
                   ),
-                  const Divider(height: 1, color: AppColors.divider),
-                  Expanded(
-                    child: ListView(
-                      controller: controller,
-                      children: allCompanies.map((company) {
-                        final isSelected =
-                            _selectedCompanies.contains(company);
-                        return CheckboxListTile(
-                          value: isSelected,
-                          title: Text(
-                            company,
-                            style: const TextStyle(
-                              color: AppColors.primaryDark,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          activeColor: AppColors.primaryDark,
-                          onChanged: (val) {
-                            setSheetState(() {
-                              if (val == true) {
-                                _selectedCompanies.add(company);
-                              } else {
-                                _selectedCompanies.remove(company);
-                              }
-                            });
-                            setState(() {});
-                          },
-                        );
-                      }).toList(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.divider),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final entry in <(String, String)>[
+                  ('All', l10n.filterAll),
+                  ('Critical', l10n.filterCritical),
+                  ('Warning', l10n.filterWarning),
+                  ('Notice', l10n.filterNotice),
+                ])
+                  ListTile(
+                    leading: Icon(
+                      _filter == entry.$1
+                          ? LucideIcons.checkCircle2
+                          : LucideIcons.circle,
+                      size: 20,
+                      color: _filter == entry.$1
+                          ? AppColors.primaryDark
+                          : AppColors.secondaryAccent,
                     ),
+                    title: Text(
+                      entry.$2,
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onTap: () {
+                      setState(() => _filter = entry.$1);
+                      Navigator.pop(dialogContext);
+                    },
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          context.read<LanguageProvider>().strings.applyBtn,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  l10n.applyBtn,
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  void _showCompanySheet(List<String> allCompanies, AppStrings l10n) {
+    showRightFilterPanel(context, (dialogContext) {
+      String sheetSearch = '';
+      return StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final visible = sheetSearch.isEmpty
+              ? allCompanies
+              : allCompanies
+                  .where(
+                    (c) =>
+                        c.toLowerCase().contains(sheetSearch.toLowerCase()),
+                  )
+                  .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 8, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      color: AppColors.secondaryAccent,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      tooltip: MaterialLocalizations.of(context)
+                          .closeButtonTooltip,
+                    ),
+                    Expanded(
+                      child: Text(
+                        l10n.filterByCompany,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryDark,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {});
+                        setState(() => _selectedCompanies.clear());
+                      },
+                      child: Text(
+                        l10n.clearAll,
+                        style: const TextStyle(color: AppColors.secondaryAccent),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
-        );
-      },
-    );
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: TextField(
+                    onChanged: (v) => setSheetState(() => sheetSearch = v),
+                    decoration: InputDecoration(
+                      hintText: l10n.searchCompanies,
+                      hintStyle: TextStyle(
+                        color: AppColors.secondaryAccent.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: const Icon(
+                        LucideIcons.search,
+                        color: AppColors.secondaryAccent,
+                        size: 18,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.divider),
+              Expanded(
+                child: visible.isEmpty
+                    ? Center(
+                        child: Text(
+                          l10n.noCompaniesFound,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        children: visible.map((company) {
+                          final isSelected =
+                              _selectedCompanies.contains(company);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(
+                              company,
+                              style: const TextStyle(
+                                color: AppColors.primaryDark,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            activeColor: AppColors.primaryDark,
+                            onChanged: (val) {
+                              setSheetState(() {
+                                if (val == true) {
+                                  _selectedCompanies.add(company);
+                                } else {
+                                  _selectedCompanies.remove(company);
+                                }
+                              });
+                              setState(() {});
+                            },
+                          );
+                        }).toList(),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryDark,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      l10n.applyBtn,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   void _showOrderQtyModal(List<Product> filtered) {
@@ -530,30 +668,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             ? AppBar(title: Text(l10n.expiringSoonTitle), centerTitle: true)
             : null,
         backgroundColor: AppColors.background,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(LucideIcons.checkCircle2, size: 56, color: AppColors.success),
-              const SizedBox(height: 16),
-              Text(
-                l10n.noExpiringSoon,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: AppColors.primaryDark,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                l10n.allProductsValidForDays(admin.expiringSoonDays),
-                style: const TextStyle(
-                  color: AppColors.secondaryAccent,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+        body: EmptyStateWidget(
+          title: l10n.noExpiringSoon,
+          message: l10n.allProductsValidForDays(admin.expiringSoonDays),
+          icon: LucideIcons.checkCircle2,
         ),
       );
     }
@@ -632,8 +750,8 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                     PopupMenuButton<String>(
                       tooltip: l10n.sortBtn,
                       icon: SizedBox(
-                        height: 44,
-                        width: 44,
+                        height: 48,
+                        width: 48,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: AppColors.surfaceLight,
@@ -684,111 +802,29 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Urgency chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final label in ['All', 'Critical', 'Warning', 'Notice'])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(
-                              label == 'All'
-                                  ? l10n.filterAll
-                                  : label == 'Critical'
-                                      ? l10n.filterCritical
-                                      : label == 'Warning'
-                                          ? l10n.filterWarning
-                                          : l10n.filterNotice,
-                            ),
-                            selected: _filter == label,
-                            onSelected: (_) =>
-                                setState(() => _filter = label),
-                            selectedColor:
-                                AppColors.primaryDark.withValues(alpha: 0.15),
-                            labelStyle: TextStyle(
-                              color: _filter == label
-                                  ? AppColors.primaryDark
-                                  : AppColors.secondaryAccent,
-                              fontWeight: _filter == label
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                            side: BorderSide(
-                              color: _filter == label
-                                  ? AppColors.primaryDark
-                                  : AppColors.divider,
-                            ),
-                            backgroundColor: AppColors.surfaceLight,
-                            showCheckmark: false,
-                          ),
+                      adminFilterIconButton(
+                        icon: LucideIcons.listFilter,
+                        tooltip: l10n.filterByExpiryUrgency,
+                        activeCount: _filter == 'All' ? 0 : 1,
+                        onPressed: () => _showExpiryUrgencyFilterPanel(l10n),
+                      ),
+                      if (hasCompanies) ...[
+                        const SizedBox(width: 8),
+                        adminFilterIconButton(
+                          icon: LucideIcons.building2,
+                          tooltip: l10n.filterByCompany,
+                          activeCount: _selectedCompanies.length,
+                          onPressed: () =>
+                              _showCompanySheet(allCompanies, l10n),
                         ),
+                      ],
                     ],
                   ),
                 ),
-                // Company chip (only if products have company names)
-                if (hasCompanies) ...[
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () => _showCompanySheet(allCompanies),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedCompanies.isNotEmpty
-                            ? AppColors.primaryDark.withValues(alpha: 0.12)
-                            : AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _selectedCompanies.isNotEmpty
-                              ? AppColors.primaryDark
-                              : AppColors.divider,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            LucideIcons.building2,
-                            size: 14,
-                            color: _selectedCompanies.isNotEmpty
-                                ? AppColors.primaryDark
-                                : AppColors.secondaryAccent,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _selectedCompanies.isEmpty
-                                ? l10n.allCompanies
-                                : _selectedCompanies.length == 1
-                                    ? _selectedCompanies.first
-                                    : l10n.nCompanies(_selectedCompanies.length),
-                            style: TextStyle(
-                              color: _selectedCompanies.isNotEmpty
-                                  ? AppColors.primaryDark
-                                  : AppColors.secondaryAccent,
-                              fontWeight: _selectedCompanies.isNotEmpty
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            LucideIcons.chevronDown,
-                            size: 14,
-                            color: _selectedCompanies.isNotEmpty
-                                ? AppColors.primaryDark
-                                : AppColors.secondaryAccent,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 8),
                 // Result count + Export
                 Row(
@@ -841,41 +877,20 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           // ── List ─────────────────────────────────────────────
           Expanded(
             child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.searchX,
-                          size: 48,
-                          color: AppColors.secondaryAccent,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'No products match your filters.',
-                          style: TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            setState(() {
-                              _searchQuery = '';
-                              _filter = 'All';
-                              _selectedCompanies.clear();
-                            });
-                          },
-                          child: const Text(
-                            'Clear Filters',
-                            style: TextStyle(color: AppColors.primaryDark),
-                          ),
-                        ),
-                      ],
-                    ),
+                ? EmptyStateWidget(
+                    title: l10n.noResultsFound,
+                    message: l10n.noProductsMatchCriteria,
+                    icon: LucideIcons.searchX,
+                    onAction: () {
+                      setState(() {
+                        _searchCtrl.clear();
+                        _searchQuery = '';
+                        _selectedCompanies.clear();
+                        _filter = 'All';
+                        _sortBy = 'Soonest First';
+                      });
+                    },
+                    actionLabel: l10n.clearAllFilters,
                   )
                 : ListView.separated(
                     padding: ResponsiveHelper.screenPadding(context),
