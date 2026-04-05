@@ -26,6 +26,7 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
   String _sortBy = 'Urgency (Recommended)';
   final Set<String> _selectedCompanies = {};
@@ -34,6 +35,72 @@ class _ProductListScreenState extends State<ProductListScreen> {
   bool _isSelectionMode = false;
   Set<String> _selectedIds = {};
 
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  Widget _buildFilterChipList(AppStrings l10n) {
+    if (_selectedCompanies.isEmpty && _selectedGenericNames.isEmpty && _selectedMedTypes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ..._selectedCompanies.map((c) => _buildChip(c, () => setState(() => _selectedCompanies.remove(c)))),
+            ..._selectedGenericNames.map((g) => _buildChip(g, () => setState(() => _selectedGenericNames.remove(g)))),
+            ..._selectedMedTypes.map((t) => _buildChip(t, () => setState(() => _selectedMedTypes.remove(t)))),
+            TextButton(
+              onPressed: () => setState(() {
+                _selectedCompanies.clear();
+                _selectedGenericNames.clear();
+                _selectedMedTypes.clear();
+              }),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                l10n.clearAllFilters, 
+                style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold)
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip(String label, VoidCallback onRemove) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Chip(
+        label: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.primaryDark, fontWeight: FontWeight.w600)),
+        backgroundColor: AppColors.primaryDark.withValues(alpha: 0.08),
+        side: BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        deleteIcon: const Icon(LucideIcons.x, size: 14, color: AppColors.primaryDark),
+        onDeleted: onRemove,
+        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
   static const _sortOptions = [
     'Urgency (Recommended)',
     'Expiry: Soonest First',
@@ -41,13 +108,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
     'Price: High → Low',
     'Price: Low → High',
   ];
-
-  void _toggleSelectionMode() {
-    setState(() {
-      _isSelectionMode = !_isSelectionMode;
-      _selectedIds.clear();
-    });
-  }
 
   List<Product> _applyFiltersAndSort({
     required List<Product> source,
@@ -481,6 +541,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     setState(() {
       if (_selectedIds.length == filteredProducts.length) {
         _selectedIds.clear();
+        _isSelectionMode = false;
       } else {
         _selectedIds = filteredProducts.map((p) => p.id).toSet();
       }
@@ -561,8 +622,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
       clipBehavior: Clip.none,
       children: [
         SizedBox(
-          height: 44,
-          width: 44,
+          height: 48,
+          width: 48,
           child: InkWell(
             onTap: onPressed,
             borderRadius: BorderRadius.circular(10),
@@ -652,8 +713,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   PopupMenuButton<String>(
                     tooltip: l10n.sort,
                     icon: SizedBox(
-                      height: 44,
-                      width: 44,
+                      height: 48,
+                      width: 48,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: AppColors.surfaceLight,
@@ -733,18 +794,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         ),
                         tooltip: l10n.deleteSelectedTooltip,
                       ),
-                    IconButton(
-                      onPressed: _toggleSelectionMode,
-                      icon: Icon(
-                        _isSelectionMode
-                            ? LucideIcons.xSquare
-                            : LucideIcons.checkSquare,
-                        color: AppColors.primaryDark,
-                      ),
-                      tooltip: _isSelectionMode
-                          ? l10n.cancelSelection
-                          : l10n.selectItems,
-                    ),
                   ],
                 ],
               );
@@ -754,11 +803,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   color: AppColors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.secondaryAccent,
-                    width: 2,
+                    color: _searchFocusNode.hasFocus
+                        ? AppColors.primaryDark
+                        : AppColors.secondaryAccent.withValues(alpha: 0.4),
+                    width: _searchFocusNode.hasFocus ? 2 : 1,
                   ),
                 ),
                 child: TextField(
+                  focusNode: _searchFocusNode,
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: InputDecoration(
                     hintText: l10n.searchProducts,
@@ -766,9 +818,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       color: AppColors.secondaryAccent.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500,
                     ),
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       LucideIcons.search,
-                      color: AppColors.primaryDark,
+                      color: _searchFocusNode.hasFocus
+                          ? AppColors.primaryDark
+                          : AppColors.secondaryAccent.withValues(alpha: 0.8),
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -785,17 +839,24 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     searchField,
                     const SizedBox(height: 8),
                     filterButtons,
+                    _buildFilterChipList(l10n),
                   ],
                 );
               }
 
               return Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: searchField),
-                    const SizedBox(width: 8),
-                    filterButtons,
+                    Row(
+                      children: [
+                        Expanded(child: searchField),
+                        const SizedBox(width: 8),
+                        filterButtons,
+                      ],
+                    ),
+                    _buildFilterChipList(l10n),
                   ],
                 ),
               );
@@ -863,61 +924,68 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     final lowAccent = admin.isProductLowStock(product)
                         ? admin.lowStockTierFor(product).accentColor
                         : null;
-                    return GestureDetector(
-                      onLongPress: widget.isAdmin && !_isSelectionMode
-                          ? () {
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primaryDark.withValues(alpha: 0.05)
+                            : AppColors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primaryDark
+                              : lowAccent != null
+                                  ? lowAccent.withValues(alpha: 0.3)
+                                  : AppColors.divider,
+                          width: isSelected ? 2 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryDark.withValues(
+                              alpha: 0.04,
+                            ),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onLongPress: widget.isAdmin && !_isSelectionMode
+                              ? () {
+                                  setState(() {
+                                    _isSelectionMode = true;
+                                    _selectedIds.add(product.id);
+                                  });
+                                }
+                              : null,
+                          onTap: () {
+                            if (_isSelectionMode) {
                               setState(() {
-                                _isSelectionMode = true;
-                                _selectedIds.add(product.id);
+                                if (isSelected) {
+                                  _selectedIds.remove(product.id);
+                                } else {
+                                  _selectedIds.add(product.id);
+                                }
+                                if (_selectedIds.isEmpty) {
+                                  _isSelectionMode = false;
+                                }
+                              });
+                            } else if (widget.isAdmin) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      EditProductScreen(product: product),
+                                ),
+                              ).then((_) {
+                                setState(() {});
                               });
                             }
-                          : null,
-                      onTap: () {
-                        if (_isSelectionMode) {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedIds.remove(product.id);
-                            } else {
-                              _selectedIds.add(product.id);
-                            }
-                          });
-                        } else if (widget.isAdmin) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  EditProductScreen(product: product),
-                            ),
-                          ).then((_) {
-                            setState(() {});
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primaryDark.withValues(alpha: 0.05)
-                              : AppColors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primaryDark
-                                : lowAccent != null
-                                    ? lowAccent.withValues(alpha: 0.3)
-                                    : AppColors.divider,
-                            width: isSelected ? 2 : 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primaryDark.withValues(
-                                alpha: 0.04,
-                              ),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -935,6 +1003,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           } else {
                                             _selectedIds.remove(product.id);
                                           }
+                                          if (_selectedIds.isEmpty) {
+                                            _isSelectionMode = false;
+                                          }
                                         });
                                       },
                                       activeColor: AppColors.primaryDark,
@@ -948,9 +1019,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     ),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(
-                                    LucideIcons.pill,
-                                    color: AppColors.secondaryAccent,
+                                  child: Icon(
+                                    product.medType != null ? MedTypeIcons.getIcon(product.medType) : LucideIcons.pill,
+                                    color: product.medType != null ? MedTypeIcons.getColor(product.medType) : AppColors.secondaryAccent,
                                     size: 20,
                                   ),
                                 ),
@@ -983,71 +1054,62 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: lowAccent != null
-                                        ? lowAccent.withValues(alpha: 0.1)
-                                        : AppColors.success.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: lowAccent != null
-                                          ? lowAccent.withValues(alpha: 0.3)
-                                          : AppColors.success.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    lowAccent != null
-                                        ? l10n.lowStockBadge
-                                        : l10n.inStock,
-                                    style: TextStyle(
-                                      color: lowAccent ?? AppColors.success,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (product.medType != null)
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  alignment: WrapAlignment.end,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(6),
+                                        color: lowAccent != null ? lowAccent.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
-                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.3),
+                                          color: lowAccent != null ? lowAccent.withValues(alpha: 0.3) : AppColors.success.withValues(alpha: 0.3),
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            MedTypeIcons.getIcon(product.medType),
-                                            size: 12,
-                                            color: MedTypeIcons.getColor(product.medType),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            product.medType!,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: MedTypeIcons.getColor(product.medType),
-                                            ),
-                                          ),
-                                        ],
+                                      child: Text(
+                                        lowAccent != null ? l10n.lowStockBadge : l10n.inStock,
+                                        style: TextStyle(
+                                          color: lowAccent ?? AppColors.success,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
+                                    if (product.medType != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              MedTypeIcons.getIcon(product.medType),
+                                              size: 12,
+                                              color: MedTypeIcons.getColor(product.medType),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              product.medType!,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: MedTypeIcons.getColor(product.medType),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
                                 ],
                               ),
                             const SizedBox(height: 12),
@@ -1084,76 +1146,51 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => EditProductScreen(
-                                            product: product,
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => EditProductScreen(product: product),
                                           ),
-                                        ),
-                                      ).then((_) => setState(() {}));
-                                    },
-                                    icon: const Icon(
-                                      LucideIcons.edit,
-                                      size: 16,
-                                      color: AppColors.white,
-                                    ),
-                                    label: Text(
-                                      l10n.editBtn,
-                                      style: const TextStyle(
-                                        color: AppColors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                        ).then((_) => setState(() {}));
+                                      },
+                                      icon: const Icon(LucideIcons.edit, size: 16, color: AppColors.primaryDark),
+                                      label: Text(
+                                        l10n.editBtn,
+                                        style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 13),
                                       ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.secondaryAccent,
-                                      elevation: 2,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.surfaceLight,
+                                        elevation: 0,
+                                        side: const BorderSide(color: AppColors.divider),
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RestockScreen(
-                                            product: product,
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => RestockScreen(product: product),
                                           ),
-                                        ),
-                                      ).then((_) => setState(() {}));
-                                    },
-                                    icon: const Icon(
-                                      LucideIcons.packagePlus,
-                                      size: 16,
-                                      color: AppColors.white,
-                                    ),
-                                    label: Text(
-                                      l10n.restockBtn,
-                                      style: const TextStyle(
-                                        color: AppColors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                        ).then((_) => setState(() {}));
+                                      },
+                                      icon: const Icon(LucideIcons.packagePlus, size: 16, color: AppColors.white),
+                                      label: Text(
+                                        l10n.restockBtn,
+                                        style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                       ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primaryDark,
-                                      elevation: 4,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primaryDark,
+                                        elevation: 2,
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
                                     ),
                                   ),
@@ -1162,6 +1199,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             ],
                           ],
                         ),
+                      ),
+                      ),
                       ),
                     );
                   },
@@ -1177,7 +1216,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
         backgroundColor: AppColors.background,
         drawer: const PosDrawer(),
         appBar: AppBar(
-          backgroundColor: AppColors.primaryDark,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primaryDark, AppColors.secondaryAccent],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+            ),
+          ),
           leading: IconButton(
             icon: const Icon(
               LucideIcons.menu,
@@ -1205,7 +1252,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
@@ -1338,12 +1385,12 @@ class _StockBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: accent != null
             ? accent.withValues(alpha: 0.08)
-            : AppColors.surfaceLight,
+            : (isTaka ? AppColors.secondaryAccent.withValues(alpha: 0.05) : AppColors.surfaceLight),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: accent != null
               ? accent.withValues(alpha: 0.2)
-              : AppColors.divider,
+              : (isTaka ? AppColors.secondaryAccent.withValues(alpha: 0.2) : AppColors.divider),
         ),
       ),
       child: Column(
