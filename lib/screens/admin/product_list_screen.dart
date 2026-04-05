@@ -11,6 +11,7 @@ import '../../providers/language_provider.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/product.dart';
 import '../../widgets/drawer/pos_drawer.dart';
+import 'add_product_screen.dart';
 import 'edit_product_screen.dart';
 import 'restock_screen.dart';
 import '../../widgets/taka_symbol.dart';
@@ -798,6 +799,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     onPressed: () => _showMedTypeSheet(admin.medicineTypes, l10n),
                   ),
                   if (widget.isAdmin) ...[
+                    const SizedBox(width: 8),
+                    _filterButton(
+                      icon: LucideIcons.plus,
+                      tooltip: l10n.addProduct,
+                      activeCount: 0,
+                      onPressed: () {
+                        final pos = context.read<POSProvider>();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AddProductScreen(),
+                          ),
+                        ).then((_) async {
+                          if (!mounted) return;
+                          await pos.loadProducts();
+                          if (mounted) setState(() {});
+                        });
+                      },
+                    ),
                     const SizedBox(width: 8),
                     if (_isSelectionMode)
                       IconButton(
