@@ -29,8 +29,9 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final FocusNode _searchFocusNode = FocusNode();
-  String _searchQuery = '';
+  bool _isSearchVisible = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   String _sortBy = 'Urgency (Recommended)';
   final Set<String> _selectedCompanies = {};
   final Set<String> _selectedGenericNames = {};
@@ -39,17 +40,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Set<String> _selectedIds = {};
 
   @override
-  void initState() {
-    super.initState();
-    _searchFocusNode.addListener(() {
-      setState(() {});
-    });
+  void dispose() {
+    _searchController.dispose();
+    _searchFocus.dispose();
+    super.dispose();
   }
 
-  @override
-  void dispose() {
-    _searchFocusNode.dispose();
-    super.dispose();
+  void _toggleProductListSearch() {
+    setState(() {
+      _isSearchVisible = !_isSearchVisible;
+      if (!_isSearchVisible) {
+        _searchController.clear();
+        _searchFocus.unfocus();
+      }
+    });
+    if (_isSearchVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchFocus.requestFocus();
+      });
+    }
   }
 
   Widget _buildFilterChipList(AppStrings l10n) {
@@ -119,8 +128,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
     var list = List<Product>.from(source);
 
     // Search
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
+    final searchText = _searchController.text;
+    if (searchText.isNotEmpty) {
+      final q = searchText.toLowerCase();
       list = list.where((p) {
         final name = p.name.toLowerCase();
         final generic = p.generic.toLowerCase();
@@ -720,8 +730,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
     // If accessed from POS 3-dot menu (not inside admin dashboard),
     // show its own Scaffold with AppBar
     final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Search + controls bar
+        _ProductListExpandableSearchBar(
+          isVisible: _isSearchVisible,
+          controller: _searchController,
+          focusNode: _searchFocus,
+          hintText: l10n.searchProducts,
+          closeTooltip: l10n.closeSearchTooltip,
+          onChanged: (_) => setState(() {}),
+          onClose: _toggleProductListSearch,
+        ),
+        // Filter controls (fixed above list; divider separates from scrolling products)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: LayoutBuilder(
@@ -729,6 +749,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
               final filterButtons = Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (widget.isAdmin)
+                    _filterButton(
+                      icon: LucideIcons.search,
+                      tooltip: _isSearchVisible
+                          ? l10n.closeSearchTooltip
+                          : l10n.searchTooltip,
+                      activeCount: _isSearchVisible ? 1 : 0,
+                      onPressed: _toggleProductListSearch,
+                    ),
+                  if (widget.isAdmin) const SizedBox(width: 8),
                   // Sort button
                   PopupMenuButton<String>(
                     tooltip: l10n.sort,
@@ -837,47 +867,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 ],
               );
 
-              final searchField = Container(
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _searchFocusNode.hasFocus
-                        ? AppColors.primaryDark
-                        : AppColors.secondaryAccent.withValues(alpha: 0.4),
-                    width: _searchFocusNode.hasFocus ? 2 : 1,
-                  ),
-                ),
-                child: TextField(
-                  focusNode: _searchFocusNode,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  decoration: InputDecoration(
-                    hintText: l10n.searchProducts,
-                    hintStyle: TextStyle(
-                      color: AppColors.secondaryAccent.withValues(alpha: 0.6),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    prefixIcon: Icon(
-                      LucideIcons.search,
-                      color: _searchFocusNode.hasFocus
-                          ? AppColors.primaryDark
-                          : AppColors.secondaryAccent.withValues(alpha: 0.8),
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+              final filterRow = SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: filterButtons,
               );
 
               if (constraints.maxWidth < 400) {
-                // Stack search bar on top, buttons on second row
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 16),
-                    searchField,
-                    const SizedBox(height: 8),
-                    filterButtons,
+                    filterRow,
                     _buildFilterChipList(l10n),
                   ],
                 );
@@ -888,13 +888,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(child: searchField),
-                        const SizedBox(width: 8),
-                        filterButtons,
-                      ],
-                    ),
+                    filterRow,
                     _buildFilterChipList(l10n),
                   ],
                 ),
@@ -902,6 +896,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             },
           ),
         ),
+        const Divider(height: 1, thickness: 1, color: AppColors.divider),
         if (_isSelectionMode && filtered.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -938,14 +933,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
           child: filtered.isEmpty
               ? EmptyStateWidget(
                   title: l10n.noProductsFound,
-                  message: _searchQuery.isEmpty
+                  message: _searchController.text.isEmpty
                       ? l10n.productListEmpty
                       : l10n.noProductsMatchCriteria,
                   icon: LucideIcons.searchX,
-                  onAction: _searchQuery.isNotEmpty
+                  onAction: _searchController.text.isNotEmpty
                       ? () {
                           setState(() {
-                            _searchQuery = '';
+                            _searchController.clear();
+                            _isSearchVisible = false;
                             _selectedCompanies.clear();
                             _selectedGenericNames.clear();
                           });
@@ -1255,6 +1251,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
         backgroundColor: AppColors.background,
         drawer: const PosDrawer(),
         appBar: AppBar(
+          toolbarHeight: 64,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: AppColors.white,
           flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -1270,14 +1270,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
               color: AppColors.white,
             ),
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            tooltip: l10n.menuTooltip,
           ),
           title: Text(
             l10n.productList,
             style: const TextStyle(
+              color: AppColors.white,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
             ),
           ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(
+                _isSearchVisible ? LucideIcons.x : LucideIcons.search,
+                color: AppColors.white,
+              ),
+              onPressed: _toggleProductListSearch,
+              tooltip: _isSearchVisible
+                  ? l10n.closeSearchTooltip
+                  : l10n.searchTooltip,
+            ),
+          ],
         ),
         body: body,
       );
@@ -1385,6 +1400,89 @@ class _ProductListScreenState extends State<ProductListScreen> {
         },
       );
     });
+  }
+}
+
+/// Expandable bar under the app bar, matching [HomeScreen] search UX.
+class _ProductListExpandableSearchBar extends StatelessWidget {
+  final bool isVisible;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hintText;
+  final String closeTooltip;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  const _ProductListExpandableSearchBar({
+    required this.isVisible,
+    required this.controller,
+    required this.focusNode,
+    required this.hintText,
+    required this.closeTooltip,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      height: isVisible ? 60.0 : 0.0,
+      color: AppColors.primaryDark,
+      clipBehavior: Clip.hardEdge,
+      child: isVisible
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color:
+                        AppColors.highlightActive.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onChanged: onChanged,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: TextStyle(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      LucideIcons.search,
+                      color: AppColors.secondaryAccent,
+                      size: 18,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        LucideIcons.x,
+                        size: 16,
+                        color: AppColors.secondaryAccent,
+                      ),
+                      onPressed: onClose,
+                      tooltip: closeTooltip,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
   }
 }
 
