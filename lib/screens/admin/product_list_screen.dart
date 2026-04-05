@@ -21,7 +21,15 @@ import '../../utils/med_type_icons.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool isAdmin;
-  const ProductListScreen({super.key, required this.isAdmin});
+  /// When set (e.g. from [AdminDashboardScreen]), switches to Add Product in-shell
+  /// instead of pushing a new route (avoids missing [Material] / wrong theme).
+  final VoidCallback? onOpenAddProduct;
+
+  const ProductListScreen({
+    super.key,
+    required this.isAdmin,
+    this.onOpenAddProduct,
+  });
 
   @override
   State<ProductListScreen> createState() => _ProductListScreenState();
@@ -835,6 +843,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       tooltip: l10n.addProduct,
                       activeCount: 0,
                       onPressed: () {
+                        final open = widget.onOpenAddProduct;
+                        if (open != null) {
+                          open();
+                          return;
+                        }
                         final pos = context.read<POSProvider>();
                         Navigator.push(
                           context,

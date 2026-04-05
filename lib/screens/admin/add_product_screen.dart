@@ -43,6 +43,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _supplierPhoneCtrl = TextEditingController();
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
+  bool? _showOptionalFields;
 
   Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(
     _selectedMedType,
@@ -57,6 +58,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final admin = context.read<AdminProvider>();
         setState(() {
           _lowStockWarningCtrl.text = admin.lowStockThreshold.toString();
+          _showOptionalFields = admin.expandOptionalFields;
         });
       }
     });
@@ -228,6 +230,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ? null
               : _supplierPhoneCtrl.text.trim(),
           medType: _selectedMedType,
+          costPricePerPc: costPricePerPc,
         );
         await context.read<AdminProvider>().updateProduct(updatedProduct);
         if (!mounted) return;
@@ -272,11 +275,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ? null
               : _supplierPhoneCtrl.text.trim(),
           medType: _selectedMedType,
+          costPricePerPc: costPricePerPc,
         );
 
         await context.read<AdminProvider>().addProduct(
           newProduct,
           initialBatchNumber: _batchCtrl.text.trim(),
+          costPricePerPc: costPricePerPc,
         );
       }
 
@@ -730,9 +735,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final l10n = context.read<LanguageProvider>().strings;
     final showSupplierInfo = context.watch<AdminProvider>().showSupplierInfo;
     final pad = ResponsiveHelper.screenPadding(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
+    return Material(
+      color: AppColors.background,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
@@ -890,6 +897,137 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       );
                                     },
                                   ),
+                                  const SizedBox(height: 12),
+                                  _buildMedTypeDropdown(),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      Widget scanButton() {
+                                        final btn = ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final scannedCode =
+                                                await Navigator.push<String>(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const ScannerScreen(),
+                                                  ),
+                                                );
+                                            if (!context.mounted) return;
+                                            if (scannedCode != null &&
+                                                scannedCode.isNotEmpty) {
+                                              setState(() {
+                                                _barcodeCtrl.text = scannedCode;
+                                              });
+                                              // Auto-load if product exists
+                                              final admin = context
+                                                  .read<AdminProvider>();
+                                              final existing = admin.allProducts
+                                                  .where(
+                                                    (p) =>
+                                                        p.barcode ==
+                                                        scannedCode,
+                                                  )
+                                                  .firstOrNull;
+                                              if (existing != null) {
+                                                _loadProductInfo(existing);
+                                              }
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            LucideIcons.scan,
+                                            color: AppColors.white,
+                                            size: 20,
+                                          ),
+                                          label: Text(
+                                            l10n.scanBtn,
+                                            style: const TextStyle(
+                                              color: AppColors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppColors.primaryDark,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            alignment: Alignment.center,
+                                          ),
+                                        );
+                                        return btn;
+                                      }
+
+                                      final barcodeField = _buildField(
+                                        controller: _barcodeCtrl,
+                                        label: l10n.barcodeLabel,
+                                        icon: LucideIcons.scanLine,
+                                        keyboardType: TextInputType.number,
+                                      );
+                                      return IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              child: barcodeField,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            SizedBox(
+                                              width: 110, // Slightly wider for l10n.scanBtn
+                                              child: scanButton(),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  InkWell(
+                                    onTap: () {
+                                      final newVal = !(_showOptionalFields ?? false);
+                                      setState(() => _showOptionalFields = newVal);
+                                      context.read<AdminProvider>().updateExpandOptionalFields(newVal);
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            l10n.optionalDetails,
+                                            style: const TextStyle(
+                                              color: AppColors.primaryDark,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          Icon(
+                                            (_showOptionalFields ?? false)
+                                                ? LucideIcons.chevronUp
+                                                : LucideIcons.chevronDown,
+                                            size: 18,
+                                            color: AppColors.secondaryAccent,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  AnimatedSize(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    child: (_showOptionalFields ?? false)
+                                        ? Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
                                   const SizedBox(height: 12),
                                   LayoutBuilder(
                                     builder: (context, constraints) {
@@ -1117,120 +1255,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       );
                                     },
                                   ),
-                                  const SizedBox(height: 12),
-                                  _buildMedTypeDropdown(),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      Widget scanButton() {
-                                        final btn = ElevatedButton.icon(
-                                          onPressed: () async {
-                                            final scannedCode =
-                                                await Navigator.push<String>(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const ScannerScreen(),
+                                              if (showSupplierInfo) ...[
+                                                const Divider(height: 32),
+                                                Padding(
+                                                  padding: const EdgeInsets.only(bottom: 12),
+                                                  child: Row(
+                                                    children: [
+                                                      const Icon(LucideIcons.truck, size: 18, color: AppColors.primaryDark),
+                                                      const SizedBox(width: 8),
+                                                      Text(l10n.supplierInfo, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                                                    ],
                                                   ),
-                                                );
-                                            if (!context.mounted) return;
-                                            if (scannedCode != null &&
-                                                scannedCode.isNotEmpty) {
-                                              setState(() {
-                                                _barcodeCtrl.text = scannedCode;
-                                              });
-                                              // Auto-load if product exists
-                                              final admin = context
-                                                  .read<AdminProvider>();
-                                              final existing = admin.allProducts
-                                                  .where(
-                                                    (p) =>
-                                                        p.barcode ==
-                                                        scannedCode,
-                                                  )
-                                                  .firstOrNull;
-                                              if (existing != null) {
-                                                _loadProductInfo(existing);
-                                              }
-                                            }
-                                          },
-                                          icon: const Icon(
-                                            LucideIcons.scan,
-                                            color: AppColors.white,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            l10n.scanBtn,
-                                            style: const TextStyle(
-                                              color: AppColors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                AppColors.primaryDark,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                            ),
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                            alignment: Alignment.center,
-                                          ),
-                                        );
-                                        return btn;
-                                      }
-
-                                      final barcodeField = _buildField(
-                                        controller: _barcodeCtrl,
-                                        label: l10n.barcodeLabel,
-                                        icon: LucideIcons.scanLine,
-                                        keyboardType: TextInputType.number,
-                                      );
-                                      if (constraints.maxWidth < 380) {
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            barcodeField,
-                                            const SizedBox(height: 12),
-                                            scanButton(),
-                                          ],
-                                        );
-                                      }
-                                      return IntrinsicHeight(
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            Expanded(
-                                              flex: 6,
-                                              child: barcodeField,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              flex: 4,
-                                              child: scanButton(),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            if (showSupplierInfo)
-                              _buildSection(
-                                title: l10n.supplierInfo,
-                                icon: LucideIcons.truck,
-                                child: Column(
-                                  children: [
+                                                ),
                                     LayoutBuilder(
                                       builder: (context, constraints) {
                                         return Autocomplete<String>(
@@ -1369,9 +1405,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       icon: LucideIcons.phone,
                                       keyboardType: TextInputType.phone,
                                     ),
-                                  ],
-                                ),
+                                              ],
+                                              const SizedBox(height: 8),
+                                            ],
+                                          )
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ],
                               ),
+                            ),
+
                           ],
                         ),
                       ),
@@ -1822,6 +1865,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           ],
         );
       },
+    ),
     );
   }
 

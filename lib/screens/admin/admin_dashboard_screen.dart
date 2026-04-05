@@ -91,7 +91,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 0:
         return _buildDashboardPage();
       case 1:
-        return const ProductListScreen(isAdmin: true);
+        return ProductListScreen(
+          isAdmin: true,
+          onOpenAddProduct: () => _navigateTo(2),
+        );
       case 2:
         return const AddProductScreen();
       case 3:
