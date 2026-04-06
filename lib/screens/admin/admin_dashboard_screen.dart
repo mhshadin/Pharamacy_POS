@@ -14,7 +14,6 @@ import 'expiring_soon_screen.dart';
 import 'low_stock_screen.dart';
 import 'returns_screen.dart';
 import '../../services/auth_storage.dart';
-import 'notification_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'top_products_screen.dart';
@@ -32,8 +31,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // Navigation stack: [0] is always dashboard at the bottom
   final List<int> _navStack = [0];
   bool _salesReportInitialToday = false;
+  bool _embeddedSearchVisible = false;
 
   int get _currentIndex => _navStack.last;
+  bool get _isStockSearchPage => _currentIndex == 3 || _currentIndex == 4;
 
   final List<_NavItemData> _navItemsData = [
     _NavItemData(icon: LucideIcons.layoutDashboard, labelKey: (l10n) => l10n.navDashboard),   // 0
@@ -59,6 +60,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (!isMenuNavigation && index == _currentIndex) return;
 
     setState(() {
+      if (index != 3 && index != 4) {
+        _embeddedSearchVisible = false;
+      }
       if (index == 6) {
         _salesReportInitialToday = openSalesReportWithTodayFilter;
       }
@@ -98,9 +102,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       case 2:
         return const AddProductScreen();
       case 3:
-        return const LowStockScreen(showAppBar: false);
+        return LowStockScreen(
+          showAppBar: false,
+          externalSearchVisible: _embeddedSearchVisible,
+          onSearchVisibilityChanged: (visible) {
+            if (_embeddedSearchVisible != visible) {
+              setState(() => _embeddedSearchVisible = visible);
+            }
+          },
+        );
       case 4:
-        return const ExpiringSoonScreen(showAppBar: false);
+        return ExpiringSoonScreen(
+          showAppBar: false,
+          externalSearchVisible: _embeddedSearchVisible,
+          onSearchVisibilityChanged: (visible) {
+            if (_embeddedSearchVisible != visible) {
+              setState(() => _embeddedSearchVisible = visible);
+            }
+          },
+        );
       case 5:
         return const ReturnsScreen();
       case 6:
@@ -161,51 +181,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           actions: [
-            Builder(
-              builder: (context) {
-                final admin = context.watch<AdminProvider>();
-                final alertCount = admin.unreadAlertCount;
-                return Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.bell),
-                      tooltip: l10n.notifications,
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const NotificationScreen()),
-                        );
-                      },
-                    ),
-                    if (alertCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            '$alertCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
+            if (_isStockSearchPage)
+              IconButton(
+                icon: Icon(
+                  _embeddedSearchVisible ? LucideIcons.x : LucideIcons.search,
+                ),
+                tooltip: _embeddedSearchVisible
+                    ? l10n.closeSearchTooltip
+                    : l10n.searchTooltip,
+                onPressed: () {
+                  setState(() {
+                    _embeddedSearchVisible = !_embeddedSearchVisible;
+                  });
+                },
+              ),
             IconButton(
               icon: const Icon(LucideIcons.logOut),
               tooltip: l10n.logout,

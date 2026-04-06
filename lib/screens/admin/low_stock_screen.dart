@@ -18,9 +18,16 @@ import '../../widgets/shared/right_filter_panel.dart';
 import '../../l10n/app_strings.dart';
 
 class LowStockScreen extends StatefulWidget {
-  const LowStockScreen({super.key, this.showAppBar = true});
+  const LowStockScreen({
+    super.key,
+    this.showAppBar = true,
+    this.externalSearchVisible,
+    this.onSearchVisibilityChanged,
+  });
 
   final bool showAppBar;
+  final bool? externalSearchVisible;
+  final ValueChanged<bool>? onSearchVisibilityChanged;
 
   @override
   State<LowStockScreen> createState() => _LowStockScreenState();
@@ -88,6 +95,30 @@ class _LowStockScreenState extends State<LowStockScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.externalSearchVisible != null) {
+      _isSearchVisible = widget.externalSearchVisible!;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant LowStockScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ext = widget.externalSearchVisible;
+    if (ext != null && ext != _isSearchVisible) {
+      setState(() {
+        _isSearchVisible = ext;
+        if (!_isSearchVisible) {
+          _searchCtrl.clear();
+          _searchQuery = '';
+          _searchFocus.unfocus();
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     _searchFocus.dispose();
@@ -108,6 +139,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
         if (mounted) _searchFocus.requestFocus();
       });
     }
+    widget.onSearchVisibilityChanged?.call(_isSearchVisible);
   }
 
   List<Product> _applyFilters(List<Product> source) {
@@ -611,7 +643,9 @@ class _LowStockScreenState extends State<LowStockScreen> {
       body: Column(
         children: [
           _LowStockExpandableSearchBar(
-            isVisible: widget.showAppBar ? _isSearchVisible : true,
+            isVisible:
+                widget.externalSearchVisible ??
+                (widget.showAppBar ? _isSearchVisible : false),
             controller: _searchCtrl,
             focusNode: _searchFocus,
             onChanged: (v) => setState(() => _searchQuery = v.trim()),

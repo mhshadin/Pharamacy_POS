@@ -19,9 +19,16 @@ import '../../l10n/app_strings.dart';
 import 'restock_screen.dart';
 
 class ExpiringSoonScreen extends StatefulWidget {
-  const ExpiringSoonScreen({super.key, this.showAppBar = true});
+  const ExpiringSoonScreen({
+    super.key,
+    this.showAppBar = true,
+    this.externalSearchVisible,
+    this.onSearchVisibilityChanged,
+  });
 
   final bool showAppBar;
+  final bool? externalSearchVisible;
+  final ValueChanged<bool>? onSearchVisibilityChanged;
 
   @override
   State<ExpiringSoonScreen> createState() => _ExpiringSoonScreenState();
@@ -45,6 +52,30 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.externalSearchVisible != null) {
+      _isSearchVisible = widget.externalSearchVisible!;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ExpiringSoonScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ext = widget.externalSearchVisible;
+    if (ext != null && ext != _isSearchVisible) {
+      setState(() {
+        _isSearchVisible = ext;
+        if (!_isSearchVisible) {
+          _searchCtrl.clear();
+          _searchQuery = '';
+          _searchFocus.unfocus();
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     _searchFocus.dispose();
@@ -65,6 +96,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
         if (mounted) _searchFocus.requestFocus();
       });
     }
+    widget.onSearchVisibilityChanged?.call(_isSearchVisible);
   }
 
   List<Product> _applyFilters(List<Product> source, AdminProvider admin) {
@@ -733,7 +765,9 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       body: Column(
         children: [
           _ExpiringSoonExpandableSearchBar(
-            isVisible: widget.showAppBar ? _isSearchVisible : true,
+            isVisible:
+                widget.externalSearchVisible ??
+                (widget.showAppBar ? _isSearchVisible : false),
             controller: _searchCtrl,
             focusNode: _searchFocus,
             onChanged: (v) => setState(() => _searchQuery = v.trim()),
