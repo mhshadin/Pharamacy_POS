@@ -746,69 +746,63 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Sort + filters
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    PopupMenuButton<String>(
-                      tooltip: l10n.sortBtn,
-                      icon: SizedBox(
-                        height: 48,
-                        width: 48,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceLight,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.divider),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              LucideIcons.arrowUpDown,
-                              color: AppColors.primaryDark,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                      onSelected: (v) => setState(() => _sortBy = v),
-                      itemBuilder: (_) => _sortOptions
-                          .map(
-                            (o) => PopupMenuItem(
-                              value: o,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    _sortBy == o
-                                        ? LucideIcons.checkCircle2
-                                        : LucideIcons.circle,
-                                    size: 16,
-                                    color: _sortBy == o
-                                        ? AppColors.primaryDark
-                                        : AppColors.secondaryAccent,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    o == 'Soonest First'
-                                        ? l10n.sortSoonestFirst
-                                        : o == 'Latest First'
-                                            ? l10n.sortLatestFirst
-                                            : o == 'A \u2192 Z'
-                                                ? l10n.sortNameAZ
-                                                : l10n.sortNameZA,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
+                      PopupMenuButton<String>(
+                        tooltip: l10n.sortBtn,
+                        icon: SizedBox(
+                          height: 48,
+                          width: 48,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider),
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                LucideIcons.arrowUpDown,
+                                color: AppColors.primaryDark,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        onSelected: (v) => setState(() => _sortBy = v),
+                        itemBuilder: (_) => _sortOptions
+                            .map(
+                              (o) => PopupMenuItem(
+                                value: o,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _sortBy == o
+                                          ? LucideIcons.checkCircle2
+                                          : LucideIcons.circle,
+                                      size: 16,
+                                      color: _sortBy == o
+                                          ? AppColors.primaryDark
+                                          : AppColors.secondaryAccent,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      o == 'Soonest First'
+                                          ? l10n.sortSoonestFirst
+                                          : o == 'Latest First'
+                                              ? l10n.sortLatestFirst
+                                              : o == 'A \u2192 Z'
+                                                  ? l10n.sortNameAZ
+                                                  : l10n.sortNameZA,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(width: 8),
                       adminFilterIconButton(
                         icon: LucideIcons.listFilter,
                         tooltip: l10n.filterByExpiryUrgency,
@@ -825,13 +819,20 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                               _showCompanySheet(allCompanies, l10n),
                         ),
                       ],
+                      if (filtered.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        adminFilterIconButton(
+                          icon: LucideIcons.download,
+                          tooltip: l10n.exportOrderList,
+                          activeCount: 0,
+                          onPressed: () => _showOrderQtyModal(filtered),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Result count + Export
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       l10n.productsCount(filtered.length),
@@ -841,35 +842,6 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                         fontSize: 12,
                       ),
                     ),
-                    if (filtered.isNotEmpty)
-                      TextButton.icon(
-                        onPressed: () => _showOrderQtyModal(filtered),
-                        icon: const Icon(
-                          LucideIcons.download,
-                          size: 15,
-                          color: AppColors.primaryDark,
-                        ),
-                        label: Text(
-                          l10n.exportOrderList,
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          backgroundColor: AppColors.primaryDark.withValues(
-                            alpha: 0.08,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ],
