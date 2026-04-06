@@ -56,8 +56,8 @@ void showRightFilterPanel(
   );
 }
 
-/// Compact 48×48 filter icon with optional numeric badge (product list style).
-Widget adminFilterIconButton({
+/// Home quick-action tile styled icon button with optional badge.
+Widget adminActionTileButton({
   required IconData icon,
   required String tooltip,
   required int activeCount,
@@ -69,30 +69,25 @@ Widget adminFilterIconButton({
       clipBehavior: Clip.none,
       children: [
         SizedBox(
-          height: 48,
-          width: 48,
+          height: 44,
+          width: 60,
           child: InkWell(
             onTap: onPressed,
             borderRadius: BorderRadius.circular(10),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: activeCount > 0
-                    ? AppColors.primaryDark.withValues(alpha: 0.08)
-                    : AppColors.surfaceLight,
+                    ? AppColors.primaryDark
+                    : AppColors.posButtonIdle,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: activeCount > 0
-                      ? AppColors.primaryDark.withValues(alpha: 0.4)
-                      : AppColors.divider,
-                ),
               ),
               child: Center(
                 child: Icon(
                   icon,
                   color: activeCount > 0
-                      ? AppColors.primaryDark
-                      : AppColors.secondaryAccent,
-                  size: 20,
+                      ? AppColors.white
+                      : AppColors.primaryDark,
+                  size: 18,
                 ),
               ),
             ),

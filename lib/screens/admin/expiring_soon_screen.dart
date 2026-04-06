@@ -753,19 +753,18 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       PopupMenuButton<String>(
                         tooltip: l10n.sortBtn,
                         icon: SizedBox(
-                          height: 48,
-                          width: 48,
+                          height: 44,
+                          width: 60,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceLight,
+                              color: AppColors.posButtonIdle,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.divider),
                             ),
                             child: const Center(
                               child: Icon(
                                 LucideIcons.arrowUpDown,
                                 color: AppColors.primaryDark,
-                                size: 20,
+                                size: 18,
                               ),
                             ),
                           ),
@@ -803,7 +802,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             .toList(),
                       ),
                       const SizedBox(width: 8),
-                      adminFilterIconButton(
+                      adminActionTileButton(
                         icon: LucideIcons.listFilter,
                         tooltip: l10n.filterByExpiryUrgency,
                         activeCount: _filter == 'All' ? 0 : 1,
@@ -811,7 +810,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       ),
                       if (hasCompanies) ...[
                         const SizedBox(width: 8),
-                        adminFilterIconButton(
+                        adminActionTileButton(
                           icon: LucideIcons.building2,
                           tooltip: l10n.filterByCompany,
                           activeCount: _selectedCompanies.length,
@@ -821,7 +820,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       ],
                       if (filtered.isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        adminFilterIconButton(
+                        adminActionTileButton(
                           icon: LucideIcons.download,
                           tooltip: l10n.exportOrderList,
                           activeCount: 0,
