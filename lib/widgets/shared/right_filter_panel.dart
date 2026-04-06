@@ -72,7 +72,7 @@ Widget adminActionTileButton({
       clipBehavior: Clip.none,
       children: [
         SizedBox(
-          height: 52,
+          height: 44,
           width: expand ? double.infinity : minWidth,
           child: InkWell(
             onTap: onPressed,
@@ -84,7 +84,7 @@ Widget adminActionTileButton({
                     : AppColors.posButtonIdle,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Column(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
@@ -94,7 +94,7 @@ Widget adminActionTileButton({
                         : AppColors.primaryDark,
                     size: 16,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(width: 6),
                   Text(
                     label,
                     maxLines: 1,
@@ -103,7 +103,7 @@ Widget adminActionTileButton({
                       color: activeCount > 0
                           ? AppColors.white
                           : AppColors.primaryDark,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.2,
                     ),

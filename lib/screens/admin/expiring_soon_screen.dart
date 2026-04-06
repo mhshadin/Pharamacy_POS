@@ -412,14 +412,14 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     final tile = PopupMenuButton<String>(
       tooltip: l10n.sortBtn,
       icon: SizedBox(
-        height: 52,
+        height: 44,
         width: double.infinity,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.posButtonIdle,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Column(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
@@ -427,12 +427,12 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                 color: AppColors.primaryDark,
                 size: 16,
               ),
-              SizedBox(height: 2),
+              SizedBox(width: 6),
               Text(
                 'Sort',
                 style: TextStyle(
                   color: AppColors.primaryDark,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.2,
                 ),
