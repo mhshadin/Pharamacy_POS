@@ -44,6 +44,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
   bool? _showOptionalFields;
+  bool? _useStepperOverride;
 
   Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(
     _selectedMedType,
@@ -512,7 +513,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  Widget _buildWizardFooter(AppStrings l10n, double maxWidth) {
+  Widget _buildWizardFooter(
+    AppStrings l10n,
+    double maxWidth, {
+    required bool useStepperMode,
+  }) {
     final narrow = maxWidth < 380;
     final outlined = OutlinedButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -545,6 +550,52 @@ class _AddProductScreenState extends State<AddProductScreen> {
         const SizedBox(width: 12),
         Expanded(flex: 2, child: right),
       ];
+    }
+
+    if (!useStepperMode) {
+      final bulk = OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const BulkImportScreen()),
+          );
+        },
+        icon: const Icon(
+          LucideIcons.fileSpreadsheet,
+          color: AppColors.primaryDark,
+        ),
+        label: Text(
+          l10n.bulkImport,
+          style: const TextStyle(
+            color: AppColors.primaryDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: outlined,
+      );
+      final save = ElevatedButton.icon(
+        onPressed: _submitForm,
+        icon: const Icon(LucideIcons.plus, color: AppColors.white),
+        label: Text(
+          l10n.addProduct,
+          style: const TextStyle(
+            color: AppColors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        style: elevated,
+      );
+      return narrow
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rowPair(bulk, save, equalWidths: true),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: rowPair(bulk, save, equalWidths: true),
+            );
     }
 
     if (_currentStep == 0) {
@@ -733,543 +784,83 @@ class _AddProductScreenState extends State<AddProductScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.read<LanguageProvider>().strings;
-    final showSupplierInfo = context.watch<AdminProvider>().showSupplierInfo;
+    final admin = context.watch<AdminProvider>();
+    final showSupplierInfo = admin.showSupplierInfo;
+    final useStepperMode =
+        _useStepperOverride ?? admin.addProductUseStepperDefault;
     final pad = ResponsiveHelper.screenPadding(context);
     return Material(
       color: AppColors.background,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(pad.left, pad.top, pad.right, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
-                      l10n.addProduct,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                  ),
-                  _buildHorizontalStepper(l10n),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(pad.left, 4, pad.right, 8),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(pad.left, pad.top, pad.right, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Offstage(
-                      offstage: _currentStep != 0,
-                      child: Form(
-                        key: _formKeyStep1,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // SECTION 1: GENERAL INFORMATION
-                            _buildSection(
-                              title: l10n.generalInfo,
-                              icon: LucideIcons.info,
-                              child: Column(
-                                children: [
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      return Autocomplete<Product>(
-                                        optionsBuilder:
-                                            (
-                                              TextEditingValue textEditingValue,
-                                            ) {
-                                              if (textEditingValue.text
-                                                  .trim()
-                                                  .isEmpty) {
-                                                return const Iterable<
-                                                  Product
-                                                >.empty();
-                                              }
-                                              final lowerQuery =
-                                                  textEditingValue.text
-                                                      .toLowerCase();
-                                              return context
-                                                  .read<AdminProvider>()
-                                                  .allProducts
-                                                  .where((p) {
-                                                    return p.name
-                                                            .toLowerCase()
-                                                            .contains(
-                                                              lowerQuery,
-                                                            ) ||
-                                                        p.generic
-                                                            .toLowerCase()
-                                                            .contains(
-                                                              lowerQuery,
-                                                            );
-                                                  });
-                                            },
-                                        displayStringForOption:
-                                            (Product option) => option.name,
-                                        onSelected: _loadProductInfo,
-                                        fieldViewBuilder:
-                                            (
-                                              context,
-                                              controller,
-                                              focusNode,
-                                              onEditingComplete,
-                                            ) {
-                                              _nameCtrl = controller;
-                                              return _buildField(
-                                                controller: controller,
-                                                label: l10n.productName,
-                                                icon: LucideIcons.pill,
-                                                focusNode: focusNode,
-                                                onEditingComplete:
-                                                    onEditingComplete,
-                                                validator: (v) =>
-                                                    v == null || v.isEmpty
-                                                    ? 'Required'
-                                                    : null,
-                                              );
-                                            },
-                                        optionsViewBuilder: (context, onSelected, options) {
-                                          return Align(
-                                            alignment: Alignment.topLeft,
-                                            child: Material(
-                                              elevation: 4.0,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxHeight: 200,
-                                                  maxWidth:
-                                                      constraints.maxWidth,
-                                                ),
-                                                child: ListView.builder(
-                                                  padding: EdgeInsets.zero,
-                                                  shrinkWrap: true,
-                                                  itemCount: options.length,
-                                                  itemBuilder:
-                                                      (
-                                                        BuildContext context,
-                                                        int index,
-                                                      ) {
-                                                        final Product option =
-                                                            options.elementAt(
-                                                              index,
-                                                            );
-                                                        return InkWell(
-                                                          onTap: () =>
-                                                              onSelected(
-                                                                option,
-                                                              ),
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  16.0,
-                                                                ),
-                                                            child: Text(
-                                                              option.name,
-                                                              style: const TextStyle(
-                                                                color: AppColors
-                                                                    .primaryDark,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _buildMedTypeDropdown(),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      Widget scanButton() {
-                                        final btn = ElevatedButton.icon(
-                                          onPressed: () async {
-                                            final scannedCode =
-                                                await Navigator.push<String>(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const ScannerScreen(),
-                                                  ),
-                                                );
-                                            if (!context.mounted) return;
-                                            if (scannedCode != null &&
-                                                scannedCode.isNotEmpty) {
-                                              setState(() {
-                                                _barcodeCtrl.text = scannedCode;
-                                              });
-                                              // Auto-load if product exists
-                                              final admin = context
-                                                  .read<AdminProvider>();
-                                              final existing = admin.allProducts
-                                                  .where(
-                                                    (p) =>
-                                                        p.barcode ==
-                                                        scannedCode,
-                                                  )
-                                                  .firstOrNull;
-                                              if (existing != null) {
-                                                _loadProductInfo(existing);
-                                              }
-                                            }
-                                          },
-                                          icon: const Icon(
-                                            LucideIcons.scan,
-                                            color: AppColors.white,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            l10n.scanBtn,
-                                            style: const TextStyle(
-                                              color: AppColors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                AppColors.primaryDark,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                            ),
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                            alignment: Alignment.center,
-                                          ),
-                                        );
-                                        return btn;
-                                      }
-
-                                      final barcodeField = _buildField(
-                                        controller: _barcodeCtrl,
-                                        label: l10n.barcodeLabel,
-                                        icon: LucideIcons.scanLine,
-                                        keyboardType: TextInputType.number,
-                                      );
-                                      return IntrinsicHeight(
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            Expanded(
-                                              child: barcodeField,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            SizedBox(
-                                              width: 110, // Slightly wider for l10n.scanBtn
-                                              child: scanButton(),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                  InkWell(
-                                    onTap: () {
-                                      final newVal = !(_showOptionalFields ?? false);
-                                      setState(() => _showOptionalFields = newVal);
-                                      context.read<AdminProvider>().updateExpandOptionalFields(newVal);
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-                                      child: Row(
-                                        children: [
-                                          Text(
-                                            l10n.optionalDetails,
-                                            style: const TextStyle(
-                                              color: AppColors.primaryDark,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          Icon(
-                                            (_showOptionalFields ?? false)
-                                                ? LucideIcons.chevronUp
-                                                : LucideIcons.chevronDown,
-                                            size: 18,
-                                            color: AppColors.secondaryAccent,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                    child: (_showOptionalFields ?? false)
-                                        ? Column(
-                                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                                            children: [
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      return Autocomplete<String>(
-                                        optionsBuilder:
-                                            (
-                                              TextEditingValue textEditingValue,
-                                            ) {
-                                              if (textEditingValue.text
-                                                  .trim()
-                                                  .isEmpty) {
-                                                return const Iterable<
-                                                  String
-                                                >.empty();
-                                              }
-                                              final lowerQuery =
-                                                  textEditingValue.text
-                                                      .toLowerCase();
-                                              final allGenerics = context
-                                                  .read<AdminProvider>()
-                                                  .allProducts
-                                                  .map((p) => p.generic)
-                                                  .where((g) => g.isNotEmpty)
-                                                  .toSet();
-                                              return allGenerics.where((g) {
-                                                return g.toLowerCase().contains(
-                                                  lowerQuery,
-                                                );
-                                              });
-                                            },
-                                        onSelected: (String selection) {
-                                          _genericCtrl?.text = selection;
-                                        },
-                                        fieldViewBuilder:
-                                            (
-                                              context,
-                                              controller,
-                                              focusNode,
-                                              onEditingComplete,
-                                            ) {
-                                              _genericCtrl = controller;
-                                              return _buildField(
-                                                controller: controller,
-                                                label: l10n.genericName,
-                                                icon: LucideIcons.fileText,
-                                                focusNode: focusNode,
-                                                onEditingComplete:
-                                                    onEditingComplete,
-                                                validator: (v) =>
-                                                    v == null || v.isEmpty
-                                                    ? 'Required'
-                                                    : null,
-                                              );
-                                            },
-                                        optionsViewBuilder: (context, onSelected, options) {
-                                          return Align(
-                                            alignment: Alignment.topLeft,
-                                            child: Material(
-                                              elevation: 4.0,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxHeight: 200,
-                                                  maxWidth:
-                                                      constraints.maxWidth,
-                                                ),
-                                                child: ListView.builder(
-                                                  padding: EdgeInsets.zero,
-                                                  shrinkWrap: true,
-                                                  itemCount: options.length,
-                                                  itemBuilder:
-                                                      (
-                                                        BuildContext context,
-                                                        int index,
-                                                      ) {
-                                                        final String option =
-                                                            options.elementAt(
-                                                              index,
-                                                            );
-                                                        return InkWell(
-                                                          onTap: () =>
-                                                              onSelected(
-                                                                option,
-                                                              ),
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  16.0,
-                                                                ),
-                                                            child: Text(
-                                                              option,
-                                                              style: const TextStyle(
-                                                                color: AppColors
-                                                                    .primaryDark,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      return Autocomplete<String>(
-                                        optionsBuilder:
-                                            (
-                                              TextEditingValue textEditingValue,
-                                            ) {
-                                              if (textEditingValue.text
-                                                  .trim()
-                                                  .isEmpty) {
-                                                return const Iterable<
-                                                  String
-                                                >.empty();
-                                              }
-                                              final lowerQuery =
-                                                  textEditingValue.text
-                                                      .toLowerCase();
-                                              final allCompanies = context
-                                                  .read<AdminProvider>()
-                                                  .allProducts
-                                                  .map((p) => p.companyName)
-                                                  .where(
-                                                    (c) =>
-                                                        c != null &&
-                                                        c.isNotEmpty,
-                                                  )
-                                                  .cast<String>()
-                                                  .toSet();
-                                              return allCompanies.where(
-                                                (c) => c.toLowerCase().contains(
-                                                  lowerQuery,
-                                                ),
-                                              );
-                                            },
-                                        onSelected: (String selection) {
-                                          _companyCtrl?.text = selection;
-                                        },
-                                        fieldViewBuilder:
-                                            (
-                                              context,
-                                              controller,
-                                              focusNode,
-                                              onEditingComplete,
-                                            ) {
-                                              _companyCtrl = controller;
-                                              return _buildField(
-                                                controller: controller,
-                                                label: l10n.companyName,
-                                                icon: LucideIcons.building2,
-                                                focusNode: focusNode,
-                                                onEditingComplete:
-                                                    onEditingComplete,
-                                              );
-                                            },
-                                        optionsViewBuilder: (context, onSelected, options) {
-                                          return Align(
-                                            alignment: Alignment.topLeft,
-                                            child: Material(
-                                              elevation: 4.0,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxHeight: 200,
-                                                  maxWidth:
-                                                      constraints.maxWidth,
-                                                ),
-                                                child: ListView.builder(
-                                                  padding: EdgeInsets.zero,
-                                                  shrinkWrap: true,
-                                                  itemCount: options.length,
-                                                  itemBuilder:
-                                                      (
-                                                        BuildContext context,
-                                                        int index,
-                                                      ) {
-                                                        final String option =
-                                                            options.elementAt(
-                                                              index,
-                                                            );
-                                                        return InkWell(
-                                                          onTap: () =>
-                                                              onSelected(
-                                                                option,
-                                                              ),
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  16.0,
-                                                                ),
-                                                            child: Text(
-                                                              option,
-                                                              style: const TextStyle(
-                                                                color: AppColors
-                                                                    .primaryDark,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                              if (showSupplierInfo) ...[
-                                                const Divider(height: 32),
-                                                Padding(
-                                                  padding: const EdgeInsets.only(bottom: 12),
-                                                  child: Row(
-                                                    children: [
-                                                      const Icon(LucideIcons.truck, size: 18, color: AppColors.primaryDark),
-                                                      const SizedBox(width: 8),
-                                                      Text(l10n.supplierInfo, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
-                                                    ],
-                                                  ),
-                                                ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        l10n.addProduct,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          l10n.addProductStepperModeToggle,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Switch.adaptive(
+                          value: useStepperMode,
+                          activeThumbColor: AppColors.primaryDark,
+                          onChanged: (value) {
+                            setState(() {
+                              _useStepperOverride = value;
+                              _currentStep = 0;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    if (useStepperMode) _buildHorizontalStepper(l10n),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(pad.left, 4, pad.right, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Offstage(
+                        offstage: useStepperMode && _currentStep != 0,
+                        child: Form(
+                          key: _formKeyStep1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // SECTION 1: GENERAL INFORMATION
+                              _buildSection(
+                                title: l10n.generalInfo,
+                                icon: LucideIcons.info,
+                                child: Column(
+                                  children: [
                                     LayoutBuilder(
                                       builder: (context, constraints) {
-                                        return Autocomplete<String>(
+                                        return Autocomplete<Product>(
                                           optionsBuilder:
                                               (
                                                 TextEditingValue
@@ -1279,49 +870,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                     .trim()
                                                     .isEmpty) {
                                                   return const Iterable<
-                                                    String
+                                                    Product
                                                   >.empty();
                                                 }
                                                 final lowerQuery =
                                                     textEditingValue.text
                                                         .toLowerCase();
-                                                final allSuppliers = context
+                                                return context
                                                     .read<AdminProvider>()
                                                     .allProducts
-                                                    .map((p) => p.supplierName)
-                                                    .where(
-                                                      (s) =>
-                                                          s != null &&
-                                                          s.isNotEmpty,
-                                                    )
-                                                    .cast<String>()
-                                                    .toSet();
-                                                return allSuppliers.where(
-                                                  (s) => s
-                                                      .toLowerCase()
-                                                      .contains(lowerQuery),
-                                                );
+                                                    .where((p) {
+                                                      return p.name
+                                                              .toLowerCase()
+                                                              .contains(
+                                                                lowerQuery,
+                                                              ) ||
+                                                          p.generic
+                                                              .toLowerCase()
+                                                              .contains(
+                                                                lowerQuery,
+                                                              );
+                                                    });
                                               },
-                                          onSelected: (String selection) {
-                                            _supplierNameCtrl?.text = selection;
-                                            final productWithSupplier = context
-                                                .read<AdminProvider>()
-                                                .allProducts
-                                                .where(
-                                                  (p) =>
-                                                      p.supplierName ==
-                                                      selection,
-                                                )
-                                                .firstOrNull;
-                                            if (productWithSupplier != null &&
-                                                productWithSupplier
-                                                        .supplierPhone !=
-                                                    null) {
-                                              _supplierPhoneCtrl.text =
-                                                  productWithSupplier
-                                                      .supplierPhone!;
-                                            }
-                                          },
+                                          displayStringForOption:
+                                              (Product option) => option.name,
+                                          onSelected: _loadProductInfo,
                                           fieldViewBuilder:
                                               (
                                                 context,
@@ -1329,14 +902,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                 focusNode,
                                                 onEditingComplete,
                                               ) {
-                                                _supplierNameCtrl = controller;
+                                                _nameCtrl = controller;
                                                 return _buildField(
                                                   controller: controller,
-                                                  label: l10n.supplierName,
-                                                  icon: LucideIcons.user,
+                                                  label: l10n.productName,
+                                                  icon: LucideIcons.pill,
                                                   focusNode: focusNode,
                                                   onEditingComplete:
                                                       onEditingComplete,
+                                                  validator: (v) =>
+                                                      v == null || v.isEmpty
+                                                      ? 'Required'
+                                                      : null,
                                                 );
                                               },
                                           optionsViewBuilder: (context, onSelected, options) {
@@ -1363,7 +940,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                           BuildContext context,
                                                           int index,
                                                         ) {
-                                                          final String option =
+                                                          final Product option =
                                                               options.elementAt(
                                                                 index,
                                                               );
@@ -1378,7 +955,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                                     16.0,
                                                                   ),
                                                               child: Text(
-                                                                option,
+                                                                option.name,
                                                                 style: const TextStyle(
                                                                   color: AppColors
                                                                       .primaryDark,
@@ -1399,187 +976,867 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       },
                                     ),
                                     const SizedBox(height: 12),
-                                    _buildField(
-                                      controller: _supplierPhoneCtrl,
-                                      label: l10n.supplierPhone,
-                                      icon: LucideIcons.phone,
-                                      keyboardType: TextInputType.phone,
-                                    ),
-                                              ],
-                                              const SizedBox(height: 8),
-                                            ],
-                                          )
-                                        : const SizedBox.shrink(),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                    _buildMedTypeDropdown(),
+                                    const SizedBox(height: 12),
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        Widget scanButton() {
+                                          final btn = ElevatedButton.icon(
+                                            onPressed: () async {
+                                              final scannedCode =
+                                                  await Navigator.push<String>(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          const ScannerScreen(),
+                                                    ),
+                                                  );
+                                              if (!context.mounted) return;
+                                              if (scannedCode != null &&
+                                                  scannedCode.isNotEmpty) {
+                                                setState(() {
+                                                  _barcodeCtrl.text =
+                                                      scannedCode;
+                                                });
+                                                // Auto-load if product exists
+                                                final admin = context
+                                                    .read<AdminProvider>();
+                                                final existing = admin
+                                                    .allProducts
+                                                    .where(
+                                                      (p) =>
+                                                          p.barcode ==
+                                                          scannedCode,
+                                                    )
+                                                    .firstOrNull;
+                                                if (existing != null) {
+                                                  _loadProductInfo(existing);
+                                                }
+                                              }
+                                            },
+                                            icon: const Icon(
+                                              LucideIcons.scan,
+                                              color: AppColors.white,
+                                              size: 20,
+                                            ),
+                                            label: Text(
+                                              l10n.scanBtn,
+                                              style: const TextStyle(
+                                                color: AppColors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primaryDark,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                  ),
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              alignment: Alignment.center,
+                                            ),
+                                          );
+                                          return btn;
+                                        }
 
-                          ],
-                        ),
-                      ),
-                    ),
-                    Offstage(
-                      offstage: _currentStep != 1,
-                      child: Form(
-                        key: _formKeyStep2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // SECTION 2a: PACKAGING
-                            _buildSection(
-                              title: l10n.packaging,
-                              icon: LucideIcons.package,
-                              child: LayoutBuilder(
-                                builder: (context, constraints) => Row(
-                                  children: [
-                                    if (MedTypeUnits.hasUnit1(_selectedMedType))
-                                      Expanded(
-                                        child: _buildField(
-                                          controller: _stripsPerBoxCtrl,
-                                          label: l10n.stripsPerBox,
-                                          icon: LucideIcons.package,
+                                        final barcodeField = _buildField(
+                                          controller: _barcodeCtrl,
+                                          label: l10n.barcodeLabel,
+                                          icon: LucideIcons.scanLine,
                                           keyboardType: TextInputType.number,
-                                          validator: (v) =>
-                                              v == null || v.isEmpty
-                                              ? l10n.requiredField
-                                              : null,
-                                          onChanged: (val) {
-                                            if (val.isEmpty) return;
-                                            final spb = int.tryParse(val) ?? 1;
-                                            if (spb > 0) {
-                                              final boxP = double.tryParse(
-                                                _priceBoxCtrl.text,
-                                              );
-                                              if (boxP != null) {
-                                                _priceStripCtrl.text =
-                                                    (boxP / spb)
-                                                        .toStringAsFixed(2);
-                                              }
-                                              final boxes = int.tryParse(
-                                                _stockBoxesCtrl.text,
-                                              );
-                                              if (boxes != null) {
-                                                _stockStripsCtrl.text =
-                                                    (boxes * spb).toString();
-                                              }
-                                            }
-                                          },
+                                        );
+                                        return IntrinsicHeight(
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              Expanded(child: barcodeField),
+                                              const SizedBox(width: 8),
+                                              SizedBox(
+                                                width:
+                                                    110, // Slightly wider for l10n.scanBtn
+                                                child: scanButton(),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    InkWell(
+                                      onTap: () {
+                                        final newVal =
+                                            !(_showOptionalFields ?? false);
+                                        setState(
+                                          () => _showOptionalFields = newVal,
+                                        );
+                                        context
+                                            .read<AdminProvider>()
+                                            .updateExpandOptionalFields(newVal);
+                                      },
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0,
+                                          horizontal: 4.0,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              l10n.optionalDetails,
+                                              style: const TextStyle(
+                                                color: AppColors.primaryDark,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Icon(
+                                              (_showOptionalFields ?? false)
+                                                  ? LucideIcons.chevronUp
+                                                  : LucideIcons.chevronDown,
+                                              size: 18,
+                                              color: AppColors.secondaryAccent,
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    if (MedTypeUnits.hasUnit1(
-                                          _selectedMedType,
-                                        ) &&
-                                        MedTypeUnits.hasUnit3(_selectedMedType))
-                                      const SizedBox(width: 12),
-                                    if (MedTypeUnits.hasUnit3(_selectedMedType))
-                                      Expanded(
-                                        child: _buildField(
-                                          controller: _pcsPerStripCtrl,
-                                          label: l10n.pcsPerStrip,
-                                          icon: LucideIcons.boxes,
-                                          keyboardType: TextInputType.number,
-                                          hintText:
-                                              _selectedMedType?.toLowerCase() ==
-                                                  'syrup'
-                                              ? l10n.syrupHint
-                                              : null,
-                                          validator: (v) =>
-                                              v == null || v.isEmpty
-                                              ? l10n.requiredField
-                                              : null,
-                                        ),
+                                    ),
+                                    AnimatedSize(
+                                      duration: const Duration(
+                                        milliseconds: 300,
                                       ),
+                                      curve: Curves.easeInOut,
+                                      child: (_showOptionalFields ?? false)
+                                          ? Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                const SizedBox(height: 12),
+                                                LayoutBuilder(
+                                                  builder: (context, constraints) {
+                                                    return Autocomplete<String>(
+                                                      optionsBuilder:
+                                                          (
+                                                            TextEditingValue
+                                                            textEditingValue,
+                                                          ) {
+                                                            if (textEditingValue
+                                                                .text
+                                                                .trim()
+                                                                .isEmpty) {
+                                                              return const Iterable<
+                                                                String
+                                                              >.empty();
+                                                            }
+                                                            final lowerQuery =
+                                                                textEditingValue
+                                                                    .text
+                                                                    .toLowerCase();
+                                                            final allGenerics = context
+                                                                .read<
+                                                                  AdminProvider
+                                                                >()
+                                                                .allProducts
+                                                                .map(
+                                                                  (p) =>
+                                                                      p.generic,
+                                                                )
+                                                                .where(
+                                                                  (g) => g
+                                                                      .isNotEmpty,
+                                                                )
+                                                                .toSet();
+                                                            return allGenerics.where((
+                                                              g,
+                                                            ) {
+                                                              return g
+                                                                  .toLowerCase()
+                                                                  .contains(
+                                                                    lowerQuery,
+                                                                  );
+                                                            });
+                                                          },
+                                                      onSelected:
+                                                          (String selection) {
+                                                            _genericCtrl?.text =
+                                                                selection;
+                                                          },
+                                                      fieldViewBuilder:
+                                                          (
+                                                            context,
+                                                            controller,
+                                                            focusNode,
+                                                            onEditingComplete,
+                                                          ) {
+                                                            _genericCtrl =
+                                                                controller;
+                                                            return _buildField(
+                                                              controller:
+                                                                  controller,
+                                                              label: l10n
+                                                                  .genericName,
+                                                              icon: LucideIcons
+                                                                  .fileText,
+                                                              focusNode:
+                                                                  focusNode,
+                                                              onEditingComplete:
+                                                                  onEditingComplete,
+                                                              validator: (v) =>
+                                                                  v == null ||
+                                                                      v.isEmpty
+                                                                  ? 'Required'
+                                                                  : null,
+                                                            );
+                                                          },
+                                                      optionsViewBuilder:
+                                                          (
+                                                            context,
+                                                            onSelected,
+                                                            options,
+                                                          ) {
+                                                            return Align(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .topLeft,
+                                                              child: Material(
+                                                                elevation: 4.0,
+                                                                shape: RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: ConstrainedBox(
+                                                                  constraints: BoxConstraints(
+                                                                    maxHeight:
+                                                                        200,
+                                                                    maxWidth:
+                                                                        constraints
+                                                                            .maxWidth,
+                                                                  ),
+                                                                  child: ListView.builder(
+                                                                    padding:
+                                                                        EdgeInsets
+                                                                            .zero,
+                                                                    shrinkWrap:
+                                                                        true,
+                                                                    itemCount:
+                                                                        options
+                                                                            .length,
+                                                                    itemBuilder:
+                                                                        (
+                                                                          BuildContext
+                                                                          context,
+                                                                          int
+                                                                          index,
+                                                                        ) {
+                                                                          final String
+                                                                          option = options.elementAt(
+                                                                            index,
+                                                                          );
+                                                                          return InkWell(
+                                                                            onTap: () => onSelected(
+                                                                              option,
+                                                                            ),
+                                                                            child: Padding(
+                                                                              padding: const EdgeInsets.all(
+                                                                                16.0,
+                                                                              ),
+                                                                              child: Text(
+                                                                                option,
+                                                                                style: const TextStyle(
+                                                                                  color: AppColors.primaryDark,
+                                                                                  fontWeight: FontWeight.bold,
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                          );
+                                                                        },
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                    );
+                                                  },
+                                                ),
+                                                const SizedBox(height: 12),
+                                                LayoutBuilder(
+                                                  builder: (context, constraints) {
+                                                    return Autocomplete<String>(
+                                                      optionsBuilder:
+                                                          (
+                                                            TextEditingValue
+                                                            textEditingValue,
+                                                          ) {
+                                                            if (textEditingValue
+                                                                .text
+                                                                .trim()
+                                                                .isEmpty) {
+                                                              return const Iterable<
+                                                                String
+                                                              >.empty();
+                                                            }
+                                                            final lowerQuery =
+                                                                textEditingValue
+                                                                    .text
+                                                                    .toLowerCase();
+                                                            final allCompanies = context
+                                                                .read<
+                                                                  AdminProvider
+                                                                >()
+                                                                .allProducts
+                                                                .map(
+                                                                  (p) => p
+                                                                      .companyName,
+                                                                )
+                                                                .where(
+                                                                  (c) =>
+                                                                      c !=
+                                                                          null &&
+                                                                      c.isNotEmpty,
+                                                                )
+                                                                .cast<String>()
+                                                                .toSet();
+                                                            return allCompanies.where(
+                                                              (c) => c
+                                                                  .toLowerCase()
+                                                                  .contains(
+                                                                    lowerQuery,
+                                                                  ),
+                                                            );
+                                                          },
+                                                      onSelected:
+                                                          (String selection) {
+                                                            _companyCtrl?.text =
+                                                                selection;
+                                                          },
+                                                      fieldViewBuilder:
+                                                          (
+                                                            context,
+                                                            controller,
+                                                            focusNode,
+                                                            onEditingComplete,
+                                                          ) {
+                                                            _companyCtrl =
+                                                                controller;
+                                                            return _buildField(
+                                                              controller:
+                                                                  controller,
+                                                              label: l10n
+                                                                  .companyName,
+                                                              icon: LucideIcons
+                                                                  .building2,
+                                                              focusNode:
+                                                                  focusNode,
+                                                              onEditingComplete:
+                                                                  onEditingComplete,
+                                                            );
+                                                          },
+                                                      optionsViewBuilder:
+                                                          (
+                                                            context,
+                                                            onSelected,
+                                                            options,
+                                                          ) {
+                                                            return Align(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .topLeft,
+                                                              child: Material(
+                                                                elevation: 4.0,
+                                                                shape: RoundedRectangleBorder(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                                child: ConstrainedBox(
+                                                                  constraints: BoxConstraints(
+                                                                    maxHeight:
+                                                                        200,
+                                                                    maxWidth:
+                                                                        constraints
+                                                                            .maxWidth,
+                                                                  ),
+                                                                  child: ListView.builder(
+                                                                    padding:
+                                                                        EdgeInsets
+                                                                            .zero,
+                                                                    shrinkWrap:
+                                                                        true,
+                                                                    itemCount:
+                                                                        options
+                                                                            .length,
+                                                                    itemBuilder:
+                                                                        (
+                                                                          BuildContext
+                                                                          context,
+                                                                          int
+                                                                          index,
+                                                                        ) {
+                                                                          final String
+                                                                          option = options.elementAt(
+                                                                            index,
+                                                                          );
+                                                                          return InkWell(
+                                                                            onTap: () => onSelected(
+                                                                              option,
+                                                                            ),
+                                                                            child: Padding(
+                                                                              padding: const EdgeInsets.all(
+                                                                                16.0,
+                                                                              ),
+                                                                              child: Text(
+                                                                                option,
+                                                                                style: const TextStyle(
+                                                                                  color: AppColors.primaryDark,
+                                                                                  fontWeight: FontWeight.bold,
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                          );
+                                                                        },
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                    );
+                                                  },
+                                                ),
+                                                if (showSupplierInfo) ...[
+                                                  const Divider(height: 32),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          bottom: 12,
+                                                        ),
+                                                    child: Row(
+                                                      children: [
+                                                        const Icon(
+                                                          LucideIcons.truck,
+                                                          size: 18,
+                                                          color: AppColors
+                                                              .primaryDark,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Text(
+                                                          l10n.supplierInfo,
+                                                          style: const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: AppColors
+                                                                .primaryDark,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  LayoutBuilder(
+                                                    builder: (context, constraints) {
+                                                      return Autocomplete<
+                                                        String
+                                                      >(
+                                                        optionsBuilder:
+                                                            (
+                                                              TextEditingValue
+                                                              textEditingValue,
+                                                            ) {
+                                                              if (textEditingValue
+                                                                  .text
+                                                                  .trim()
+                                                                  .isEmpty) {
+                                                                return const Iterable<
+                                                                  String
+                                                                >.empty();
+                                                              }
+                                                              final lowerQuery =
+                                                                  textEditingValue
+                                                                      .text
+                                                                      .toLowerCase();
+                                                              final allSuppliers = context
+                                                                  .read<
+                                                                    AdminProvider
+                                                                  >()
+                                                                  .allProducts
+                                                                  .map(
+                                                                    (p) => p
+                                                                        .supplierName,
+                                                                  )
+                                                                  .where(
+                                                                    (s) =>
+                                                                        s !=
+                                                                            null &&
+                                                                        s.isNotEmpty,
+                                                                  )
+                                                                  .cast<
+                                                                    String
+                                                                  >()
+                                                                  .toSet();
+                                                              return allSuppliers.where(
+                                                                (s) => s
+                                                                    .toLowerCase()
+                                                                    .contains(
+                                                                      lowerQuery,
+                                                                    ),
+                                                              );
+                                                            },
+                                                        onSelected: (String selection) {
+                                                          _supplierNameCtrl
+                                                                  ?.text =
+                                                              selection;
+                                                          final productWithSupplier =
+                                                              context
+                                                                  .read<
+                                                                    AdminProvider
+                                                                  >()
+                                                                  .allProducts
+                                                                  .where(
+                                                                    (p) =>
+                                                                        p.supplierName ==
+                                                                        selection,
+                                                                  )
+                                                                  .firstOrNull;
+                                                          if (productWithSupplier !=
+                                                                  null &&
+                                                              productWithSupplier
+                                                                      .supplierPhone !=
+                                                                  null) {
+                                                            _supplierPhoneCtrl
+                                                                    .text =
+                                                                productWithSupplier
+                                                                    .supplierPhone!;
+                                                          }
+                                                        },
+                                                        fieldViewBuilder:
+                                                            (
+                                                              context,
+                                                              controller,
+                                                              focusNode,
+                                                              onEditingComplete,
+                                                            ) {
+                                                              _supplierNameCtrl =
+                                                                  controller;
+                                                              return _buildField(
+                                                                controller:
+                                                                    controller,
+                                                                label: l10n
+                                                                    .supplierName,
+                                                                icon:
+                                                                    LucideIcons
+                                                                        .user,
+                                                                focusNode:
+                                                                    focusNode,
+                                                                onEditingComplete:
+                                                                    onEditingComplete,
+                                                              );
+                                                            },
+                                                        optionsViewBuilder:
+                                                            (
+                                                              context,
+                                                              onSelected,
+                                                              options,
+                                                            ) {
+                                                              return Align(
+                                                                alignment:
+                                                                    Alignment
+                                                                        .topLeft,
+                                                                child: Material(
+                                                                  elevation:
+                                                                      4.0,
+                                                                  shape: RoundedRectangleBorder(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                  ),
+                                                                  child: ConstrainedBox(
+                                                                    constraints: BoxConstraints(
+                                                                      maxHeight:
+                                                                          200,
+                                                                      maxWidth:
+                                                                          constraints
+                                                                              .maxWidth,
+                                                                    ),
+                                                                    child: ListView.builder(
+                                                                      padding:
+                                                                          EdgeInsets
+                                                                              .zero,
+                                                                      shrinkWrap:
+                                                                          true,
+                                                                      itemCount:
+                                                                          options
+                                                                              .length,
+                                                                      itemBuilder:
+                                                                          (
+                                                                            BuildContext
+                                                                            context,
+                                                                            int
+                                                                            index,
+                                                                          ) {
+                                                                            final String
+                                                                            option = options.elementAt(
+                                                                              index,
+                                                                            );
+                                                                            return InkWell(
+                                                                              onTap: () => onSelected(
+                                                                                option,
+                                                                              ),
+                                                                              child: Padding(
+                                                                                padding: const EdgeInsets.all(
+                                                                                  16.0,
+                                                                                ),
+                                                                                child: Text(
+                                                                                  option,
+                                                                                  style: const TextStyle(
+                                                                                    color: AppColors.primaryDark,
+                                                                                    fontWeight: FontWeight.bold,
+                                                                                  ),
+                                                                                ),
+                                                                              ),
+                                                                            );
+                                                                          },
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            },
+                                                      );
+                                                    },
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  _buildField(
+                                                    controller:
+                                                        _supplierPhoneCtrl,
+                                                    label: l10n.supplierPhone,
+                                                    icon: LucideIcons.phone,
+                                                    keyboardType:
+                                                        TextInputType.phone,
+                                                  ),
+                                                ],
+                                                const SizedBox(height: 8),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
                                   ],
                                 ),
                               ),
-                            ),
-
-                            _buildSection(
-                              title: l10n.pricing,
-                              icon: LucideIcons.circleDollarSign,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                            ],
+                          ),
+                        ),
+                      ),
+                      Offstage(
+                        offstage: useStepperMode && _currentStep != 1,
+                        child: Form(
+                          key: _formKeyStep2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // SECTION 2a: PACKAGING
+                              _buildSection(
+                                title: l10n.packaging,
+                                icon: LucideIcons.package,
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) => Row(
                                     children: [
                                       if (MedTypeUnits.hasUnit1(
                                         _selectedMedType,
-                                      )) ...[
+                                      ))
                                         Expanded(
                                           child: _buildField(
-                                            controller: _priceBoxCtrl,
-                                            label:
-                                                '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
-                                            icon: LucideIcons.shoppingCart,
+                                            controller: _stripsPerBoxCtrl,
+                                            label: l10n.stripsPerBox,
+                                            icon: LucideIcons.package,
                                             keyboardType: TextInputType.number,
+                                            validator: (v) =>
+                                                v == null || v.isEmpty
+                                                ? l10n.requiredField
+                                                : null,
                                             onChanged: (val) {
                                               if (val.isEmpty) return;
-                                              final boxPrice = double.tryParse(
-                                                val,
-                                              );
+                                              final spb =
+                                                  int.tryParse(val) ?? 1;
+                                              if (spb > 0) {
+                                                final boxP = double.tryParse(
+                                                  _priceBoxCtrl.text,
+                                                );
+                                                if (boxP != null) {
+                                                  _priceStripCtrl.text =
+                                                      (boxP / spb)
+                                                          .toStringAsFixed(2);
+                                                }
+                                                final boxes = int.tryParse(
+                                                  _stockBoxesCtrl.text,
+                                                );
+                                                if (boxes != null) {
+                                                  _stockStripsCtrl.text =
+                                                      (boxes * spb).toString();
+                                                }
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      if (MedTypeUnits.hasUnit1(
+                                            _selectedMedType,
+                                          ) &&
+                                          MedTypeUnits.hasUnit3(
+                                            _selectedMedType,
+                                          ))
+                                        const SizedBox(width: 12),
+                                      if (MedTypeUnits.hasUnit3(
+                                        _selectedMedType,
+                                      ))
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _pcsPerStripCtrl,
+                                            label: l10n.pcsPerStrip,
+                                            icon: LucideIcons.boxes,
+                                            keyboardType: TextInputType.number,
+                                            hintText:
+                                                _selectedMedType
+                                                        ?.toLowerCase() ==
+                                                    'syrup'
+                                                ? l10n.syrupHint
+                                                : null,
+                                            validator: (v) =>
+                                                v == null || v.isEmpty
+                                                ? l10n.requiredField
+                                                : null,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              _buildSection(
+                                title: l10n.pricing,
+                                icon: LucideIcons.circleDollarSign,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        if (MedTypeUnits.hasUnit1(
+                                          _selectedMedType,
+                                        )) ...[
+                                          Expanded(
+                                            child: _buildField(
+                                              controller: _priceBoxCtrl,
+                                              label:
+                                                  '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                                              icon: LucideIcons.shoppingCart,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              onChanged: (val) {
+                                                if (val.isEmpty) return;
+                                                final boxPrice =
+                                                    double.tryParse(val);
+                                                final spb =
+                                                    int.tryParse(
+                                                      _stripsPerBoxCtrl.text,
+                                                    ) ??
+                                                    1;
+                                                if (boxPrice != null &&
+                                                    spb > 0) {
+                                                  _priceStripCtrl.text =
+                                                      (boxPrice / spb)
+                                                          .toStringAsFixed(2);
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                        ],
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _priceStripCtrl,
+                                            label:
+                                                '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
+                                            icon: LucideIcons.dollarSign,
+                                            keyboardType: TextInputType.number,
+                                            validator: (v) =>
+                                                v == null || v.isEmpty
+                                                ? 'Required'
+                                                : null,
+                                            onChanged: (val) {
+                                              if (val.isEmpty) return;
+                                              final stripPrice =
+                                                  double.tryParse(val);
                                               final spb =
                                                   int.tryParse(
                                                     _stripsPerBoxCtrl.text,
                                                   ) ??
                                                   1;
-                                              if (boxPrice != null && spb > 0) {
-                                                _priceStripCtrl.text =
-                                                    (boxPrice / spb)
+                                              if (stripPrice != null &&
+                                                  spb > 0) {
+                                                _priceBoxCtrl.text =
+                                                    (stripPrice * spb)
                                                         .toStringAsFixed(2);
                                               }
                                             },
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
                                       ],
-                                      Expanded(
-                                        child: _buildField(
-                                          controller: _priceStripCtrl,
-                                          label:
-                                              '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
-                                          icon: LucideIcons.dollarSign,
-                                          keyboardType: TextInputType.number,
-                                          validator: (v) =>
-                                              v == null || v.isEmpty
-                                              ? 'Required'
-                                              : null,
-                                          onChanged: (val) {
-                                            if (val.isEmpty) return;
-                                            final stripPrice = double.tryParse(
-                                              val,
-                                            );
-                                            final spb =
-                                                int.tryParse(
-                                                  _stripsPerBoxCtrl.text,
-                                                ) ??
-                                                1;
-                                            if (stripPrice != null && spb > 0) {
-                                              _priceBoxCtrl.text =
-                                                  (stripPrice * spb)
-                                                      .toStringAsFixed(2);
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      if (MedTypeUnits.hasUnit1(
-                                        _selectedMedType,
-                                      )) ...[
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        if (MedTypeUnits.hasUnit1(
+                                          _selectedMedType,
+                                        )) ...[
+                                          Expanded(
+                                            child: _buildField(
+                                              controller: _buyingPriceBoxCtrl,
+                                              label:
+                                                  'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                                              icon: LucideIcons.tag,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              onChanged: (val) {
+                                                if (val.isEmpty) return;
+                                                final boxCost = double.tryParse(
+                                                  val,
+                                                );
+                                                final spb =
+                                                    int.tryParse(
+                                                      _stripsPerBoxCtrl.text,
+                                                    ) ??
+                                                    1;
+                                                if (boxCost != null &&
+                                                    spb > 0) {
+                                                  _buyingPriceStripCtrl.text =
+                                                      (boxCost / spb)
+                                                          .toStringAsFixed(2);
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                        ],
                                         Expanded(
                                           child: _buildField(
-                                            controller: _buyingPriceBoxCtrl,
+                                            controller: _buyingPriceStripCtrl,
                                             label:
-                                                'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
+                                                'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
                                             icon: LucideIcons.tag,
                                             keyboardType: TextInputType.number,
                                             onChanged: (val) {
                                               if (val.isEmpty) return;
-                                              final boxCost = double.tryParse(
+                                              final stripCost = double.tryParse(
                                                 val,
                                               );
                                               final spb =
@@ -1587,285 +1844,265 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                     _stripsPerBoxCtrl.text,
                                                   ) ??
                                                   1;
-                                              if (boxCost != null && spb > 0) {
-                                                _buyingPriceStripCtrl.text =
-                                                    (boxCost / spb)
+                                              if (stripCost != null &&
+                                                  spb > 0) {
+                                                _buyingPriceBoxCtrl.text =
+                                                    (stripCost * spb)
                                                         .toStringAsFixed(2);
                                               }
                                             },
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
                                       ],
-                                      Expanded(
-                                        child: _buildField(
-                                          controller: _buyingPriceStripCtrl,
-                                          label:
-                                              'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
-                                          icon: LucideIcons.tag,
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (val) {
-                                            if (val.isEmpty) return;
-                                            final stripCost = double.tryParse(
-                                              val,
-                                            );
-                                            final spb =
-                                                int.tryParse(
-                                                  _stripsPerBoxCtrl.text,
-                                                ) ??
-                                                1;
-                                            if (stripCost != null && spb > 0) {
-                                              _buyingPriceBoxCtrl.text =
-                                                  (stripCost * spb)
-                                                      .toStringAsFixed(2);
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ListenableBuilder(
-                                    listenable: Listenable.merge([
-                                      _buyingPriceStripCtrl,
-                                      _priceStripCtrl,
-                                    ]),
-                                    builder: (context, _) {
-                                      final cost =
-                                          double.tryParse(
-                                            _buyingPriceStripCtrl.text,
-                                          ) ??
-                                          0.0;
-                                      final sell =
-                                          double.tryParse(
-                                            _priceStripCtrl.text,
-                                          ) ??
-                                          0.0;
-                                      if (cost <= 0 || sell <= 0) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      final profit = sell - cost;
-                                      final margin = sell > 0
-                                          ? ((profit / sell) * 100)
-                                                .toStringAsFixed(1)
-                                          : '0.0';
-                                      final isLoss = profit < 0;
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              (isLoss
-                                                      ? AppColors.error
-                                                      : AppColors.success)
-                                                  .withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ListenableBuilder(
+                                      listenable: Listenable.merge([
+                                        _buyingPriceStripCtrl,
+                                        _priceStripCtrl,
+                                      ]),
+                                      builder: (context, _) {
+                                        final cost =
+                                            double.tryParse(
+                                              _buyingPriceStripCtrl.text,
+                                            ) ??
+                                            0.0;
+                                        final sell =
+                                            double.tryParse(
+                                              _priceStripCtrl.text,
+                                            ) ??
+                                            0.0;
+                                        if (cost <= 0 || sell <= 0) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final profit = sell - cost;
+                                        final margin = sell > 0
+                                            ? ((profit / sell) * 100)
+                                                  .toStringAsFixed(1)
+                                            : '0.0';
+                                        final isLoss = profit < 0;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
                                           ),
-                                          border: Border.all(
+                                          decoration: BoxDecoration(
                                             color:
                                                 (isLoss
                                                         ? AppColors.error
                                                         : AppColors.success)
-                                                    .withValues(alpha: 0.4),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              isLoss
-                                                  ? LucideIcons.trendingDown
-                                                  : LucideIcons.trendingUp,
-                                              size: 16,
-                                              color: isLoss
-                                                  ? AppColors.error
-                                                  : AppColors.success,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                l10n.profitPreview(
-                                                  profit.abs().toStringAsFixed(
-                                                    2,
-                                                  ),
-                                                  margin,
-                                                  isLoss,
-                                                ),
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isLoss
-                                                      ? AppColors.error
-                                                      : AppColors.success,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Offstage(
-                      offstage: _currentStep != 2,
-                      child: Form(
-                        key: _formKeyStep3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // SECTION 3: INVENTORY TRACKING
-                            _buildSection(
-                              title: l10n.inventory,
-                              icon: LucideIcons.clipboardList,
-                              child: Column(
-                                children: [
-                                  if (MedTypeUnits.hasUnit1(_selectedMedType))
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
-                                      ),
-                                      child: _buildField(
-                                        controller: _stockBoxesCtrl,
-                                        label:
-                                            '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
-                                        icon: LucideIcons.box,
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (val) {
-                                          if (val.isEmpty) return;
-                                          final boxes = int.tryParse(val);
-                                          final spb =
-                                              int.tryParse(
-                                                _stripsPerBoxCtrl.text,
-                                              ) ??
-                                              1;
-                                          if (boxes != null && spb > 0) {
-                                            _stockStripsCtrl.text =
-                                                (boxes * spb).toString();
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  _buildField(
-                                    controller: _stockStripsCtrl,
-                                    label:
-                                        '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
-                                    icon: LucideIcons.layers,
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (val) {
-                                      if (val.isEmpty) return;
-                                      final strips = int.tryParse(val);
-                                      final spb =
-                                          int.tryParse(
-                                            _stripsPerBoxCtrl.text,
-                                          ) ??
-                                          1;
-                                      if (strips != null && spb > 0) {
-                                        _stockBoxesCtrl.text = (strips ~/ spb)
-                                            .toString();
-                                      }
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _buildField(
-                                    controller: _lowStockWarningCtrl,
-                                    label:
-                                        '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
-                                    icon: LucideIcons.alertTriangle,
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final expiryWidget = GestureDetector(
-                                        onTap: _pickExpiryDate,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 16,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: AppColors.secondaryAccent,
-                                              width: 1.5,
-                                            ),
+                                                    .withValues(alpha: 0.1),
                                             borderRadius: BorderRadius.circular(
-                                              10,
+                                              8,
                                             ),
-                                            color: AppColors.surfaceLight,
+                                            border: Border.all(
+                                              color:
+                                                  (isLoss
+                                                          ? AppColors.error
+                                                          : AppColors.success)
+                                                      .withValues(alpha: 0.4),
+                                            ),
                                           ),
                                           child: Row(
                                             children: [
-                                              const Icon(
-                                                LucideIcons.calendar,
-                                                color:
-                                                    AppColors.secondaryAccent,
-                                                size: 20,
+                                              Icon(
+                                                isLoss
+                                                    ? LucideIcons.trendingDown
+                                                    : LucideIcons.trendingUp,
+                                                size: 16,
+                                                color: isLoss
+                                                    ? AppColors.error
+                                                    : AppColors.success,
                                               ),
-                                              const SizedBox(width: 12),
+                                              const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
-                                                  _expiryDate != null
-                                                      ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
-                                                      : l10n.expiryDate,
+                                                  l10n.profitPreview(
+                                                    profit
+                                                        .abs()
+                                                        .toStringAsFixed(2),
+                                                    margin,
+                                                    isLoss,
+                                                  ),
                                                   style: TextStyle(
-                                                    color: _expiryDate != null
-                                                        ? AppColors.primaryDark
-                                                        : AppColors
-                                                              .secondaryAccent,
+                                                    fontSize: 12,
                                                     fontWeight: FontWeight.w600,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
+                                                    color: isLoss
+                                                        ? AppColors.error
+                                                        : AppColors.success,
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                      );
-                                      return ResponsiveHelper.responsiveRow(
-                                        constraints: constraints,
-                                        left: _buildField(
-                                          controller: _batchCtrl,
-                                          label: l10n.batchNumber,
-                                          icon: LucideIcons.hash,
-                                          keyboardType: TextInputType.text,
-                                        ),
-                                        right: expiryWidget,
-                                      );
-                                    },
-                                  ),
-                                ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      Offstage(
+                        offstage: useStepperMode && _currentStep != 2,
+                        child: Form(
+                          key: _formKeyStep3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // SECTION 3: INVENTORY TRACKING
+                              _buildSection(
+                                title: l10n.inventory,
+                                icon: LucideIcons.clipboardList,
+                                child: Column(
+                                  children: [
+                                    if (MedTypeUnits.hasUnit1(_selectedMedType))
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: _buildField(
+                                          controller: _stockBoxesCtrl,
+                                          label:
+                                              '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
+                                          icon: LucideIcons.box,
+                                          keyboardType: TextInputType.number,
+                                          onChanged: (val) {
+                                            if (val.isEmpty) return;
+                                            final boxes = int.tryParse(val);
+                                            final spb =
+                                                int.tryParse(
+                                                  _stripsPerBoxCtrl.text,
+                                                ) ??
+                                                1;
+                                            if (boxes != null && spb > 0) {
+                                              _stockStripsCtrl.text =
+                                                  (boxes * spb).toString();
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    _buildField(
+                                      controller: _stockStripsCtrl,
+                                      label:
+                                          '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
+                                      icon: LucideIcons.layers,
+                                      keyboardType: TextInputType.number,
+                                      onChanged: (val) {
+                                        if (val.isEmpty) return;
+                                        final strips = int.tryParse(val);
+                                        final spb =
+                                            int.tryParse(
+                                              _stripsPerBoxCtrl.text,
+                                            ) ??
+                                            1;
+                                        if (strips != null && spb > 0) {
+                                          _stockBoxesCtrl.text = (strips ~/ spb)
+                                              .toString();
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildField(
+                                      controller: _lowStockWarningCtrl,
+                                      label:
+                                          '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
+                                      icon: LucideIcons.alertTriangle,
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final expiryWidget = GestureDetector(
+                                          onTap: _pickExpiryDate,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 16,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color:
+                                                    AppColors.secondaryAccent,
+                                                width: 1.5,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              color: AppColors.surfaceLight,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  LucideIcons.calendar,
+                                                  color:
+                                                      AppColors.secondaryAccent,
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    _expiryDate != null
+                                                        ? 'Exp: ${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'
+                                                        : l10n.expiryDate,
+                                                    style: TextStyle(
+                                                      color: _expiryDate != null
+                                                          ? AppColors
+                                                                .primaryDark
+                                                          : AppColors
+                                                                .secondaryAccent,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                        return ResponsiveHelper.responsiveRow(
+                                          constraints: constraints,
+                                          left: _buildField(
+                                            controller: _batchCtrl,
+                                            label: l10n.batchNumber,
+                                            icon: LucideIcons.hash,
+                                            keyboardType: TextInputType.text,
+                                          ),
+                                          right: expiryWidget,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                pad.left,
-                4,
-                pad.right,
-                pad.bottom + MediaQuery.paddingOf(context).bottom,
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  pad.left,
+                  4,
+                  pad.right,
+                  pad.bottom + MediaQuery.paddingOf(context).bottom,
+                ),
+                child: _buildWizardFooter(
+                  l10n,
+                  constraints.maxWidth,
+                  useStepperMode: useStepperMode,
+                ),
               ),
-              child: _buildWizardFooter(l10n, constraints.maxWidth),
-            ),
-          ],
-        );
-      },
-    ),
+            ],
+          );
+        },
+      ),
     );
   }
 

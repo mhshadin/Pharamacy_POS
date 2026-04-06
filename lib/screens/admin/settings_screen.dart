@@ -91,10 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await admin.saveSetting('criticalExpiryDays', expiryCrit.toString());
     await admin.saveSetting('moderateExpiryDays', expiryMod.toString());
     await admin.saveSetting('expiryDelayMonths', expiryDelay.toString());
-    await admin.saveSetting(
-      'defaultOrderBoxes',
-      defaultOrderBoxes.toString(),
-    );
+    await admin.saveSetting('defaultOrderBoxes', defaultOrderBoxes.toString());
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -106,7 +103,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         content: Row(
           children: [
-            const Icon(LucideIcons.checkCircle2, color: AppColors.white, size: 20),
+            const Icon(
+              LucideIcons.checkCircle2,
+              color: AppColors.white,
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Text(
               l10n.settingsSaved,
@@ -206,6 +207,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 16),
                       SwitchListTile(
                         title: Text(
+                          l10n.addProductDefaultStepperMode,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          l10n.addProductDefaultStepperModeHelper,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                        value: context
+                            .watch<AdminProvider>()
+                            .addProductUseStepperDefault,
+                        onChanged: (val) {
+                          context.read<AdminProvider>().saveSetting(
+                            'addProductUseStepperDefault',
+                            val.toString(),
+                          );
+                        },
+                        activeThumbColor: AppColors.primaryDark,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: Text(
                           l10n.expandOptionalFields,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
@@ -220,10 +250,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontSize: 12,
                           ),
                         ),
-                        value: context.watch<AdminProvider>().expandOptionalFields,
+                        value: context
+                            .watch<AdminProvider>()
+                            .expandOptionalFields,
                         onChanged: (val) {
                           context.read<AdminProvider>().saveSetting(
                             'expandOptionalFields',
+                            val.toString(),
+                          );
+                        },
+                        activeThumbColor: AppColors.primaryDark,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: Text(
+                          l10n.restockPricingCollapsedByDefault,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          l10n.restockPricingCollapsedByDefaultHelper,
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                        value: context
+                            .watch<AdminProvider>()
+                            .restockPricingCollapsedByDefault,
+                        onChanged: (val) {
+                          context.read<AdminProvider>().saveSetting(
+                            'restockPricingCollapsedByDefault',
                             val.toString(),
                           );
                         },
@@ -289,7 +350,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else if (syncError != null) {
       statusText = l10n.syncFailed;
     } else if (lastSync != null) {
-      statusText = '${l10n.lastSync}: ${DateFormat('MMM dd, yyyy - HH:mm').format(lastSync)}';
+      statusText =
+          '${l10n.lastSync}: ${DateFormat('MMM dd, yyyy - HH:mm').format(lastSync)}';
     }
 
     return _buildSectionCard(
@@ -316,19 +378,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: syncError != null ? Colors.red.shade50 : AppColors.surfaceLight,
+            color: syncError != null
+                ? Colors.red.shade50
+                : AppColors.surfaceLight,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: syncError != null ? Colors.red.shade200 : AppColors.secondaryAccent.withValues(alpha: 0.5),
+              color: syncError != null
+                  ? Colors.red.shade200
+                  : AppColors.secondaryAccent.withValues(alpha: 0.5),
             ),
           ),
           child: Row(
             children: [
               Icon(
-                isSyncing 
-                    ? LucideIcons.loader 
-                    : (syncError != null ? LucideIcons.alertCircle : LucideIcons.checkCircle2),
-                color: isSyncing 
+                isSyncing
+                    ? LucideIcons.loader
+                    : (syncError != null
+                          ? LucideIcons.alertCircle
+                          : LucideIcons.checkCircle2),
+                color: isSyncing
                     ? AppColors.primaryDark.withValues(alpha: 0.7)
                     : (syncError != null ? Colors.red : AppColors.success),
                 size: 20,
@@ -342,16 +410,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       statusText,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: syncError != null ? Colors.red.shade900 : AppColors.primaryDark,
+                        color: syncError != null
+                            ? Colors.red.shade900
+                            : AppColors.primaryDark,
                         fontSize: 14,
                       ),
                     ),
                     if (syncError != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                         syncError.contains('403') 
-                          ? l10n.missingDriveScope
-                          : l10n.ensureSignedIn,
+                        syncError.contains('403')
+                            ? l10n.missingDriveScope
+                            : l10n.ensureSignedIn,
                         style: TextStyle(
                           color: Colors.red.shade700,
                           fontSize: 12,
@@ -370,7 +440,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: Text(l10n.syncNow),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primaryDark,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                 ),
             ],
@@ -384,7 +457,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Consumer<AdminProvider>(
       builder: (context, admin, child) {
         final isEnabled = admin.stockReminderMasterEnabled;
-        final isSupported = Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+        final isSupported =
+            Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
         return _buildSectionCard(
           title: 'Persistent Stock Reminders',
@@ -397,160 +471,187 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: const [
-                    Icon(LucideIcons.alertCircle, color: AppColors.error, size: 20),
+                    Icon(
+                      LucideIcons.alertCircle,
+                      color: AppColors.error,
+                      size: 20,
+                    ),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'This feature is only supported on Android, iOS, and macOS. It is not available on Windows.',
-                        style: TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-        SwitchListTile(
-          title: const Text(
-            'Enable Alarm Reminders',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
-              fontSize: 14,
-            ),
-          ),
-          subtitle: const Text(
-            'Alarms will ring like a normal alarm clock even if the app is closed. Use this to ensure you check low stock and expiring items.',
-            style: TextStyle(
-              color: AppColors.secondaryAccent,
-              fontSize: 12,
-            ),
-          ),
-          value: isEnabled,
-          onChanged: isSupported 
-            ? (val) => admin.toggleStockReminderMaster(val)
-            : null,
-          activeThumbColor: AppColors.primaryDark,
-          contentPadding: EdgeInsets.zero,
-        ),
-        if (isEnabled) ...[
-          const Divider(height: 32, color: AppColors.divider),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Scheduled Alarms',
+            SwitchListTile(
+              title: const Text(
+                'Enable Alarm Reminders',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: AppColors.primaryDark,
                   fontSize: 14,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => _showAddAlarmDialog(context),
-                icon: const Icon(LucideIcons.plus, size: 16),
-                label: const Text('Add Alarm'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
+              subtitle: const Text(
+                'Alarms will ring like a normal alarm clock even if the app is closed. Use this to ensure you check low stock and expiring items.',
+                style: TextStyle(
+                  color: AppColors.secondaryAccent,
+                  fontSize: 12,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (admin.alarmSlots.isEmpty)
-            const Text(
-              'No alarms set. Add one above.',
-              style: TextStyle(color: AppColors.secondaryAccent, fontSize: 13),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: admin.alarmSlots.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final slot = admin.alarmSlots[index];
-                return _buildAlarmSlotCard(context, slot);
-              },
+              value: isEnabled,
+              onChanged: isSupported
+                  ? (val) => admin.toggleStockReminderMaster(val)
+                  : null,
+              activeThumbColor: AppColors.primaryDark,
+              contentPadding: EdgeInsets.zero,
             ),
-          const Divider(height: 32, color: AppColors.divider),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Alarm Ringtone',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark,
-                        fontSize: 14,
-                      ),
+            if (isEnabled) ...[
+              const Divider(height: 32, color: AppColors.divider),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Scheduled Alarms',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                      fontSize: 14,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      admin.customRingtonePath != null
-                          ? p.basename(admin.customRingtonePath!)
-                          : 'Default Device Alarm Sound',
-                      style: const TextStyle(
-                        color: AppColors.secondaryAccent,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showAddAlarmDialog(context),
+                    icon: const Icon(LucideIcons.plus, size: 16),
+                    label: const Text('Add Alarm'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              OutlinedButton(
-                onPressed: () async {
-                  FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.audio,
-                  );
-                  if (result != null && result.files.single.path != null) {
-                    admin.setCustomRingtone(result.files.single.path);
-                  }
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                  side: const BorderSide(color: AppColors.primaryDark),
+              const SizedBox(height: 8),
+              if (admin.alarmSlots.isEmpty)
+                const Text(
+                  'No alarms set. Add one above.',
+                  style: TextStyle(
+                    color: AppColors.secondaryAccent,
+                    fontSize: 13,
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: admin.alarmSlots.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final slot = admin.alarmSlots[index];
+                    return _buildAlarmSlotCard(context, slot);
+                  },
                 ),
-                child: const Text('Change'),
+              const Divider(height: 32, color: AppColors.divider),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Alarm Ringtone',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          admin.customRingtonePath != null
+                              ? p.basename(admin.customRingtonePath!)
+                              : 'Default Device Alarm Sound',
+                          style: const TextStyle(
+                            color: AppColors.secondaryAccent,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () async {
+                      FilePickerResult? result = await FilePicker.platform
+                          .pickFiles(type: FileType.audio);
+                      if (result != null && result.files.single.path != null) {
+                        admin.setCustomRingtone(result.files.single.path);
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      side: const BorderSide(color: AppColors.primaryDark),
+                    ),
+                    child: const Text('Change'),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
-      ],
+          ],
+        );
+      },
     );
-    });
   }
 
   Widget _buildAlarmSlotCard(BuildContext context, AlarmSlot slot) {
     // Format time
-    final timeStr = '${slot.time.hour.toString().padLeft(2, '0')}:${slot.time.minute.toString().padLeft(2, '0')}';
-    final daysStr = slot.days.map((d) {
-      switch (d) {
-        case 1: return 'Mon';
-        case 2: return 'Tue';
-        case 3: return 'Wed';
-        case 4: return 'Thu';
-        case 5: return 'Fri';
-        case 6: return 'Sat';
-        case 7: return 'Sun';
-        default: return '';
-      }
-    }).join(', ');
+    final timeStr =
+        '${slot.time.hour.toString().padLeft(2, '0')}:${slot.time.minute.toString().padLeft(2, '0')}';
+    final daysStr = slot.days
+        .map((d) {
+          switch (d) {
+            case 1:
+              return 'Mon';
+            case 2:
+              return 'Tue';
+            case 3:
+              return 'Wed';
+            case 4:
+              return 'Thu';
+            case 5:
+              return 'Fri';
+            case 6:
+              return 'Sat';
+            case 7:
+              return 'Sun';
+            default:
+              return '';
+          }
+        })
+        .join(', ');
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: slot.isEnabled ? AppColors.primaryDark.withValues(alpha: 0.5) : AppColors.divider,
+          color: slot.isEnabled
+              ? AppColors.primaryDark.withValues(alpha: 0.5)
+              : AppColors.divider,
         ),
       ),
       child: ListTile(
@@ -560,13 +661,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: slot.isEnabled ? AppColors.primaryDark : AppColors.secondaryAccent,
+            color: slot.isEnabled
+                ? AppColors.primaryDark
+                : AppColors.secondaryAccent,
           ),
         ),
         subtitle: Text(
           daysStr,
           style: TextStyle(
-            color: slot.isEnabled ? AppColors.primaryDark : AppColors.secondaryAccent,
+            color: slot.isEnabled
+                ? AppColors.primaryDark
+                : AppColors.secondaryAccent,
             fontSize: 12,
           ),
         ),
@@ -631,7 +736,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(LucideIcons.x, color: AppColors.secondaryAccent),
+                          icon: const Icon(
+                            LucideIcons.x,
+                            color: AppColors.secondaryAccent,
+                          ),
                         ),
                       ],
                     ),
@@ -676,18 +784,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         final isSel = selectedDays.contains(day);
                         String label = '';
                         switch (day) {
-                          case 1: label = 'Mon'; break;
-                          case 2: label = 'Tue'; break;
-                          case 3: label = 'Wed'; break;
-                          case 4: label = 'Thu'; break;
-                          case 5: label = 'Fri'; break;
-                          case 6: label = 'Sat'; break;
-                          case 7: label = 'Sun'; break;
+                          case 1:
+                            label = 'Mon';
+                            break;
+                          case 2:
+                            label = 'Tue';
+                            break;
+                          case 3:
+                            label = 'Wed';
+                            break;
+                          case 4:
+                            label = 'Thu';
+                            break;
+                          case 5:
+                            label = 'Fri';
+                            break;
+                          case 6:
+                            label = 'Sat';
+                            break;
+                          case 7:
+                            label = 'Sun';
+                            break;
                         }
                         return FilterChip(
                           label: Text(label),
                           selected: isSel,
-                          selectedColor: AppColors.primaryDark.withValues(alpha: 0.2),
+                          selectedColor: AppColors.primaryDark.withValues(
+                            alpha: 0.2,
+                          ),
                           checkmarkColor: AppColors.primaryDark,
                           onSelected: (val) {
                             setModalState(() {
@@ -707,7 +831,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? null
                           : () {
                               final slot = AlarmSlot(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                id: DateTime.now().millisecondsSinceEpoch
+                                    .toString(),
                                 time: selectedTime,
                                 days: selectedDays,
                               );
@@ -774,7 +899,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await admin.scheduleSync(immediate: true);
                   if (!context.mounted) return;
                   setState(() => _isLoading = false);
-                  
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(l10n.exportedSuccess),
@@ -788,7 +913,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   foregroundColor: AppColors.primaryDark,
                   side: const BorderSide(color: AppColors.primaryDark),
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -797,11 +924,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => _showImportConfirm(context),
                 icon: const Icon(LucideIcons.fileInput, color: AppColors.white),
-                label: Text(l10n.importDb, style: const TextStyle(color: AppColors.white)),
+                label: Text(
+                  l10n.importDb,
+                  style: const TextStyle(color: AppColors.white),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.error,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -828,7 +960,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(LucideIcons.alertTriangle, color: AppColors.error, size: 32),
+                child: const Icon(
+                  LucideIcons.alertTriangle,
+                  color: AppColors.error,
+                  size: 32,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -857,11 +993,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () => Navigator.pop(ctx),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         l10n.cancelBtn,
-                        style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -874,19 +1015,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           type: FileType.any,
                         );
 
-                        if (result != null && result.files.single.path != null) {
+                        if (result != null &&
+                            result.files.single.path != null) {
                           setState(() => _isLoading = true);
                           try {
                             if (!context.mounted) return;
-                            await context.read<AdminProvider>().importDatabaseLocally(result.files.single.path!);
+                            await context
+                                .read<AdminProvider>()
+                                .importDatabaseLocally(
+                                  result.files.single.path!,
+                                );
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.importSuccess), backgroundColor: AppColors.success),
+                              SnackBar(
+                                content: Text(l10n.importSuccess),
+                                backgroundColor: AppColors.success,
+                              ),
                             );
                           } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${l10n.importFailed}: $e'), backgroundColor: AppColors.error),
+                              SnackBar(
+                                content: Text('${l10n.importFailed}: $e'),
+                                backgroundColor: AppColors.error,
+                              ),
                             );
                           } finally {
                             if (mounted) setState(() => _isLoading = false);
@@ -898,9 +1050,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         foregroundColor: AppColors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text(l10n.importReplace, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        l10n.importReplace,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -961,7 +1118,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         color: AppColors.error,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(LucideIcons.x, size: 12, color: AppColors.white),
+                      child: const Icon(
+                        LucideIcons.x,
+                        size: 12,
+                        color: AppColors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -977,10 +1138,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: addCtrl,
                 decoration: InputDecoration(
                   hintText: l10n.addNewType,
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.secondaryAccent),
+                  hintStyle: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryAccent,
+                  ),
                   filled: true,
                   fillColor: AppColors.surfaceLight,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(color: AppColors.divider),
@@ -991,7 +1158,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: AppColors.primaryDark, width: 2),
+                    borderSide: BorderSide(
+                      color: AppColors.primaryDark,
+                      width: 2,
+                    ),
                   ),
                 ),
                 onSubmitted: (val) {
@@ -1006,7 +1176,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             IconButton(
               onPressed: () {
                 if (addCtrl.text.trim().isNotEmpty) {
-                  context.read<AdminProvider>().addMedicineType(addCtrl.text.trim());
+                  context.read<AdminProvider>().addMedicineType(
+                    addCtrl.text.trim(),
+                  );
                   addCtrl.clear();
                 }
               },
@@ -1014,7 +1186,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: IconButton.styleFrom(
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: AppColors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ],
@@ -1040,7 +1214,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: AppColors.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(LucideIcons.trash2, color: AppColors.error, size: 32),
+                child: const Icon(
+                  LucideIcons.trash2,
+                  color: AppColors.error,
+                  size: 32,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -1069,11 +1247,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () => Navigator.pop(ctx),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         l10n.cancelBtn,
-                        style: const TextStyle(color: AppColors.secondaryAccent, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -1089,9 +1272,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         foregroundColor: AppColors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text(l10n.removeBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        l10n.removeBtn,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -1287,9 +1475,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildSectionCard(
       title: l10n.adminAccessSecurity,
       icon: LucideIcons.fingerprint,
-      children: const [
-        _BiometricAdminSwitch(),
-      ],
+      children: const [_BiometricAdminSwitch()],
     );
   }
 }
@@ -1399,17 +1585,12 @@ class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
         checking
             ? '…'
             : (ready
-                ? l10n.biometricUnlockAdminHelper
-                : l10n.biometricSetupRequired),
-        style: const TextStyle(
-          color: AppColors.secondaryAccent,
-          fontSize: 12,
-        ),
+                  ? l10n.biometricUnlockAdminHelper
+                  : l10n.biometricSetupRequired),
+        style: const TextStyle(color: AppColors.secondaryAccent, fontSize: 12),
       ),
       value: admin.adminBiometricEnabled,
-      onChanged: checking || !ready
-          ? null
-          : (v) => _onToggle(v),
+      onChanged: checking || !ready ? null : (v) => _onToggle(v),
       activeThumbColor: AppColors.primaryDark,
       contentPadding: EdgeInsets.zero,
     );

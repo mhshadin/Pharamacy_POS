@@ -20,6 +20,7 @@ import '../utils/inventory_alert_tiers.dart';
 import 'package:intl/intl.dart';
 import 'package:alarm/alarm.dart';
 import 'package:path_provider/path_provider.dart';
+import '../models/alarm_slot.dart';
 
 /// Any UI that mutates product or batch data (including returns)
 /// should also trigger `POSProvider.loadProducts()` so the POS view
@@ -29,11 +30,13 @@ class BulkImportRecord {
   final Product product;
   final String? batchNumber;
   final DateTime expiryDate;
+  final double costPricePerPc;
 
   BulkImportRecord({
     required this.product,
     this.batchNumber,
     required this.expiryDate,
+    this.costPricePerPc = 0.0,
   });
 }
 
@@ -46,6 +49,9 @@ class AdminProvider extends ChangeNotifier {
   List<Product> _products = [];
   List<SaleRecord> _sales = [];
 
+  bool get _isAlarmSupported =>
+      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+
   // Settings
   int _lowStockThreshold = 2; // Default to 2 boxes
   int _expiringSoonDays = 90;
@@ -53,8 +59,11 @@ class AdminProvider extends ChangeNotifier {
   int _moderateExpiryDays = 60;
   int _expiryDelayMonths = 6; // Default to 6 months
   bool _showSupplierInfo = false;
+  bool _addProductUseStepperDefault = true;
   bool _adminBiometricEnabled = false;
   int _defaultOrderBoxes = 100;
+  bool _expandOptionalFields = false;
+  bool _restockPricingCollapsedByDefault = true;
   List<String> _medicineTypes = [];
   static const List<String> defaultMedicineTypes = [
     'Tablet',
@@ -76,6 +85,11 @@ class AdminProvider extends ChangeNotifier {
   List<int> _reminderDays = []; // 1 (Mon) to 7 (Sun)
   TimeOfDay _reminderTime = const TimeOfDay(hour: 10, minute: 0);
   String? _reminderAudioPath;
+
+  // Modern Alarms (alarm package)
+  bool _stockReminderMasterEnabled = true;
+  List<AlarmSlot> _alarmSlots = [];
+  String? _customRingtonePath;
 
   // Google Drive Sync
   String? _googleDriveFileId;
@@ -106,7 +120,9 @@ class AdminProvider extends ChangeNotifier {
     developer.log("AdminProvider: Reloading auth session from storage...");
     _authSession = await const AuthStorage().loadAuth();
     notifyListeners();
-    developer.log("AdminProvider: Session reloaded. RefreshToken present: ${_authSession?.refreshToken.isNotEmpty}");
+    developer.log(
+      "AdminProvider: Session reloaded. RefreshToken present: ${_authSession?.refreshToken.isNotEmpty}",
+    );
   }
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
@@ -119,6 +135,7 @@ class AdminProvider extends ChangeNotifier {
   int get moderateExpiryDays => _moderateExpiryDays;
   int get expiryDelayMonths => _expiryDelayMonths;
   bool get showSupplierInfo => _showSupplierInfo;
+  bool get addProductUseStepperDefault => _addProductUseStepperDefault;
   bool get adminBiometricEnabled => _adminBiometricEnabled;
   int get defaultOrderBoxes => _defaultOrderBoxes;
   List<String> get medicineTypes => _medicineTypes;
@@ -133,6 +150,13 @@ class AdminProvider extends ChangeNotifier {
   List<int> get reminderDays => _reminderDays;
   TimeOfDay get reminderTime => _reminderTime;
   String? get reminderAudioPath => _reminderAudioPath;
+
+  bool get expandOptionalFields => _expandOptionalFields;
+  bool get restockPricingCollapsedByDefault =>
+      _restockPricingCollapsedByDefault;
+  bool get stockReminderMasterEnabled => _stockReminderMasterEnabled;
+  List<AlarmSlot> get alarmSlots => _alarmSlots;
+  String? get customRingtonePath => _customRingtonePath;
 
   // Product Filtering & Sorting Getters
   String get searchQuery => _productSearchQuery;
@@ -149,6 +173,14 @@ class AdminProvider extends ChangeNotifier {
 
   List<String> get allTypes =>
       _products.map((p) => p.medType ?? 'Tablet').toSet().toList()..sort();
+
+  Product? getProductById(String id) {
+    try {
+      return _products.firstWhere((p) => p.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Product? getProductByName(String name, {String? medType}) {
     try {
@@ -286,9 +318,19 @@ class AdminProvider extends ChangeNotifier {
     _expiryDelayMonths = int.tryParse(settings['expiryDelayMonths'] ?? '') ?? 6;
     _clampExpiryThresholds();
     _showSupplierInfo = settings['showSupplierInfo'] == 'true';
+    final addProductModeRaw = settings['addProductUseStepperDefault'];
+    _addProductUseStepperDefault = addProductModeRaw == null
+        ? true
+        : addProductModeRaw == 'true';
     _adminBiometricEnabled = settings['adminBiometricEnabled'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
+    _expandOptionalFields = settings['expandOptionalFields'] == 'true';
+    final restockPricingCollapsedRaw =
+        settings['restockPricingCollapsedByDefault'];
+    _restockPricingCollapsedByDefault = restockPricingCollapsedRaw == null
+        ? true
+        : restockPricingCollapsedRaw == 'true';
 
     // Load auth session for user info
     _authSession = await const AuthStorage().loadAuth();
@@ -326,15 +368,30 @@ class AdminProvider extends ChangeNotifier {
       _lastSyncTime = DateTime.tryParse(lastSyncStr);
     }
 
-    _extraReminderEnabled = (await _db.getSetting('extraReminderEnabled')) == 'true';
+    _extraReminderEnabled =
+        (await _db.getSetting('extraReminderEnabled')) == 'true';
     final daysStr = await _db.getSetting('reminderDays') ?? '';
-    _reminderDays = daysStr.split(',').where((s) => s.isNotEmpty).map(int.parse).toList();
+    _reminderDays = daysStr
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .map((s) => int.tryParse(s))
+        .whereType<int>()
+        .toList();
     final timeStr = await _db.getSetting('reminderTime') ?? '10:00';
     final parts = timeStr.split(':');
     if (parts.length == 2) {
-      _reminderTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      _reminderTime = TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      );
     }
     _reminderAudioPath = await _db.getSetting('reminderAudioPath');
+
+    _stockReminderMasterEnabled =
+        (await _db.getSetting('stockReminderMasterEnabled')) != 'false';
+    _customRingtonePath = await _db.getSetting('customRingtonePath');
+    _alarmSlots = await _db.getAllAlarmSlots();
 
     if (notify) notifyListeners();
   }
@@ -342,7 +399,7 @@ class AdminProvider extends ChangeNotifier {
   /// Secure Just-In-Time fetch of Admin PIN from backend
   Future<void> fetchBackendAdminPin() async {
     if (_authSession == null) return;
-    
+
     bool needRetry = false;
     try {
       final backendPin = await const AuthService().getAdminPin(
@@ -369,10 +426,10 @@ class AdminProvider extends ChangeNotifier {
         final result = await const AuthService().refreshJwtToken(
           _authSession!.refreshToken,
         );
-        
+
         // Update storage (this saves both the new license_token and the new rotated refresh_token)
         await const AuthStorage().saveAuth(result);
-        
+
         // Reload in-memory auth session so UI uses the new tokens
         _authSession = await const AuthStorage().loadAuth();
         notifyListeners();
@@ -441,7 +498,8 @@ class AdminProvider extends ChangeNotifier {
     // stored token, as it is almost certainly expired (tokens last 1 hour).
     final googleToken = await refreshGoogleAccessToken();
     if (googleToken == null) {
-      _syncError = "Google Drive session expired. Please reconnect in Settings.";
+      _syncError =
+          "Google Drive session expired. Please reconnect in Settings.";
       notifyListeners();
       return;
     }
@@ -483,7 +541,9 @@ class AdminProvider extends ChangeNotifier {
     } catch (e, stack) {
       developer.log("Drive Sync Exception", error: e, stackTrace: stack);
       final errMsg = e.toString().toLowerCase();
-      if (errMsg.contains('401') || errMsg.contains('unauthorized') || errMsg.contains('403')) {
+      if (errMsg.contains('401') ||
+          errMsg.contains('unauthorized') ||
+          errMsg.contains('403')) {
         _syncError = "Google Drive session expired. Please sign in again.";
       } else {
         _syncError = e.toString();
@@ -555,7 +615,10 @@ class AdminProvider extends ChangeNotifier {
     return await _db.getBatchesForProduct(productId);
   }
 
-  Future<void> updateActiveBatchesExpiry(String productId, DateTime expiry) async {
+  Future<void> updateActiveBatchesExpiry(
+    String productId,
+    DateTime expiry,
+  ) async {
     await _db.updateActiveBatchesExpiryDate(productId, expiry);
   }
 
@@ -566,6 +629,7 @@ class AdminProvider extends ChangeNotifier {
     required int strips,
     required int pcs,
     required int pcsPerStrip,
+    double costPricePerPc = 0.0,
   }) async {
     final totalPcs = (strips * pcsPerStrip) + pcs;
     if (totalPcs <= 0) return;
@@ -580,6 +644,7 @@ class AdminProvider extends ChangeNotifier {
       initialPieces: totalPcs,
       remainingPieces: totalPcs,
       dateAdded: DateTime.now(),
+      costPricePerPc: costPricePerPc,
     );
 
     try {
@@ -706,7 +771,11 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> addProduct(Product product, {String? initialBatchNumber}) async {
+  Future<void> addProduct(
+    Product product, {
+    String? initialBatchNumber,
+    double? costPricePerPc,
+  }) async {
     try {
       await _db.insertProduct(product);
 
@@ -724,6 +793,7 @@ class AdminProvider extends ChangeNotifier {
           initialPieces: totalPcs,
           remainingPieces: totalPcs,
           dateAdded: now,
+          costPricePerPc: costPricePerPc ?? product.costPricePerPc,
         );
         await _db.insertBatch(batch);
       }
@@ -811,6 +881,7 @@ class AdminProvider extends ChangeNotifier {
           initialPieces: totalPcs,
           remainingPieces: totalPcs,
           dateAdded: now,
+          costPricePerPc: record.costPricePerPc,
         ),
       );
     }
@@ -874,6 +945,14 @@ class AdminProvider extends ChangeNotifier {
         .fold(0.0, (sum, s) => sum + s.effectiveAmount);
   }
 
+  double get totalProfitToday {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    return _sales
+        .where((s) => s.date.isAfter(todayStart))
+        .fold(0.0, (sum, s) => sum + s.grossProfit);
+  }
+
   int get todaysOrders {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
@@ -892,6 +971,37 @@ class AdminProvider extends ChangeNotifier {
   /// Reload sales data (e.g., after a checkout on POS side).
   Future<void> refreshSales() async {
     await loadSales();
+  }
+
+  Future<List<SaleRecord>> fetchSalesInRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final sales = await _db.getSalesInRange(start, end);
+    return sales;
+  }
+
+  Future<double> getLastBatchCostPrice(String productId) async {
+    final batches = await _db.getBatchesForProduct(productId);
+    if (batches.isEmpty) return 0.0;
+    // Database returns batches sorted by expiryDate, but for cost we usually want the most recent added
+    // or just the latest one in the list.
+    return batches.last.costPricePerPc;
+  }
+
+  Future<void> updateProductCostPrice(
+    String productId,
+    double costPrice,
+  ) async {
+    final product = getProductById(productId);
+    if (product == null) return;
+
+    final batches = await _db.getBatchesForProduct(productId);
+    if (batches.isNotEmpty) {
+      final latestBatch = batches.last;
+      await _db.updateBatchCostPrice(latestBatch.id, costPrice);
+      await loadProducts();
+    }
   }
 
   // --- Product List State Management ---
@@ -1079,7 +1189,7 @@ class AdminProvider extends ChangeNotifier {
     } else {
       await cancelAllAlarms();
     }
-    notifyListeners();
+    // No notifyListeners() here; saveSetting already triggers it via loadSettings
   }
 
   Future<void> updateReminderDays(List<int> days) async {
@@ -1109,7 +1219,7 @@ class AdminProvider extends ChangeNotifier {
         final fileName = path.split(Platform.isWindows ? '\\' : '/').last;
         final newPath = '${appDir.path}/$fileName';
         final file = File(path);
-        
+
         // Only copy if it's a new path and not already in app documents
         if (path != newPath) {
           await file.copy(newPath);
@@ -1129,9 +1239,135 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateExpandOptionalFields(bool expand) async {
+    _expandOptionalFields = expand;
+    await saveSetting('expandOptionalFields', expand.toString());
+    notifyListeners();
+  }
+
+  Future<void> toggleStockReminderMaster(bool enabled) async {
+    _stockReminderMasterEnabled = enabled;
+    await saveSetting(
+      'stockReminderMasterEnabled',
+      _stockReminderMasterEnabled.toString(),
+    );
+    if (_stockReminderMasterEnabled) {
+      await scheduleAllModernAlarms();
+    } else {
+      await cancelAllModernAlarms();
+    }
+    // No notifyListeners() here; saveSetting already triggers it via loadSettings
+  }
+
+  Future<void> setCustomRingtone(String? path) async {
+    if (path != null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = path.split(Platform.isWindows ? '\\' : '/').last;
+      final newPath = '${appDir.path}/$fileName';
+      if (path != newPath) {
+        await File(path).copy(newPath);
+        _customRingtonePath = newPath;
+      } else {
+        _customRingtonePath = path;
+      }
+    } else {
+      _customRingtonePath = null;
+    }
+    await saveSetting('customRingtonePath', _customRingtonePath ?? '');
+    if (_stockReminderMasterEnabled) {
+      await scheduleAllModernAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> saveAlarmSlot(AlarmSlot slot) async {
+    // Update local list
+    final index = _alarmSlots.indexWhere((s) => s.id == slot.id);
+    if (index >= 0) {
+      _alarmSlots[index] = slot;
+    } else {
+      _alarmSlots.add(slot);
+    }
+
+    // Update DB
+    await _db.insertAlarmSlot(slot);
+
+    // Reschedule
+    if (_stockReminderMasterEnabled) {
+      await scheduleAllModernAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteAlarmSlot(String id) async {
+    _alarmSlots.removeWhere((s) => s.id == id);
+    await _db.deleteAlarmSlot(id);
+    if (_stockReminderMasterEnabled) {
+      await scheduleAllModernAlarms();
+    }
+    notifyListeners();
+  }
+
+  Future<void> scheduleAllModernAlarms() async {
+    await cancelAllModernAlarms();
+    if (!_stockReminderMasterEnabled || !_isAlarmSupported) return;
+
+    for (final slot in _alarmSlots) {
+      if (!slot.isEnabled) continue;
+
+      for (final day in slot.days) {
+        final now = DateTime.now();
+        DateTime scheduledDate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          slot.time.hour,
+          slot.time.minute,
+        );
+
+        int daysUntil = day - now.weekday;
+        if (daysUntil < 0 || (daysUntil == 0 && scheduledDate.isBefore(now))) {
+          daysUntil += 7;
+        }
+        scheduledDate = scheduledDate.add(Duration(days: daysUntil));
+
+        final alarmSettings = AlarmSettings(
+          id: slot.id.hashCode.abs() % 100000 + (day * 100000),
+          dateTime: scheduledDate,
+          assetAudioPath: _customRingtonePath ?? 'assets/sounds/alarm.mp3',
+          loopAudio: true,
+          vibrate: true,
+          notificationSettings: const NotificationSettings(
+            title: 'Stock Reminder',
+            body: 'It is time to check your inventory!',
+            stopButton: 'Dismiss',
+          ),
+          volumeSettings: VolumeSettings.fade(
+            volume: 1.0,
+            fadeDuration: const Duration(seconds: 3),
+          ),
+          androidFullScreenIntent: true,
+        );
+
+        await Alarm.set(alarmSettings: alarmSettings);
+      }
+    }
+  }
+
+  Future<void> cancelAllModernAlarms() async {
+    if (!_isAlarmSupported) return;
+    for (final slot in _alarmSlots) {
+      for (int day = 1; day <= 7; day++) {
+        final id = slot.id.hashCode.abs() % 100000 + (day * 100000);
+        await Alarm.stop(id);
+      }
+    }
+  }
+
   Future<void> scheduleAllAlarms() async {
     await cancelAllAlarms();
-    if (!_extraReminderEnabled || _reminderDays.isEmpty) return;
+    if (!_extraReminderEnabled || _reminderDays.isEmpty || !_isAlarmSupported)
+      return;
 
     for (final day in _reminderDays) {
       final now = DateTime.now();
@@ -1176,6 +1412,7 @@ class AdminProvider extends ChangeNotifier {
   }
 
   Future<void> cancelAllAlarms() async {
+    if (!_isAlarmSupported) return;
     for (int i = 1; i <= 7; i++) {
       await Alarm.stop(i);
     }

@@ -256,10 +256,15 @@ class AppStringsBn implements AppStrings {
   @override
   String get buyingPriceSection => 'ক্রয় মূল্য (খরচ)';
   @override
-  String get buyingPricePerPc => 'ক্রয় মূল্য / পিস (৳)';
+  String get buyingPricePerPc => 'ক্রয় মূল্য / বক্স (৳)';
   @override
   String get buyingPriceHelper =>
-      'শেষ ব্যাচ থেকে পূরণ করা হয়েছে। মূল্য পরিবর্তন হলে আপডেট করুন।';
+      'শেষ ব্যাচের বক্স মূল্যের ভিত্তিতে পূরণ করা হয়েছে। মূল্য পরিবর্তন হলে আপডেট করুন।';
+  @override
+  String get sellingPricePerPc => 'বিক্রয় মূল্য / বক্স (৳)';
+  @override
+  String get sellingPriceHelper =>
+      'ঐচ্ছিক। পণ্যের প্রতি বক্স বিক্রয় মূল্য আপডেট করতে চাইলে এখানে দিন।';
   @override
   String profitPreview(String amount, String margin, bool isLoss) => isLoss
       ? 'লোকসান: ৳$amount/স্ট্রিপ ($margin%)'
@@ -425,10 +430,24 @@ class AppStringsBn implements AppStrings {
   String get showSupplierInfoHelper =>
       'সরবরাহকারীর নাম এবং ফোন নম্বর সংরক্ষণ করতে এটি চালু করুন।';
   @override
+  String get addProductDefaultStepperMode =>
+      'ওষুধ যোগ স্ক্রিনে ডিফল্টে স্টেপার মোড চালু রাখুন';
+  @override
+  String get addProductDefaultStepperModeHelper =>
+      'চালু থাকলে ওষুধ যোগ স্ক্রিন ধাপে ধাপে (Stepper) মোডে খুলবে।';
+  @override
+  String get addProductStepperModeToggle => 'স্টেপার মোড';
+  @override
   String get expandOptionalFields => 'ঐচ্ছিক তথ্য সবসময় খুলে রাখুন';
   @override
   String get expandOptionalFieldsHelper =>
       'নতুন ওষুধ যোগ করার সময় সাধারণ নাম এবং কোম্পানি ফিল্ড সবসময় খোলা রাখুন।';
+  @override
+  String get restockPricingCollapsedByDefault =>
+      'রিস্টকে Pricing সেকশন ডিফল্টে বন্ধ রাখুন';
+  @override
+  String get restockPricingCollapsedByDefaultHelper =>
+      'চালু থাকলে রিস্টক স্ক্রিনে Pricing সেকশন শুরুতে বন্ধ থাকবে।';
   @override
   String get optionalDetails => 'অতিরিক্ত তথ্য';
   @override
@@ -788,8 +807,7 @@ class AppStringsBn implements AppStrings {
   String get biometricPromptDisable =>
       'বায়োমেট্রিক অ্যাডমিন আনলক বন্ধ করতে আঙুলের ছাপ বা মুখ দিয়ে নিশ্চিত করুন।';
   @override
-  String get biometricAuthFailed =>
-      'বায়োমেট্রিক যাচাইকরণ সফল হয়নি।';
+  String get biometricAuthFailed => 'বায়োমেট্রিক যাচাইকরণ সফল হয়নি।';
   @override
   String get adminLoginTitle => 'অ্যাডমিন লগইন';
   @override
@@ -1397,9 +1415,11 @@ class AppStringsBn implements AppStrings {
   @override
   String get tapToResume => 'চালু করতে ট্যাপ করুন';
   @override
-  String get tapScannerToPauseResume => 'থামাতে/চালু করতে স্ক্যানারে ট্যাপ করুন';
+  String get tapScannerToPauseResume =>
+      'থামাতে/চালু করতে স্ক্যানারে ট্যাপ করুন';
   @override
-  String get scannerPausedTapToResume => 'স্ক্যানার থামানো — চালু করতে ট্যাপ করুন';
+  String get scannerPausedTapToResume =>
+      'স্ক্যানার থামানো — চালু করতে ট্যাপ করুন';
   @override
   String get collapse => 'ছোট করুন';
   @override
@@ -1411,8 +1431,7 @@ class AppStringsBn implements AppStrings {
   @override
   String get checkout => 'চেকআউট করো';
   @override
-  String get checkoutFailed =>
-      'চেকআউট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
+  String get checkoutFailed => 'চেকআউট ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
   @override
   String get itemWord => 'ওষুধ';
   @override

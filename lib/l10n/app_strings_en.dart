@@ -252,10 +252,15 @@ class AppStringsEn implements AppStrings {
   @override
   String get buyingPriceSection => 'Buying Price (Cost)';
   @override
-  String get buyingPricePerPc => 'Buying Price / Pc (৳)';
+  String get buyingPricePerPc => 'Buying Price / Box (৳)';
   @override
   String get buyingPriceHelper =>
-      'Pre-filled from last batch. Update if price changed.';
+      'Pre-filled from last batch based on box price. Update if price changed.';
+  @override
+  String get sellingPricePerPc => 'Selling Price / Box (৳)';
+  @override
+  String get sellingPriceHelper =>
+      'Optional. Enter only if you want to update the product selling price per box.';
   @override
   String profitPreview(String amount, String margin, bool isLoss) => isLoss
       ? 'Loss: ৳$amount/strip ($margin%)'
@@ -418,10 +423,24 @@ class AppStringsEn implements AppStrings {
   String get showSupplierInfoHelper =>
       'Enable this to enter and track supplier name and phone number during stock in.';
   @override
+  String get addProductDefaultStepperMode =>
+      'Use Stepper Mode by default in Add Product';
+  @override
+  String get addProductDefaultStepperModeHelper =>
+      'When enabled, Add Product opens in step-by-step mode by default.';
+  @override
+  String get addProductStepperModeToggle => 'Stepper Mode';
+  @override
   String get expandOptionalFields => 'Always expand optional fields';
   @override
   String get expandOptionalFieldsHelper =>
       'When adding many new products, keep generic name and company fields expanded by default.';
+  @override
+  String get restockPricingCollapsedByDefault =>
+      'Keep Restock Pricing collapsed by default';
+  @override
+  String get restockPricingCollapsedByDefaultHelper =>
+      'If enabled, the Pricing section starts collapsed in the Restock screen.';
   @override
   String get optionalDetails => 'Optional Details';
   @override
@@ -780,8 +799,7 @@ class AppStringsEn implements AppStrings {
   String get biometricPromptDisable =>
       'Confirm with your fingerprint or face to turn off biometric admin unlock.';
   @override
-  String get biometricAuthFailed =>
-      'Biometric authentication did not succeed.';
+  String get biometricAuthFailed => 'Biometric authentication did not succeed.';
   @override
   String get adminLoginTitle => 'Admin login';
   @override
@@ -1399,8 +1417,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get checkout => 'Checkout';
   @override
-  String get checkoutFailed =>
-      'Checkout failed. Please try again.';
+  String get checkoutFailed => 'Checkout failed. Please try again.';
   @override
   String get itemWord => 'item';
   @override
