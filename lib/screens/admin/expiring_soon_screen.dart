@@ -29,6 +29,8 @@ class ExpiringSoonScreen extends StatefulWidget {
 
 class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   final _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  bool _isSearchVisible = false;
   String _searchQuery = '';
   String _filter = 'All'; // Using keys for logic
   String _sortBy = 'Soonest First';
@@ -45,7 +47,24 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearchVisible = !_isSearchVisible;
+      if (!_isSearchVisible) {
+        _searchCtrl.clear();
+        _searchQuery = '';
+        _searchFocus.unfocus();
+      }
+    });
+    if (_isSearchVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchFocus.requestFocus();
+      });
+    }
   }
 
   List<Product> _applyFilters(List<Product> source, AdminProvider admin) {
@@ -665,7 +684,21 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
       final l10n = context.watch<LanguageProvider>().strings;
       return Scaffold(
         appBar: widget.showAppBar
-            ? AppBar(title: Text(l10n.expiringSoonTitle), centerTitle: true)
+            ? AppBar(
+                title: Text(l10n.expiringSoonTitle),
+                centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      _isSearchVisible ? LucideIcons.x : LucideIcons.search,
+                    ),
+                    onPressed: _toggleSearch,
+                    tooltip: _isSearchVisible
+                        ? l10n.closeSearchTooltip
+                        : l10n.searchTooltip,
+                  ),
+                ],
+              )
             : null,
         backgroundColor: AppColors.background,
         body: EmptyStateWidget(
@@ -680,11 +713,32 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
 
     return Scaffold(
       appBar: widget.showAppBar
-          ? AppBar(title: Text(l10n.expiringSoonTitle), centerTitle: true)
+          ? AppBar(
+              title: Text(l10n.expiringSoonTitle),
+              centerTitle: true,
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    _isSearchVisible ? LucideIcons.x : LucideIcons.search,
+                  ),
+                  onPressed: _toggleSearch,
+                  tooltip: _isSearchVisible
+                      ? l10n.closeSearchTooltip
+                      : l10n.searchTooltip,
+                ),
+              ],
+            )
           : null,
       backgroundColor: AppColors.background,
       body: Column(
         children: [
+          _ExpiringSoonExpandableSearchBar(
+            isVisible: widget.showAppBar ? _isSearchVisible : true,
+            controller: _searchCtrl,
+            focusNode: _searchFocus,
+            onChanged: (v) => setState(() => _searchQuery = v.trim()),
+            onClose: _toggleSearch,
+          ),
           // ── Filter controls ──────────────────────────────────
           Container(
             color: AppColors.white,
@@ -692,61 +746,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Search + Sort
+                // Sort + filters
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Expanded(
-                      child: Container(
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          onChanged: (v) =>
-                              setState(() => _searchQuery = v.trim()),
-                          style: const TextStyle(
-                            color: AppColors.primaryDark,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: l10n.searchHint,
-                            hintStyle: TextStyle(
-                              color: AppColors.secondaryAccent.withValues(
-                                alpha: 0.7,
-                              ),
-                              fontSize: 13,
-                            ),
-                            prefixIcon: const Icon(
-                              LucideIcons.search,
-                              color: AppColors.secondaryAccent,
-                              size: 18,
-                            ),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(
-                                      LucideIcons.x,
-                                      size: 16,
-                                      color: AppColors.secondaryAccent,
-                                    ),
-                                    onPressed: () {
-                                      _searchCtrl.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     PopupMenuButton<String>(
                       tooltip: l10n.sortBtn,
                       icon: SizedBox(
@@ -885,6 +888,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       setState(() {
                         _searchCtrl.clear();
                         _searchQuery = '';
+                        _isSearchVisible = false;
                         _selectedCompanies.clear();
                         _filter = 'All';
                         _sortBy = 'Soonest First';
@@ -1088,6 +1092,82 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ExpiringSoonExpandableSearchBar extends StatelessWidget {
+  final bool isVisible;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  const _ExpiringSoonExpandableSearchBar({
+    required this.isVisible,
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      height: isVisible ? 60.0 : 0.0,
+      color: AppColors.primaryDark,
+      child: isVisible
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.highlightActive.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onChanged: onChanged,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: l10n.searchHint,
+                    hintStyle: TextStyle(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      LucideIcons.search,
+                      color: AppColors.secondaryAccent,
+                      size: 18,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        LucideIcons.x,
+                        size: 16,
+                        color: AppColors.secondaryAccent,
+                      ),
+                      onPressed: onClose,
+                      tooltip: l10n.closeSearchTooltip,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
