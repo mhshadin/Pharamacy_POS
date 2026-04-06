@@ -450,6 +450,74 @@ class _LowStockScreenState extends State<LowStockScreen> {
     });
   }
 
+  Widget _buildSortActionTile(AppStrings l10n, {required bool expand}) {
+    final tile = PopupMenuButton<String>(
+      tooltip: l10n.sortBtn,
+      icon: SizedBox(
+        height: 52,
+        width: double.infinity,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.posButtonIdle,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                LucideIcons.arrowUpDown,
+                color: AppColors.primaryDark,
+                size: 16,
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Sort',
+                style: TextStyle(
+                  color: AppColors.primaryDark,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      onSelected: (v) => setState(() => _sortBy = v),
+      itemBuilder: (_) => _sortOptions
+          .map(
+            (o) => PopupMenuItem(
+              value: o,
+              child: Row(
+                children: [
+                  Icon(
+                    _sortBy == o ? LucideIcons.checkCircle2 : LucideIcons.circle,
+                    size: 16,
+                    color: _sortBy == o
+                        ? AppColors.primaryDark
+                        : AppColors.secondaryAccent,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    o == 'Most Urgent'
+                        ? l10n.sortMostUrgent
+                        : o == 'Biggest Deficit'
+                            ? l10n.sortBiggestDeficit
+                            : o == 'A → Z'
+                                ? l10n.sortNameAZ
+                                : l10n.sortNameZA,
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
+
+    if (expand) return Expanded(child: tile);
+    return SizedBox(width: 74, child: tile);
+  }
+
   Future<void> _doExport(
     List<Product> products,
     Map<String, int> orderQtys, {
@@ -658,89 +726,91 @@ class _LowStockScreenState extends State<LowStockScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      PopupMenuButton<String>(
-                        tooltip: l10n.sortBtn,
-                        icon: SizedBox(
-                          height: 44,
-                          width: 60,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: AppColors.posButtonIdle,
-                              borderRadius: BorderRadius.circular(10),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 380;
+                    if (compact) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildSortActionTile(l10n, expand: false),
+                            const SizedBox(width: 8),
+                            adminActionTileButton(
+                              icon: LucideIcons.listFilter,
+                              label: 'Filter',
+                              tooltip: l10n.filterByStockStatus,
+                              activeCount: _filter == 'All' ? 0 : 1,
+                              minWidth: 74,
+                              onPressed: () =>
+                                  _showStockStatusFilterPanel(l10n),
                             ),
-                            child: const Center(
-                              child: Icon(
-                                LucideIcons.arrowUpDown,
-                                color: AppColors.primaryDark,
-                                size: 18,
+                            if (hasCompanies) ...[
+                              const SizedBox(width: 8),
+                              adminActionTileButton(
+                                icon: LucideIcons.building2,
+                                label: 'Company',
+                                tooltip: l10n.filterByCompany,
+                                activeCount: _selectedCompanies.length,
+                                minWidth: 74,
+                                onPressed: () =>
+                                    _showCompanySheet(allCompanies, l10n),
                               ),
-                            ),
+                            ],
+                            if (filtered.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              adminActionTileButton(
+                                icon: LucideIcons.download,
+                                label: 'Export',
+                                tooltip: l10n.exportOrderList,
+                                activeCount: 0,
+                                minWidth: 74,
+                                onPressed: () => _showOrderQtyModal(filtered),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        _buildSortActionTile(l10n, expand: true),
+                        const SizedBox(width: 8),
+                        adminActionTileButton(
+                          icon: LucideIcons.listFilter,
+                          label: 'Filter',
+                          tooltip: l10n.filterByStockStatus,
+                          activeCount: _filter == 'All' ? 0 : 1,
+                          expand: true,
+                          onPressed: () => _showStockStatusFilterPanel(l10n),
+                        ),
+                        if (hasCompanies) ...[
+                          const SizedBox(width: 8),
+                          adminActionTileButton(
+                            icon: LucideIcons.building2,
+                            label: 'Company',
+                            tooltip: l10n.filterByCompany,
+                            activeCount: _selectedCompanies.length,
+                            expand: true,
+                            onPressed: () =>
+                                _showCompanySheet(allCompanies, l10n),
                           ),
-                        ),
-                        onSelected: (v) => setState(() => _sortBy = v),
-                        itemBuilder: (_) => _sortOptions
-                            .map(
-                              (o) => PopupMenuItem(
-                                value: o,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _sortBy == o
-                                          ? LucideIcons.checkCircle2
-                                          : LucideIcons.circle,
-                                      size: 16,
-                                      color: _sortBy == o
-                                          ? AppColors.primaryDark
-                                          : AppColors.secondaryAccent,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      o == 'Most Urgent'
-                                          ? l10n.sortMostUrgent
-                                          : o == 'Biggest Deficit'
-                                              ? l10n.sortBiggestDeficit
-                                              : o == 'A \u2192 Z'
-                                                  ? l10n.sortNameAZ
-                                                  : l10n.sortNameZA,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(width: 8),
-                      adminActionTileButton(
-                        icon: LucideIcons.listFilter,
-                        tooltip: l10n.filterByStockStatus,
-                        activeCount: _filter == 'All' ? 0 : 1,
-                        onPressed: () => _showStockStatusFilterPanel(l10n),
-                      ),
-                      if (hasCompanies) ...[
-                        const SizedBox(width: 8),
-                        adminActionTileButton(
-                          icon: LucideIcons.building2,
-                          tooltip: l10n.filterByCompany,
-                          activeCount: _selectedCompanies.length,
-                          onPressed: () =>
-                              _showCompanySheet(allCompanies, l10n),
-                        ),
+                        ],
+                        if (filtered.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          adminActionTileButton(
+                            icon: LucideIcons.download,
+                            label: 'Export',
+                            tooltip: l10n.exportOrderList,
+                            activeCount: 0,
+                            expand: true,
+                            onPressed: () => _showOrderQtyModal(filtered),
+                          ),
+                        ],
                       ],
-                      if (filtered.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        adminActionTileButton(
-                          icon: LucideIcons.download,
-                          tooltip: l10n.exportOrderList,
-                          activeCount: 0,
-                          onPressed: () => _showOrderQtyModal(filtered),
-                        ),
-                      ],
-                    ],
-                  ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
                 Row(

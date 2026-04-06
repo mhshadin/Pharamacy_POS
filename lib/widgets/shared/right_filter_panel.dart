@@ -59,18 +59,21 @@ void showRightFilterPanel(
 /// Home quick-action tile styled icon button with optional badge.
 Widget adminActionTileButton({
   required IconData icon,
+  required String label,
   required String tooltip,
   required int activeCount,
   required VoidCallback onPressed,
+  bool expand = false,
+  double minWidth = 72,
 }) {
-  return Tooltip(
+  final tile = Tooltip(
     message: tooltip,
     child: Stack(
       clipBehavior: Clip.none,
       children: [
         SizedBox(
-          height: 44,
-          width: 60,
+          height: 52,
+          width: expand ? double.infinity : minWidth,
           child: InkWell(
             onTap: onPressed,
             borderRadius: BorderRadius.circular(10),
@@ -81,14 +84,31 @@ Widget adminActionTileButton({
                     : AppColors.posButtonIdle,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Icon(
-                  icon,
-                  color: activeCount > 0
-                      ? AppColors.white
-                      : AppColors.primaryDark,
-                  size: 18,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    color: activeCount > 0
+                        ? AppColors.white
+                        : AppColors.primaryDark,
+                    size: 16,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: activeCount > 0
+                          ? AppColors.white
+                          : AppColors.primaryDark,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -118,4 +138,7 @@ Widget adminActionTileButton({
       ],
     ),
   );
+
+  if (expand) return Expanded(child: tile);
+  return tile;
 }
