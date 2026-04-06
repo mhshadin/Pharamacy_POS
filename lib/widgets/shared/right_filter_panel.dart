@@ -80,9 +80,14 @@ Widget adminActionTileButton({
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: activeCount > 0
-                    ? AppColors.primaryDark
-                    : AppColors.posButtonIdle,
+                    ? AppColors.primaryDark.withValues(alpha: 0.08)
+                    : AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: activeCount > 0
+                      ? AppColors.primaryDark.withValues(alpha: 0.35)
+                      : AppColors.divider,
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -90,7 +95,7 @@ Widget adminActionTileButton({
                   Icon(
                     icon,
                     color: activeCount > 0
-                        ? AppColors.white
+                        ? AppColors.primaryDark
                         : AppColors.primaryDark,
                     size: 16,
                   ),
@@ -101,7 +106,7 @@ Widget adminActionTileButton({
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: activeCount > 0
-                          ? AppColors.white
+                          ? AppColors.primaryDark
                           : AppColors.primaryDark,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,

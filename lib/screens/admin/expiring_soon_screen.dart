@@ -416,10 +416,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
         width: double.infinity,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: AppColors.posButtonIdle,
+            color: AppColors.surfaceLight,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.divider),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
