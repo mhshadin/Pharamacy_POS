@@ -641,15 +641,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         style: elevated,
       );
-      return narrow
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: rowPair(bulk, cont, equalWidths: true),
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: rowPair(bulk, cont, equalWidths: true),
-            );
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: bulk),
+          const SizedBox(width: 12),
+          Expanded(child: cont),
+        ],
+      );
     }
     if (_currentStep == 1) {
       final back = OutlinedButton.icon(
