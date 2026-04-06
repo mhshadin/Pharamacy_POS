@@ -416,11 +416,10 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
         width: double.infinity,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: AppColors.posButtonIdle,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.divider),
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
@@ -843,10 +842,23 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             onClose: _toggleSearch,
           ),
           // ── Filter controls ──────────────────────────────────
-          Container(
-            color: AppColors.white,
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryDark.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 LayoutBuilder(
@@ -907,7 +919,8 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.divider),
+          ),
+          const SizedBox(height: 2),
 
           // ── List ─────────────────────────────────────────────
           Expanded(
