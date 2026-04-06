@@ -769,7 +769,18 @@ class AppStringsBn implements AppStrings {
       'অ্যাডমিন পোর্টাল দ্রুত খুলতে আঙুলের ছাপ, ফেস আইডি বা ডিভাইসের বায়োমেট্রিক ব্যবহার করুন। ব্যাকআপ হিসেবে পিন থাকবে।';
   @override
   String get biometricNotAvailable =>
-      'এই ডিভাইসে বায়োমেট্রিক নেই বা সেটআপ করা নেই।';
+      'এই ডিভাইসে বায়োমেট্রিক বর্তমানে ব্যবহারযোগ্য নয়।';
+  @override
+  String get biometricSetupRequired =>
+      'ফোনের সেটিংসে ফিঙ্গারপ্রিন্ট বা ফেস আনলক সেটআপ করে আবার চেষ্টা করুন।';
+  @override
+  String get biometricLockedOut =>
+      'বায়োমেট্রিক লক হয়ে গেছে। একবার ডিভাইস আনলক করে আবার চেষ্টা করুন।';
+  @override
+  String get biometricTryAgainLater =>
+      'অনেকবার চেষ্টা হয়েছে। একটু পরে আবার বায়োমেট্রিক চেষ্টা করুন।';
+  @override
+  String get biometricCanceled => 'বায়োমেট্রিক যাচাইকরণ বাতিল হয়েছে।';
   @override
   String get biometricPromptEnable =>
       'বায়োমেট্রিক অ্যাডমিন আনলক চালু করতে আঙুলের ছাপ বা মুখ দিয়ে নিশ্চিত করুন।';
@@ -1312,6 +1323,18 @@ class AppStringsBn implements AppStrings {
   String get haveCouponCode => 'কুপন কোড আছে?';
   @override
   String get enterCodeHere => 'এখানে কোড লিখুন...';
+  @override
+  String get couponApplied => 'কুপন সফলভাবে প্রয়োগ করা হয়েছে!';
+  @override
+  String get invalidCoupon => 'অকার্যকর কুপন কোড।';
+  @override
+  String get couponExpired => 'কুপনের মেয়াদ শেষ হয়ে গেছে।';
+  @override
+  String get couponLimitReached => 'কুপন ব্যবহারের সীমা অতিক্রম করেছে।';
+  @override
+  String discountAmount(String amount) => 'ছাড়: ৳$amount';
+  @override
+  String freeDaysAdded(int days) => '$days দিন ফ্রি যোগ করা হবে';
   @override
   String get getStartedSubscription => 'সাবস্ক্রিপশন শুরু করুন';
   @override

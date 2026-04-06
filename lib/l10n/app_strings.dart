@@ -409,6 +409,10 @@ abstract class AppStrings {
   String get biometricUnlockAdmin;
   String get biometricUnlockAdminHelper;
   String get biometricNotAvailable;
+  String get biometricSetupRequired;
+  String get biometricLockedOut;
+  String get biometricTryAgainLater;
+  String get biometricCanceled;
   String get biometricPromptEnable;
   String get biometricPromptDisable;
   String get biometricAuthFailed;
@@ -630,6 +634,12 @@ abstract class AppStrings {
   String get yearlySave20;
   String get haveCouponCode;
   String get enterCodeHere;
+  String get couponApplied;
+  String get invalidCoupon;
+  String get couponExpired;
+  String get couponLimitReached;
+  String discountAmount(String amount);
+  String freeDaysAdded(int days);
   String get getStartedSubscription;
   String get epsSafePayment;
 

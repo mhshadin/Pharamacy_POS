@@ -75,24 +75,43 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
 
   Future<void> _tryBiometricLogin({bool auto = false}) async {
     final l10n = context.read<LanguageProvider>().strings;
-    final ok = await BiometricAuthService.instance.authenticate(
+    final result = await BiometricAuthService.instance.authenticate(
       localizedReason: l10n.biometricUnlockReason,
     );
     if (!mounted) return;
-    if (ok) {
+    if (result.success) {
       context.read<AdminProvider>().completeBiometricLogin();
       Navigator.pop(context, true);
     } else if (!auto) {
+      final reason = result.reason ?? BiometricAuthFailureReason.unknown;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            l10n.biometricAuthFailed,
+            _messageForFailure(reason),
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  String _messageForFailure(BiometricAuthFailureReason reason) {
+    final l10n = context.read<LanguageProvider>().strings;
+    switch (reason) {
+      case BiometricAuthFailureReason.notEnrolled:
+        return l10n.biometricSetupRequired;
+      case BiometricAuthFailureReason.notAvailable:
+        return l10n.biometricNotAvailable;
+      case BiometricAuthFailureReason.lockedOut:
+        return l10n.biometricLockedOut;
+      case BiometricAuthFailureReason.temporaryLockout:
+        return l10n.biometricTryAgainLater;
+      case BiometricAuthFailureReason.canceled:
+        return l10n.biometricCanceled;
+      case BiometricAuthFailureReason.unknown:
+        return l10n.biometricAuthFailed;
     }
   }
 

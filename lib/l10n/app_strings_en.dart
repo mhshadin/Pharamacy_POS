@@ -761,7 +761,18 @@ class AppStringsEn implements AppStrings {
       'Use fingerprint, Face ID, or your device’s biometric to open the admin portal quickly. PIN stays available as a backup.';
   @override
   String get biometricNotAvailable =>
-      'Biometrics are not available or not set up on this device.';
+      'Biometrics are currently unavailable on this device.';
+  @override
+  String get biometricSetupRequired =>
+      'Set up fingerprint or face unlock in your phone settings, then try again.';
+  @override
+  String get biometricLockedOut =>
+      'Biometrics are locked. Unlock your device once, then try again.';
+  @override
+  String get biometricTryAgainLater =>
+      'Too many attempts. Please try biometric authentication again in a moment.';
+  @override
+  String get biometricCanceled => 'Biometric authentication was canceled.';
   @override
   String get biometricPromptEnable =>
       'Confirm with your fingerprint or face to turn on biometric admin unlock.';
@@ -1297,9 +1308,22 @@ class AppStringsEn implements AppStrings {
   @override
   String get yearlySave20 => 'Yearly (Save 20%)';
   @override
+  @override
   String get haveCouponCode => 'Have a coupon code?';
   @override
   String get enterCodeHere => 'Enter code here...';
+  @override
+  String get couponApplied => 'Coupon applied successfully!';
+  @override
+  String get invalidCoupon => 'Invalid coupon code.';
+  @override
+  String get couponExpired => 'Coupon has expired.';
+  @override
+  String get couponLimitReached => 'Coupon usage limit reached.';
+  @override
+  String discountAmount(String amount) => 'Discount: ৳$amount';
+  @override
+  String freeDaysAdded(int days) => '$days free days will be added';
   @override
   String get getStartedSubscription => 'Get Started with Subscription';
   @override

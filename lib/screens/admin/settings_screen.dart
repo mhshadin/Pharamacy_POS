@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -383,11 +384,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Consumer<AdminProvider>(
       builder: (context, admin, child) {
         final isEnabled = admin.stockReminderMasterEnabled;
+        final isSupported = Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
         return _buildSectionCard(
-      title: 'Persistent Stock Reminders',
-      icon: LucideIcons.alarmClock,
-      children: [
+          title: 'Persistent Stock Reminders',
+          icon: LucideIcons.alarmClock,
+          children: [
+            if (!isSupported)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(LucideIcons.alertCircle, color: AppColors.error, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'This feature is only supported on Android, iOS, and macOS. It is not available on Windows.',
+                        style: TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
         SwitchListTile(
           title: const Text(
             'Enable Alarm Reminders',
@@ -405,9 +429,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           value: isEnabled,
-          onChanged: (val) {
-            admin.toggleStockReminderMaster(val);
-          },
+          onChanged: isSupported 
+            ? (val) => admin.toggleStockReminderMaster(val)
+            : null,
           activeThumbColor: AppColors.primaryDark,
           contentPadding: EdgeInsets.zero,
         ),
@@ -1294,13 +1318,14 @@ class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
   Future<void> _onToggle(bool wantEnabled) async {
     final l10n = context.read<LanguageProvider>().strings;
     final admin = context.read<AdminProvider>();
+    await _checkHardware();
 
     if (_hardwareReady != true) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              l10n.biometricNotAvailable,
+              l10n.biometricSetupRequired,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             backgroundColor: AppColors.error,
@@ -1314,15 +1339,16 @@ class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
     final prompt = wantEnabled
         ? l10n.biometricPromptEnable
         : l10n.biometricPromptDisable;
-    final ok = await BiometricAuthService.instance.authenticate(
+    final result = await BiometricAuthService.instance.authenticate(
       localizedReason: prompt,
     );
     if (!mounted) return;
-    if (!ok) {
+    if (!result.success) {
+      final reason = result.reason ?? BiometricAuthFailureReason.unknown;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            l10n.biometricAuthFailed,
+            _messageForFailure(reason),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           backgroundColor: AppColors.error,
@@ -1333,6 +1359,24 @@ class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
     }
 
     await admin.saveSetting('adminBiometricEnabled', wantEnabled.toString());
+  }
+
+  String _messageForFailure(BiometricAuthFailureReason reason) {
+    final l10n = context.read<LanguageProvider>().strings;
+    switch (reason) {
+      case BiometricAuthFailureReason.notEnrolled:
+        return l10n.biometricSetupRequired;
+      case BiometricAuthFailureReason.notAvailable:
+        return l10n.biometricNotAvailable;
+      case BiometricAuthFailureReason.lockedOut:
+        return l10n.biometricLockedOut;
+      case BiometricAuthFailureReason.temporaryLockout:
+        return l10n.biometricTryAgainLater;
+      case BiometricAuthFailureReason.canceled:
+        return l10n.biometricCanceled;
+      case BiometricAuthFailureReason.unknown:
+        return l10n.biometricAuthFailed;
+    }
   }
 
   @override
@@ -1356,7 +1400,7 @@ class _BiometricAdminSwitchState extends State<_BiometricAdminSwitch> {
             ? '…'
             : (ready
                 ? l10n.biometricUnlockAdminHelper
-                : l10n.biometricNotAvailable),
+                : l10n.biometricSetupRequired),
         style: const TextStyle(
           color: AppColors.secondaryAccent,
           fontSize: 12,
