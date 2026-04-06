@@ -198,7 +198,11 @@ class _TopProductsScreenState extends State<TopProductsScreen> {
           ),
         ),
         title: Text(
-          p.name,
+          p.power != null && p.power!.trim().isNotEmpty
+              ? '${p.name} (${(p.medType ?? 'Tablet').trim()} • ${p.power!.trim()})'
+              : (p.medType != null && p.medType!.trim().isNotEmpty)
+                  ? '${p.name} (${p.medType!.trim()})'
+                  : p.name,
           style: const TextStyle(
             fontWeight: FontWeight.w900,
             color: AppColors.primaryDark,

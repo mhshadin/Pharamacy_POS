@@ -81,6 +81,22 @@ class POSProvider extends ChangeNotifier {
         .toList();
   }
 
+  String _normalizePower(String? value) => value?.trim().toLowerCase() ?? '';
+
+  String getVariantLabel(Product product) {
+    final type = product.medType ?? 'Tablet';
+    final power = product.power?.trim();
+    if (power == null || power.isEmpty) return type;
+    return '$type • $power';
+  }
+
+  /// Returns available variants for a product name.
+  List<Product> getAvailableVariants(String productName) {
+    return _products
+        .where((p) => p.name.toLowerCase() == productName.toLowerCase())
+        .toList();
+  }
+
   double get calculateTotal {
     return _cart.fold(0, (total, item) => total + item.total);
   }
@@ -186,11 +202,17 @@ class POSProvider extends ChangeNotifier {
   }
 
   void updateCartItemMedType(CartItem item, String newType) {
-    // Find the product variant corresponding to this name + newType
+    // Backward-compatible switch by type only.
+    updateCartItemVariant(item, newType, null);
+  }
+
+  void updateCartItemVariant(CartItem item, String newType, String? newPower) {
+    // Find the product variant corresponding to this name + newType + newPower
     final variant = _products.firstWhere(
       (p) =>
           p.name.toLowerCase() == item.product.name.toLowerCase() &&
-          (p.medType ?? 'Tablet') == newType,
+          (p.medType ?? 'Tablet') == newType &&
+          _normalizePower(p.power) == _normalizePower(newPower),
       orElse: () => item.product,
     );
 
@@ -249,6 +271,8 @@ class POSProvider extends ChangeNotifier {
           date: DateTime.now(),
           invoiceNumber: invoiceNumber,
           batchNumber: batch.batchNumber,
+          medType: item.product.medType,
+          power: item.product.power,
           costPricePerPc: batch.costPricePerPc,
         );
         await _db.insertSale(sale);
@@ -274,6 +298,8 @@ class POSProvider extends ChangeNotifier {
           date: DateTime.now(),
           invoiceNumber: invoiceNumber,
           batchNumber: 'OVERSOLD',
+          medType: item.product.medType,
+          power: item.product.power,
           costPricePerPc: 0.0,
         );
         await _db.insertSale(sale);

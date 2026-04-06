@@ -128,6 +128,33 @@ class AppStringsBn implements AppStrings {
       'ওষুধের স্টক কম ($strips পাতা অবশিষ্ট)';
   @override
   String expiresOnDate(String date) => '$date তারিখে মিয়াদ শেষ হবে';
+  @override
+  String get notificationLowStockTitle => 'কম স্টক সতর্কতা ⚠️';
+  @override
+  String notificationLowStockBody(String productName, int stock) =>
+      '$productName এর স্টক কমে গেছে ($stock বাকি)। দ্রুত রিস্টক করুন।';
+  @override
+  String get notificationExpiryTitle => 'মেয়াদ সতর্কতা ⌛';
+  @override
+  String notificationExpiryBody(String productName, String expiryDate) =>
+      '$productName এর মেয়াদ $expiryDate তারিখে শেষ হবে। ইনভেন্টরি পরীক্ষা করুন।';
+  @override
+  String get alarmInventoryCheckTitle => '⏰ ইনভেন্টরি চেক রিমাইন্ডার';
+  @override
+  String get alarmInventoryCheckBody =>
+      'কম স্টক ও মেয়াদোত্তীর্ণ ওষুধগুলো এখন পরীক্ষা করুন!';
+  @override
+  String get alarmStockReminderTitle => 'স্টক রিমাইন্ডার';
+  @override
+  String get alarmStockReminderBody =>
+      'এখন আপনার ইনভেন্টরি পরীক্ষা করার সময়।';
+  @override
+  String get alarmStockExpiryReminderTitle => 'স্টক ও মেয়াদ রিমাইন্ডার';
+  @override
+  String get alarmStockExpiryReminderBody =>
+      'কম স্টক বা মেয়াদোত্তীর্ণ ওষুধ আছে কি না দেখে নিন।';
+  @override
+  String get alarmDismiss => 'বন্ধ করুন';
 
   // ── Top Products ───────────────────────────────
   @override
@@ -741,6 +768,8 @@ class AppStringsBn implements AppStrings {
   @override
   String get editDisplayName => 'নাম পরিবর্তন করুন';
   @override
+  String get editPhoneNumber => 'ফোন নম্বর পরিবর্তন করুন';
+  @override
   String get updateAdminPin => 'অ্যাডমিন পিন আপডেট করুন';
   @override
   String get setLocalPassword => 'লোকাল পাসওয়ার্ড সেট করুন';
@@ -770,7 +799,21 @@ class AppStringsBn implements AppStrings {
   @override
   String get nameUpdated => 'নাম সফলভাবে আপডেট করা হয়েছে!';
   @override
+  String get phoneUpdated => 'ফোন নম্বর সফলভাবে আপডেট করা হয়েছে!';
+  @override
   String get saveNameBtn => 'নাম সংরক্ষণ করুন';
+  @override
+  String get savePhoneBtn => 'ফোন নম্বর সংরক্ষণ করুন';
+  @override
+  String get phoneNumberLabel => 'ফোন নম্বর';
+  @override
+  String get newPhoneNumber => 'নতুন ফোন নম্বর';
+  @override
+  String get phoneRequired => 'ফোন নম্বর প্রয়োজন';
+  @override
+  String get phoneMustBe11Digits => 'ফোন নম্বর অবশ্যই ১১ সংখ্যার হতে হবে';
+  @override
+  String get phoneDigitsOnly => 'ফোন নম্বরে কেবল সংখ্যা থাকতে হবে';
   @override
   String get updateSecurityPin => 'সিকিউরিটি পিন আপডেট করুন';
   @override
@@ -818,6 +861,15 @@ class AppStringsBn implements AppStrings {
   String get adminLoginPinEmpty => 'পিন লিখুন';
   @override
   String get adminLoginBtn => 'লগইন';
+  @override
+  String get adminPinSetupTitle => 'অ্যাডমিন পিন সেট করুন';
+  @override
+  String get adminPinSetupSubtitle =>
+      'প্রথমবার ব্যবহারের জন্য অ্যাডমিন পিন তৈরি করুন';
+  @override
+  String get adminPinSetupBtn => 'পিন সেট করুন';
+  @override
+  String get adminPinSetupFailed => 'অ্যাডমিন পিন সেট করা যায়নি।';
   @override
   String get biometricUnlockReason => 'অ্যাডমিন পোর্টাল আনলক করুন';
   @override
@@ -872,6 +924,10 @@ class AppStringsBn implements AppStrings {
   String get saveChanges => 'পরিবর্তন সংরক্ষণ করুন';
   @override
   String get medicineType => 'ওষুধের ধরণ';
+  @override
+  String get powerLabel => 'পাওয়ার';
+  @override
+  String get powerHint => 'যেমন: 200mg, 5ml, 1g';
   @override
   String editProductTitle(String name) => 'সম্পাদনা: $name';
   @override
@@ -1404,6 +1460,17 @@ class AppStringsBn implements AppStrings {
   String get manual => 'ম্যানুয়াল';
   @override
   String get ocr => 'ওসিআর (ছবি)';
+  @override
+  String get tapToScanOcr => 'স্ক্যানারে ট্যাপ';
+  @override
+  String get tapToScanOcrHelper =>
+      'ওসিআর প্রস্তুত। স্ট্রিপ পড়তে স্ক্যানারে ট্যাপ করুন।';
+  @override
+  String get scannerTapToReadStrip =>
+      'ওসিআর প্রস্তুত — স্ট্রিপ পড়তে স্ক্যানারে ট্যাপ করুন';
+  @override
+  String get ocrCaptureFailed =>
+      'স্ক্যানার থেকে ছবি নেওয়া যায়নি। আবার চেষ্টা করুন।';
   @override
   String get voice => 'ভয়েস';
   @override

@@ -1060,6 +1060,30 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                         ],
                                       ),
                                     ),
+                                  if (product.power != null &&
+                                      product.power!.trim().isNotEmpty)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 4, bottom: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.deepPurple.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: Colors.deepPurple.withValues(alpha: 0.22),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        product.power!.trim(),
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.deepPurple,
+                                        ),
+                                      ),
+                                    ),
                                   Text(
                                     '${l10n.inventory}: ${product.stockBoxes} ${unitLabels['unit1']?.toLowerCase() ?? 'boxes'} • ${product.remainingStrips} ${unitLabels['unit2']?.toLowerCase() ?? 'strips'} • ${product.totalPieces} ${unitLabels['unit3']?.toLowerCase() ?? 'pcs'}',
                                     style: const TextStyle(

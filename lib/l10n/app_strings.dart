@@ -64,6 +64,17 @@ abstract class AppStrings {
   // ── Notifications ─────────────────────────────
   String lowStockSubtitle(int strips);
   String expiresOnDate(String date);
+  String get notificationLowStockTitle;
+  String notificationLowStockBody(String productName, int stock);
+  String get notificationExpiryTitle;
+  String notificationExpiryBody(String productName, String expiryDate);
+  String get alarmInventoryCheckTitle;
+  String get alarmInventoryCheckBody;
+  String get alarmStockReminderTitle;
+  String get alarmStockReminderBody;
+  String get alarmStockExpiryReminderTitle;
+  String get alarmStockExpiryReminderBody;
+  String get alarmDismiss;
 
   // ── Top Products ───────────────────────────────
   String get topProductsToday;
@@ -409,6 +420,7 @@ abstract class AppStrings {
   String get activateBtn;
   String get renewalDate;
   String get editDisplayName;
+  String get editPhoneNumber;
   String get updateAdminPin;
   String get setLocalPassword;
   String get setLocalPasswordSubtitle;
@@ -423,7 +435,14 @@ abstract class AppStrings {
   String get pinUpdated;
   String get incorrectPin;
   String get nameUpdated;
+  String get phoneUpdated;
   String get saveNameBtn;
+  String get savePhoneBtn;
+  String get phoneNumberLabel;
+  String get newPhoneNumber;
+  String get phoneRequired;
+  String get phoneMustBe11Digits;
+  String get phoneDigitsOnly;
   String get updateSecurityPin;
   String get secureLocalAccount;
   String get pinsDoNotMatch;
@@ -444,6 +463,10 @@ abstract class AppStrings {
   String get adminLoginWrongPin;
   String get adminLoginPinEmpty;
   String get adminLoginBtn;
+  String get adminPinSetupTitle;
+  String get adminPinSetupSubtitle;
+  String get adminPinSetupBtn;
+  String get adminPinSetupFailed;
   String get biometricUnlockReason;
   String get biometricUseFace;
   String get biometricUseFingerprint;
@@ -472,6 +495,8 @@ abstract class AppStrings {
   String pcsSuffixCount(int n);
   String get saveChanges;
   String get medicineType;
+  String get powerLabel;
+  String get powerHint;
   String editProductTitle(String name);
   String get productDetailsTitle;
   String batchRemaining(int str, int pcs);
@@ -670,6 +695,10 @@ abstract class AppStrings {
   String get hide;
   String get manual;
   String get ocr;
+  String get tapToScanOcr;
+  String get tapToScanOcrHelper;
+  String get scannerTapToReadStrip;
+  String get ocrCaptureFailed;
   String get voice;
   String get scannerActiveExpand;
   String get scannerPausedExpand;

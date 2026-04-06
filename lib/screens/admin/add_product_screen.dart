@@ -39,6 +39,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _stockStripsCtrl = TextEditingController();
   final _lowStockWarningCtrl = TextEditingController(); // New field
   final _batchCtrl = TextEditingController();
+  final _powerCtrl = TextEditingController();
   TextEditingController? _supplierNameCtrl;
   final _supplierPhoneCtrl = TextEditingController();
   DateTime? _expiryDate;
@@ -81,6 +82,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _stockStripsCtrl.dispose();
     _lowStockWarningCtrl.dispose();
     _batchCtrl.dispose();
+    _powerCtrl.dispose();
     _supplierNameCtrl?.dispose();
     _supplierPhoneCtrl.dispose();
     super.dispose();
@@ -101,8 +103,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _supplierNameCtrl?.text = selection.supplierName ?? '';
       _supplierPhoneCtrl.text = selection.supplierPhone ?? '';
       _selectedMedType = selection.medType ?? 'Tablet';
+      _powerCtrl.text = selection.power ?? '';
     });
   }
+
+  String _normalizedPower(String? value) => value?.trim().toLowerCase() ?? '';
 
   void _pickExpiryDate({bool forDialog = false}) async {
     final admin = context.read<AdminProvider>();
@@ -179,13 +184,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     final productName = _nameCtrl?.text.trim() ?? '';
     if (productName.isEmpty) return;
+    final powerInput = _powerCtrl.text.trim();
+    final normalizedPower = _normalizedPower(powerInput);
 
     final allProducts = context.read<AdminProvider>().allProducts;
     final existingProduct = allProducts
         .where(
           (p) =>
               p.name.toLowerCase() == productName.toLowerCase() &&
-              (p.medType ?? 'Tablet') == _selectedMedType,
+              (p.medType ?? 'Tablet') == _selectedMedType &&
+              _normalizedPower(p.power) == normalizedPower,
         )
         .firstOrNull;
 
@@ -231,6 +239,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ? null
               : _supplierPhoneCtrl.text.trim(),
           medType: _selectedMedType,
+          power: powerInput.isEmpty ? null : powerInput,
           costPricePerPc: costPricePerPc,
         );
         await context.read<AdminProvider>().updateProduct(updatedProduct);
@@ -276,6 +285,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ? null
               : _supplierPhoneCtrl.text.trim(),
           medType: _selectedMedType,
+          power: powerInput.isEmpty ? null : powerInput,
           costPricePerPc: costPricePerPc,
         );
 
@@ -323,6 +333,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
           .toString();
     }
     _batchCtrl.clear();
+    _powerCtrl.clear();
     _supplierNameCtrl?.clear();
     _supplierPhoneCtrl.clear();
     setState(() {
@@ -995,6 +1006,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                     ),
                                     const SizedBox(height: 12),
                                     _buildMedTypeDropdown(),
+                                    const SizedBox(height: 12),
+                                    _buildField(
+                                      controller: _powerCtrl,
+                                      label: l10n.powerLabel,
+                                      icon: LucideIcons.flaskConical,
+                                      hintText: l10n.powerHint,
+                                    ),
                                     const SizedBox(height: 12),
                                     LayoutBuilder(
                                       builder: (context, constraints) {

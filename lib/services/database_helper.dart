@@ -3,6 +3,8 @@ import 'package:path_provider/path_provider.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/stock_batch.dart';
+import '../models/alarm_slot.dart';
+import 'package:flutter/material.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -61,7 +63,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 13,
+      version: 16,
       onUpgrade: _onUpgrade,
       onCreate: _onCreate,
     );
@@ -245,6 +247,36 @@ class DatabaseHelper {
         );
       } catch (_) {}
     }
+
+    if (oldVersion < 14) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS alarm_slots (
+          id TEXT PRIMARY KEY,
+          hour INTEGER NOT NULL,
+          minute INTEGER NOT NULL,
+          days TEXT NOT NULL,
+          isEnabled INTEGER DEFAULT 1
+        )
+      ''');
+      // Ensure products table has costPricePerPc for existing users
+      try {
+        await db.execute(
+          'ALTER TABLE products ADD COLUMN costPricePerPc REAL DEFAULT 0',
+        );
+      } catch (_) {}
+    }
+
+    if (oldVersion < 15) {
+      try {
+        await db.execute('ALTER TABLE products ADD COLUMN power TEXT');
+      } catch (_) {}
+    }
+
+    if (oldVersion < 16) {
+      try {
+        await db.execute('ALTER TABLE sales ADD COLUMN power TEXT');
+      } catch (_) {}
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -266,7 +298,19 @@ class DatabaseHelper {
         companyName TEXT,
         supplierName TEXT,
         supplierPhone TEXT,
-        medType TEXT
+        medType TEXT,
+        power TEXT,
+        costPricePerPc REAL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE alarm_slots (
+        id TEXT PRIMARY KEY,
+        hour INTEGER NOT NULL,
+        minute INTEGER NOT NULL,
+        days TEXT NOT NULL,
+        isEnabled INTEGER DEFAULT 1
       )
     ''');
 
@@ -296,6 +340,7 @@ class DatabaseHelper {
         isReturned INTEGER DEFAULT 0,
         returnedQuantity INTEGER DEFAULT 0,
         medType TEXT,
+        power TEXT,
         costPricePerPc REAL DEFAULT 0
       )
     ''');
@@ -474,6 +519,16 @@ class DatabaseHelper {
       'product_batches',
       stockBatch.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateBatchCostPrice(String batchId, double costPrice) async {
+    final db = await database;
+    await db.update(
+      'product_batches',
+      {'costPricePerPc': costPrice},
+      where: 'id = ?',
+      whereArgs: [batchId],
     );
   }
 
@@ -883,6 +938,48 @@ class DatabaseHelper {
       where: 'productId = ? AND remainingPieces > 0',
       whereArgs: [productId],
     );
+  }
+
+  // ───────── ALARM SLOTS ─────────
+
+  Future<void> insertAlarmSlot(AlarmSlot slot) async {
+    final db = await database;
+    await db.insert(
+      'alarm_slots',
+      {
+        'id': slot.id,
+        'hour': slot.time.hour,
+        'minute': slot.time.minute,
+        'days': slot.days.join(','),
+        'isEnabled': slot.isEnabled ? 1 : 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteAlarmSlot(String id) async {
+    final db = await database;
+    await db.delete('alarm_slots', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<AlarmSlot>> getAllAlarmSlots() async {
+    final db = await database;
+    final maps = await db.query('alarm_slots');
+    return maps.map((m) {
+      final daysStr = m['days'] as String;
+      return AlarmSlot(
+        id: m['id'] as String,
+        time: TimeOfDay(hour: m['hour'] as int, minute: m['minute'] as int),
+        days: daysStr
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .map((s) => int.tryParse(s))
+            .whereType<int>()
+            .toSet(),
+        isEnabled: (m['isEnabled'] as int) == 1,
+      );
+    }).toList();
   }
 }
 

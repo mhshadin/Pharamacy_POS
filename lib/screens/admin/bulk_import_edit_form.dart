@@ -34,6 +34,8 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   late TextEditingController _batchCtrl;
   late TextEditingController _supplierNameCtrl;
   late TextEditingController _supplierPhoneCtrl;
+  late TextEditingController _costPricePerPcCtrl;
+  late TextEditingController _powerCtrl;
 
   DateTime? _expiryDate;
   String? _selectedMedType;
@@ -62,6 +64,9 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
         TextEditingController(text: p.supplierName ?? '');
     _supplierPhoneCtrl =
         TextEditingController(text: p.supplierPhone ?? '');
+    _costPricePerPcCtrl =
+        TextEditingController(text: widget.record.costPricePerPc.toStringAsFixed(2));
+    _powerCtrl = TextEditingController(text: p.power ?? '');
     _expiryDate = widget.record.expiryDate;
     _selectedMedType = p.medType ?? 'Tablet';
   }
@@ -79,6 +84,8 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
     _batchCtrl.dispose();
     _supplierNameCtrl.dispose();
     _supplierPhoneCtrl.dispose();
+    _costPricePerPcCtrl.dispose();
+    _powerCtrl.dispose();
     super.dispose();
   }
 
@@ -140,6 +147,8 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
         int.tryParse(_minStockBoxesCtrl.text) ?? widget.admin.lowStockThreshold;
     final minStockLevel = minStockBoxes * spb;
 
+    final costPrice = double.tryParse(_costPricePerPcCtrl.text) ?? 0.0;
+
     final updatedProduct = Product(
       id: widget.record.product.id,
       name: _nameCtrl.text.trim(),
@@ -163,6 +172,8 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
           ? null
           : _supplierPhoneCtrl.text.trim(),
       medType: _selectedMedType,
+      power: _powerCtrl.text.trim().isEmpty ? null : _powerCtrl.text.trim(),
+      costPricePerPc: costPrice,
     );
 
     final updatedRecord = BulkImportRecord(
@@ -171,6 +182,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
           ? null
           : _batchCtrl.text.trim(),
       expiryDate: _expiryDate!,
+      costPricePerPc: costPrice,
     );
 
     Navigator.of(context).pop<BulkImportRecord>(updatedRecord);
@@ -276,6 +288,12 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                     ),
                     const SizedBox(height: 12),
                     _buildMedTypeDropdown(),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _powerCtrl,
+                      label: '${l10n.powerLabel} (${l10n.powerHint})',
+                      icon: LucideIcons.flaskConical,
+                    ),
                   ],
                 ),
               ),
@@ -325,6 +343,15 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                         }
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _costPricePerPcCtrl,
+                      label: l10n.buyingPricePerPc,
+                      icon: LucideIcons.coins,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                     ),
                   ],
                 ),
@@ -463,7 +490,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
     final l10n = context.watch<LanguageProvider>().strings;
     final medTypes = widget.admin.medicineTypes;
     return DropdownButtonFormField<String>(
-      value: _selectedMedType,
+      initialValue: _selectedMedType,
       decoration: InputDecoration(
         labelText: l10n.medTypeLabel,
         labelStyle: const TextStyle(

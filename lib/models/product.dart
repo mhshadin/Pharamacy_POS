@@ -17,6 +17,8 @@ class Product {
   final String? supplierName;
   final String? supplierPhone;
   final String? medType;
+  final String? power;
+  final double costPricePerPc;
 
   /// Cached phonetic hash used by voice search matching.
   /// Computed once at load time by ProductMatcher.precomputeHashes().
@@ -41,6 +43,8 @@ class Product {
     this.supplierName,
     this.supplierPhone,
     this.medType,
+    this.power,
+    this.costPricePerPc = 0,
   });
 
   int get totalPieces => (stockStrips * pcsPerStrip) + stockPcs;
@@ -66,6 +70,8 @@ class Product {
     String? supplierName,
     String? supplierPhone,
     String? medType,
+    String? power,
+    double? costPricePerPc,
   }) {
     return Product(
       id: id ?? this.id,
@@ -85,6 +91,8 @@ class Product {
       supplierName: supplierName ?? this.supplierName,
       supplierPhone: supplierPhone ?? this.supplierPhone,
       medType: medType ?? this.medType,
+      power: power ?? this.power,
+      costPricePerPc: costPricePerPc ?? this.costPricePerPc,
     );
   }
 
@@ -114,6 +122,8 @@ class Product {
       'supplierName': supplierName,
       'supplierPhone': supplierPhone,
       'medType': medType,
+      'power': power,
+      'costPricePerPc': costPricePerPc,
     };
   }
 
@@ -139,6 +149,8 @@ class Product {
       supplierName: map['supplierName'] as String?,
       supplierPhone: map['supplierPhone'] as String?,
       medType: map['medType'] as String?,
+      power: map['power'] as String?,
+      costPricePerPc: (map['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

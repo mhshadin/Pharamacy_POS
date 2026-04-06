@@ -20,7 +20,11 @@ import '../utils/inventory_alert_tiers.dart';
 import 'package:intl/intl.dart';
 import 'package:alarm/alarm.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/alarm_slot.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/app_strings_bn.dart';
+import '../l10n/app_strings_en.dart';
 
 /// Any UI that mutates product or batch data (including returns)
 /// should also trigger `POSProvider.loadProducts()` so the POS view
@@ -42,9 +46,11 @@ class BulkImportRecord {
 
 class AdminProvider extends ChangeNotifier {
   final DatabaseHelper _db = DatabaseHelper();
+  static const String _languageKey = 'selected_language';
 
   bool _isAdminLoggedIn = false;
-  String _currentPin = '12345'; // Default fallback
+  String _currentPin = '';
+  bool _isAdminPinSet = false;
 
   List<Product> _products = [];
   List<SaleRecord> _sales = [];
@@ -126,6 +132,7 @@ class AdminProvider extends ChangeNotifier {
   }
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
+  bool get isAdminPinSet => _isAdminPinSet;
   AuthSession? get authSession => _authSession;
   List<Product> get allProducts => _products;
 
@@ -182,13 +189,17 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Product? getProductByName(String name, {String? medType}) {
+  Product? getProductByName(String name, {String? medType, String? power}) {
     try {
       return _products.firstWhere((p) {
         final sameName =
             p.name.trim().toLowerCase() == name.trim().toLowerCase();
         if (medType != null) {
-          return sameName && (p.medType ?? 'Tablet') == medType;
+          final normalizedPower = (power ?? '').trim().toLowerCase();
+          final productPower = (p.power ?? '').trim().toLowerCase();
+          return sameName &&
+              (p.medType ?? 'Tablet') == medType &&
+              (power == null || productPower == normalizedPower);
         }
         return sameName;
       });
@@ -198,6 +209,7 @@ class AdminProvider extends ChangeNotifier {
   }
 
   bool login(String pin) {
+    if (!_isAdminPinSet) return false;
     if (pin == _currentPin) {
       _isAdminLoggedIn = true;
       notifyListeners();
@@ -336,7 +348,8 @@ class AdminProvider extends ChangeNotifier {
     _authSession = await const AuthStorage().loadAuth();
 
     // Load local PIN
-    _currentPin = settings['adminPin'] ?? '12345';
+    _currentPin = settings['adminPin'] ?? '';
+    _isAdminPinSet = _currentPin.isNotEmpty;
 
     // Load read notification IDs
     final readLowStockStr = settings['readLowStockIds'] ?? '';
@@ -402,12 +415,19 @@ class AdminProvider extends ChangeNotifier {
 
     bool needRetry = false;
     try {
-      final backendPin = await const AuthService().getAdminPin(
+      final status = await const AuthService().getAdminPinStatus(
         _authSession!.licenseToken,
       );
-      if (backendPin != _currentPin) {
-        _currentPin = backendPin;
-        await _db.saveSetting('adminPin', backendPin);
+      if (status.isPinSet && (status.adminPin?.isNotEmpty ?? false)) {
+        if (status.adminPin != _currentPin || !_isAdminPinSet) {
+          _currentPin = status.adminPin!;
+          _isAdminPinSet = true;
+          await _db.saveSetting('adminPin', _currentPin);
+        }
+      } else if (_isAdminPinSet || _currentPin.isNotEmpty) {
+        _currentPin = '';
+        _isAdminPinSet = false;
+        await _db.saveSetting('adminPin', '');
       }
     } on AuthException catch (e) {
       if (e.statusCode == 401) {
@@ -435,12 +455,19 @@ class AdminProvider extends ChangeNotifier {
         notifyListeners();
 
         // Retry the PIN fetch with the fresh token
-        final backendPin = await const AuthService().getAdminPin(
+        final status = await const AuthService().getAdminPinStatus(
           _authSession!.licenseToken,
         );
-        if (backendPin != _currentPin) {
-          _currentPin = backendPin;
-          await _db.saveSetting('adminPin', backendPin);
+        if (status.isPinSet && (status.adminPin?.isNotEmpty ?? false)) {
+          if (status.adminPin != _currentPin || !_isAdminPinSet) {
+            _currentPin = status.adminPin!;
+            _isAdminPinSet = true;
+            await _db.saveSetting('adminPin', _currentPin);
+          }
+        } else if (_isAdminPinSet || _currentPin.isNotEmpty) {
+          _currentPin = '';
+          _isAdminPinSet = false;
+          await _db.saveSetting('adminPin', '');
         }
         developer.log("JWT auto-refresh and retry successful.");
       } catch (retryException) {
@@ -1051,6 +1078,7 @@ class AdminProvider extends ChangeNotifier {
   }
 
   Future<bool> updatePin(String oldPin, String newPin) async {
+    if (!_isAdminPinSet) return false;
     if (oldPin != _currentPin) return false;
 
     // 1. Update backend if logged in
@@ -1069,8 +1097,28 @@ class AdminProvider extends ChangeNotifier {
 
     // 2. Update local
     _currentPin = newPin;
+    _isAdminPinSet = true;
     await saveSetting('adminPin', newPin);
     return true;
+  }
+
+  Future<void> setupAdminPin(String newPin) async {
+    final normalizedPin = newPin.trim();
+    if (normalizedPin.length < 4) {
+      throw Exception('PIN must be at least 4 characters.');
+    }
+    if (_authSession == null) {
+      throw Exception('Not authenticated.');
+    }
+
+    await const AuthService().updateAdminPin(
+      token: _authSession!.licenseToken,
+      newPin: normalizedPin,
+    );
+
+    _currentPin = normalizedPin;
+    _isAdminPinSet = true;
+    await saveSetting('adminPin', normalizedPin);
   }
 
   /// Updates the user's display name on the backend, then persists and
@@ -1085,10 +1133,35 @@ class AdminProvider extends ChangeNotifier {
 
     final resolvedName = updated['name'] ?? newName;
     final resolvedAvatar = updated['avatar'];
+    final resolvedPhoneNumber = updated['phone_number'];
 
     await const AuthStorage().updateNameAndAvatar(
       resolvedName,
       avatarUrl: resolvedAvatar,
+      phoneNumber: resolvedPhoneNumber,
+    );
+
+    _authSession = await const AuthStorage().loadAuth();
+    notifyListeners();
+  }
+
+  /// Updates only the phone number through the profile endpoint and refreshes session.
+  Future<void> updateProfilePhone(String phoneNumber) async {
+    if (_authSession == null) throw Exception('Not authenticated.');
+
+    final updated = await const AuthService().updateProfile(
+      token: _authSession!.licenseToken,
+      phoneNumber: phoneNumber,
+    );
+
+    final resolvedName = updated['name'] ?? _authSession!.userName;
+    final resolvedAvatar = updated['avatar'];
+    final resolvedPhoneNumber = updated['phone_number'] ?? phoneNumber;
+
+    await const AuthStorage().updateNameAndAvatar(
+      resolvedName,
+      avatarUrl: resolvedAvatar,
+      phoneNumber: resolvedPhoneNumber,
     );
 
     _authSession = await const AuthStorage().loadAuth();
@@ -1099,6 +1172,13 @@ class AdminProvider extends ChangeNotifier {
     required DateTime start,
     required DateTime end,
   }) {
+    String _variantKey(String name, String? medType, String? power) {
+      final n = name.trim().toLowerCase();
+      final t = (medType ?? '').trim().toLowerCase();
+      final p = (power ?? '').trim().toLowerCase();
+      return '$n|$t|$p';
+    }
+
     final Map<String, _TopSellingAcc> map = {};
 
     final filtered = _sales.where(
@@ -1108,27 +1188,36 @@ class AdminProvider extends ChangeNotifier {
     );
 
     for (final s in filtered) {
-      if (!map.containsKey(s.productName)) {
-        map[s.productName] = _TopSellingAcc();
+      final key = _variantKey(s.productName, s.medType, s.power);
+      if (!map.containsKey(key)) {
+        map[key] = _TopSellingAcc(
+          productName: s.productName,
+          medType: s.medType,
+          power: s.power,
+        );
       }
-      map[s.productName]!.quantity += s.effectiveQuantity;
-      map[s.productName]!.revenue += s.effectiveAmount;
+      map[key]!.quantity += s.effectiveQuantity;
+      map[key]!.revenue += s.effectiveAmount;
     }
 
     // Optimization: Create a hash map for O(1) product lookups instead of O(N) linear searches
     final Map<String, Product> productLookup = {
-      for (var p in _products) p.name: p,
+      for (var p in _products)
+        _variantKey(p.name, p.medType, p.power): p,
     };
 
     return map.entries
         .map((e) {
-          final productName = e.key;
-          final product = productLookup[productName]; // O(1) lookup
+          final acc = e.value;
+          final product =
+              productLookup[_variantKey(acc.productName, acc.medType, acc.power)];
 
           return TopSellingProduct(
-            name: productName,
+            name: acc.productName,
             quantity: e.value.quantity,
             revenue: e.value.revenue,
+            medType: acc.medType,
+            power: acc.power,
             pcsPerStrip: product?.pcsPerStrip ?? 10,
             stripsPerBox: product?.stripsPerBox ?? 1,
           );
@@ -1311,6 +1400,7 @@ class AdminProvider extends ChangeNotifier {
   Future<void> scheduleAllModernAlarms() async {
     await cancelAllModernAlarms();
     if (!_stockReminderMasterEnabled || !_isAlarmSupported) return;
+    final strings = await _loadNotificationStrings();
 
     for (final slot in _alarmSlots) {
       if (!slot.isEnabled) continue;
@@ -1337,10 +1427,10 @@ class AdminProvider extends ChangeNotifier {
           assetAudioPath: _customRingtonePath ?? 'assets/sounds/alarm.mp3',
           loopAudio: true,
           vibrate: true,
-          notificationSettings: const NotificationSettings(
-            title: 'Stock Reminder',
-            body: 'It is time to check your inventory!',
-            stopButton: 'Dismiss',
+          notificationSettings: NotificationSettings(
+            title: strings.alarmStockReminderTitle,
+            body: strings.alarmStockReminderBody,
+            stopButton: strings.alarmDismiss,
           ),
           volumeSettings: VolumeSettings.fade(
             volume: 1.0,
@@ -1366,8 +1456,10 @@ class AdminProvider extends ChangeNotifier {
 
   Future<void> scheduleAllAlarms() async {
     await cancelAllAlarms();
-    if (!_extraReminderEnabled || _reminderDays.isEmpty || !_isAlarmSupported)
+    if (!_extraReminderEnabled || _reminderDays.isEmpty || !_isAlarmSupported) {
       return;
+    }
+    final strings = await _loadNotificationStrings();
 
     for (final day in _reminderDays) {
       final now = DateTime.now();
@@ -1393,10 +1485,10 @@ class AdminProvider extends ChangeNotifier {
         assetAudioPath: _reminderAudioPath ?? 'assets/alarm.mp3',
         loopAudio: true,
         vibrate: true,
-        notificationSettings: const NotificationSettings(
-          title: 'Stock & Expiry Reminder',
-          body: 'Check your inventory for low stock or expiring meds.',
-          stopButton: 'Dismiss',
+        notificationSettings: NotificationSettings(
+          title: strings.alarmStockExpiryReminderTitle,
+          body: strings.alarmStockExpiryReminderBody,
+          stopButton: strings.alarmDismiss,
         ),
         volumeSettings: VolumeSettings.fade(
           volume: 1.0,
@@ -1409,6 +1501,12 @@ class AdminProvider extends ChangeNotifier {
       await Alarm.set(alarmSettings: alarmSettings);
       developer.log("Scheduled alarm for day $day at $scheduledDate");
     }
+  }
+
+  Future<AppStrings> _loadNotificationStrings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final selectedLanguage = prefs.getString(_languageKey) ?? 'en';
+    return selectedLanguage == 'bn' ? AppStringsBn() : AppStringsEn();
   }
 
   Future<void> cancelAllAlarms() async {
@@ -1441,6 +1539,16 @@ class AdminProvider extends ChangeNotifier {
 }
 
 class _TopSellingAcc {
+  final String productName;
+  final String? medType;
+  final String? power;
+
+  _TopSellingAcc({
+    required this.productName,
+    this.medType,
+    this.power,
+  });
+
   int quantity = 0;
   double revenue = 0.0;
 }
@@ -1449,6 +1557,8 @@ class TopSellingProduct {
   final String name;
   final int quantity;
   final double revenue;
+  final String? medType;
+  final String? power;
   final int pcsPerStrip;
   final int stripsPerBox;
 
@@ -1456,6 +1566,8 @@ class TopSellingProduct {
     required this.name,
     required this.quantity,
     required this.revenue,
+    this.medType,
+    this.power,
     required this.pcsPerStrip,
     required this.stripsPerBox,
   });

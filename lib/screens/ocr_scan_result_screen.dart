@@ -31,6 +31,20 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   late File _image;
   bool _isRetaking = false;
 
+  String _productDisplayName(Product p) {
+    final type = p.medType?.trim();
+    final power = p.power?.trim();
+    if (power != null && power.isNotEmpty && type != null && type.isNotEmpty) {
+      return '${p.name} (${type} • ${power})';
+    }
+    if (type != null && type.isNotEmpty) {
+      if (power != null && power.isNotEmpty) return '${p.name} (${type} • $power)';
+      return '${p.name} ($type)';
+    }
+    if (power != null && power.isNotEmpty) return '${p.name} ($power)';
+    return p.name;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -532,7 +546,7 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            result.exactProduct!.name,
+            _productDisplayName(result.exactProduct!),
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -613,13 +627,14 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
                   (p) => DropdownMenuItem<Product>(
                     value: p,
                     child: Text(
-                      p.name,
+                      _productDisplayName(p),
                       style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 )

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
@@ -570,73 +571,242 @@ class _LowStockScreenState extends State<LowStockScreen> {
   }
 
   void _showOrderQtyModal(List<Product> products) {
-    final Map<String, int> orderQtys = {};
-    for (var p in products) {
+    final controllers = <String, TextEditingController>{};
+    for (final p in products) {
       final deficit = p.minStockLevel - p.stockStrips;
-      final boxes = p.stripsPerBox > 0 ? (deficit / p.stripsPerBox).ceil() : deficit;
-      orderQtys[p.id] = boxes > 0 ? boxes : 1;
+      final boxes =
+          p.stripsPerBox > 0 ? (deficit / p.stripsPerBox).ceil() : deficit;
+      final initial = boxes > 0 ? boxes : 1;
+      controllers[p.id] = TextEditingController(text: '$initial');
     }
 
-    showDialog(
+    showDialog<Map<String, int>?>(
       context: context,
-      builder: (context) {
-        final l10n = context.read<LanguageProvider>().strings;
-        return StatefulBuilder(
-          builder: (ctx, setS) => AlertDialog(
-            title: Text(l10n.confirmOrderQuantities),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: products.length,
-              itemBuilder: (c, i) {
-                final p = products[i];
-                final unitLabels = MedTypeUnits.getLabels(p.medType, l10n);
-                return ListTile(
-                  title: Text(p.name),
-                  subtitle: Text(l10n.deficitUnits(p.minStockLevel - p.stockStrips, (unitLabels['unit2'] ?? 'strips').toLowerCase())),
-                  trailing: SizedBox(
-                    width: 80,
-                    child: TextFormField(
-                      initialValue: '${orderQtys[p.id]}',
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(suffixText: (unitLabels['unit1'] ?? unitLabels['unit2'] ?? 'bx').toLowerCase().substring(0, 2)),
-                      onChanged: (v) {
-                        orderQtys[p.id] = int.tryParse(v) ?? 1;
-                      },
-                    ),
-                  ),
-                );
-              },
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          context.read<LanguageProvider>().strings.setOrderQuantities,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            color: AppColors.primaryDark,
+            fontSize: 18,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.read<LanguageProvider>().strings.enterBoxesToOrder,
+                style: const TextStyle(
+                  color: AppColors.secondaryAccent,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 360),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: products.length,
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, color: AppColors.divider),
+                  itemBuilder: (_, idx) {
+                    final p = products[idx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryDark,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                if (p.companyName != null &&
+                                    p.companyName!.isNotEmpty)
+                                  Text(
+                                    p.companyName!,
+                                    style: const TextStyle(
+                                      color: AppColors.secondaryAccent,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 80,
+                            child: TextFormField(
+                              controller: controllers[p.id],
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryDark,
+                              ),
+                              decoration: InputDecoration(
+                                labelText:
+                                    context.read<LanguageProvider>().strings.boxes,
+                                labelStyle: const TextStyle(
+                                  color: AppColors.secondaryAccent,
+                                  fontSize: 11,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.surfaceLight,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 10,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.secondaryAccent,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.secondaryAccent,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.primaryDark,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop<Map<String, int>?>(ctx, null),
+            child: Text(
+              context.read<LanguageProvider>().strings.cancelBtn,
+              style: const TextStyle(color: AppColors.secondaryAccent),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.cancelBtn),
+          ElevatedButton.icon(
+            onPressed: () {
+              final orderQtys = <String, int>{
+                for (final p in products)
+                  p.id: int.tryParse(controllers[p.id]?.text ?? '0') ?? 0,
+              };
+              Navigator.pop<Map<String, int>?>(ctx, orderQtys);
+            },
+            icon: const Icon(
+              LucideIcons.arrowRight,
+              color: AppColors.white,
+              size: 18,
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                _doExport(products, orderQtys, isPdf: false);
-              },
-              icon: const Icon(LucideIcons.fileSpreadsheet),
-              label: Text(l10n.exportCsv),
+            label: Text(
+              context.read<LanguageProvider>().strings.next,
+              style: const TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                _doExport(products, orderQtys, isPdf: true);
-              },
-              icon: const Icon(LucideIcons.fileText),
-              label: Text(l10n.exportPdf),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-          ],
-        ),
-      );
-    },
-  );
-}
+          ),
+        ],
+      ),
+    ).then((orderQtys) {
+      for (final c in controllers.values) {
+        c.dispose();
+      }
+      if (!mounted) return;
+      if (orderQtys == null) return;
+      _showFormatSheet(products, orderQtys);
+    });
+  }
+
+  void _showFormatSheet(List<Product> products, Map<String, int> orderQtys) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              context.read<LanguageProvider>().strings.exportOrderList,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryDark,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(LucideIcons.fileText, color: Colors.red),
+            title: Text(
+              context.read<LanguageProvider>().strings.exportPdf,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              _doExport(products, orderQtys, isPdf: true);
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              LucideIcons.fileSpreadsheet,
+              color: Colors.green,
+            ),
+            title: Text(
+              context.read<LanguageProvider>().strings.exportCsv,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              _doExport(products, orderQtys, isPdf: false);
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -908,6 +1078,32 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                 )
                               : const SizedBox.shrink();
 
+                      final powerBadge = product.power != null &&
+                              product.power!.trim().isNotEmpty
+                          ? Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.deepPurple.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.deepPurple.withValues(alpha: 0.22),
+                                ),
+                              ),
+                              child: Text(
+                                product.power!.trim(),
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.deepPurple,
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink();
+
                           final phoneBtn = hasSupplierPhone
                               ? IconButton(
                                   tooltip: l10n.callSupplier,
@@ -984,6 +1180,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                           children: [
                                             nameColumn,
                                             medTypeBadge,
+                                            powerBadge,
                                           ],
                                         ),
                                       ),

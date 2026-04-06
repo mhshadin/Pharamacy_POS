@@ -12,11 +12,13 @@ import '../../utils/med_type_units.dart';
 class PosCartItemCard extends StatelessWidget {
   final CartItem item;
   final POSProvider provider;
+  final ValueChanged<String> onGenericTap;
 
   const PosCartItemCard({
     super.key,
     required this.item,
     required this.provider,
+    required this.onGenericTap,
   });
 
   @override
@@ -70,14 +72,31 @@ class PosCartItemCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      item.product.generic,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryAccent,
-                        fontWeight: FontWeight.w600,
+                    if (item.product.generic.trim().isNotEmpty)
+                      GestureDetector(
+                        onTap: () => onGenericTap(item.product.generic.trim()),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: AppColors.secondaryAccent.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Text(
+                            item.product.generic.trim(),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.secondaryAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 4),
                     _buildMedTypeBadge(context),
                     const SizedBox(height: 4),
@@ -230,17 +249,20 @@ class PosCartItemCard extends StatelessWidget {
   Widget _buildMedTypeBadge(BuildContext context) {
     final type = item.medType ?? item.product.medType ?? 'Tablet';
     final provider = context.read<POSProvider>();
-    final medTypes = provider.getAvailableTypes(item.product.name);
+    final l10n = context.read<LanguageProvider>().strings;
+    final variants = provider.getAvailableVariants(item.product.name);
+    final selectedPower = item.product.power;
+    final currentLabel = provider.getVariantLabel(item.product);
 
     return GestureDetector(
       onTap: () {
-        if (medTypes.length <= 1) return; // Don't show dialog if only one type exists
+        if (variants.length <= 1) return; // Don't show dialog if only one variant exists
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: AppColors.background,
-            title: const Text(
-              'Change Medicine Type',
+            title: Text(
+              l10n.changeMedType,
               style: TextStyle(
                 color: AppColors.primaryDark,
                 fontWeight: FontWeight.bold,
@@ -250,9 +272,14 @@ class PosCartItemCard extends StatelessWidget {
               width: double.maxFinite,
               child: ListView.builder(
                 shrinkWrap: true,
-                itemCount: medTypes.length,
+                itemCount: variants.length,
                 itemBuilder: (c, i) {
-                  final t = medTypes[i];
+                  final variant = variants[i];
+                  final t = variant.medType ?? 'Tablet';
+                  final isSelected =
+                      t == type &&
+                      (variant.power?.trim().toLowerCase() ?? '') ==
+                          (selectedPower?.trim().toLowerCase() ?? '');
                   return ListTile(
                     leading: Icon(
                       MedTypeIcons.getIcon(t),
@@ -260,16 +287,16 @@ class PosCartItemCard extends StatelessWidget {
                       size: 20,
                     ),
                     title: Text(
-                      t,
+                      provider.getVariantLabel(variant),
                       style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    selected: t == type,
+                    selected: isSelected,
                     selectedTileColor: MedTypeIcons.getColor(t).withValues(alpha: 0.1),
                     onTap: () {
-                      provider.updateCartItemMedType(item, t);
+                      provider.updateCartItemVariant(item, t, variant.power);
                       Navigator.pop(ctx);
                     },
                   );
@@ -298,7 +325,7 @@ class PosCartItemCard extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              type,
+              currentLabel,
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w900,

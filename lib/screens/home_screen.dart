@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/rendering.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../utils/colors.dart';
@@ -31,6 +34,8 @@ import '../widgets/taka_symbol.dart';
 import 'subscription_screen.dart';
 import 'admin/notification_screen.dart';
 
+enum _ScannerMode { barcode, ocrArmed }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -49,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen>
   late MobileScannerController _cameraController;
   bool _isProcessingScan = false;
   late bool _isCameraActive;
+  _ScannerMode _scannerMode = _ScannerMode.barcode;
+  final GlobalKey _scannerPreviewKey = GlobalKey();
 
   // Scanner expand/collapse — collapsed by default so cart is always visible
   bool _isScannerExpanded = false;
@@ -67,6 +74,20 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _searchFieldKey = GlobalKey();
   OverlayEntry? _searchOverlay;
   List<Product> _searchSuggestions = [];
+
+  String _productDisplayName(Product p) {
+    final type = p.medType ?? 'Tablet';
+    final power = p.power?.trim();
+    if (power == null || power.isEmpty) return p.name;
+    return '${p.name} (${type} • ${power})';
+  }
+
+  String _productVariantLine(Product p) {
+    final type = p.medType ?? 'Tablet';
+    final power = p.power?.trim();
+    if (power == null || power.isEmpty) return type;
+    return '$type • $power';
+  }
 
   @override
   void initState() {
@@ -222,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                '${l10n.addedToCart.replaceFirst('{name}', p.name)}${l10n.onePcSuffix}',
+                                '${l10n.addedToCart.replaceFirst('{name}', _productDisplayName(p))}${l10n.onePcSuffix}',
                                 style: const TextStyle(color: Colors.white),
                               ),
                               backgroundColor: Colors.green.shade700,
@@ -269,6 +290,19 @@ class _HomeScreenState extends State<HomeScreen>
                                         overflow: TextOverflow.ellipsis,
                                         maxLines: 1,
                                       ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        _productVariantLine(p),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.secondaryAccent
+                                              .withValues(alpha: 0.9),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -325,7 +359,6 @@ class _HomeScreenState extends State<HomeScreen>
 
         if (isFinal) {
           setState(() => _isListeningVoice = false);
-          _handleHomeFinalSpeech(posProvider, text);
         }
       },
       onError: (error) {
@@ -356,12 +389,31 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  Future<void> _finishHomeVoiceSearchOnRelease(POSProvider posProvider) async {
+    final captured = _voiceSearchController.text.trim();
+    await SpeechService.instance.stopListening();
+    if (!mounted) return;
+
+    setState(() {
+      _isListeningVoice = false;
+      _isVoiceSearchActive = false;
+    });
+
+    if (captured.isNotEmpty) {
+      _handleHomeFinalSpeech(posProvider, captured);
+    } else {
+      _voiceSearchController.clear();
+    }
+  }
+
   void _handleHomeFinalSpeech(POSProvider posProvider, String text) {
     final l10n = context.read<LanguageProvider>().strings;
     final best = ProductMatcher.findBestMatch(text, posProvider.products);
 
     if (best != null) {
       posProvider.updatePcQuantity(best.product, 1);
+      // Ensure stale search from other screens does not hide new cart rows.
+      posProvider.setSearchQuery('');
       setState(() {
         _isVoiceSearchActive = false;
         _voiceSearchController.clear();
@@ -369,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${l10n.addedToCart.replaceFirst('{name}', best.product.name)}${l10n.onePcSuffix}',
+            '${l10n.addedToCart.replaceFirst('{name}', _productDisplayName(best.product))}${l10n.onePcSuffix}',
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green.shade700,
@@ -516,7 +568,11 @@ class _HomeScreenState extends State<HomeScreen>
     POSProvider posProvider,
   ) async {
     final l10n = context.read<LanguageProvider>().strings;
-    if (!_isCameraActive || _isProcessingScan) return;
+    if (!_isCameraActive ||
+        _isProcessingScan ||
+        _scannerMode == _ScannerMode.ocrArmed) {
+      return;
+    }
 
     setState(() => _isProcessingScan = true);
 
@@ -539,50 +595,95 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
-
-  Future<void> _navigateFromDrawer(Future<void> Function() navigate) async {
-    if (!context.mounted) return;
-    Navigator.pop(context);
-    final bool canStop = _isCameraActive && _isScannerExpanded;
-    if (canStop && !Platform.isWindows) _cameraController.stop();
-    await navigate();
-    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+  void _toggleScannerCameraState() {
+    if (Platform.isWindows) return;
+    setState(() {
+      _isCameraActive = !_isCameraActive;
+      if (_isCameraActive && _isScannerExpanded) {
+        _cameraController.start();
+      } else if (!_isCameraActive && _isScannerExpanded) {
+        _cameraController.stop();
+      }
+    });
   }
 
-  Future<void> _handleManualAdd() async {
-    final bool canStop = _isCameraActive && _isScannerExpanded;
-    if (canStop && !Platform.isWindows) _cameraController.stop();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ManualAddScreen()),
-    );
-    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
-  }
-
-  Future<void> _handleOcrScan() async {
+  Future<void> _armOcrCapture() async {
     final l10n = context.read<LanguageProvider>().strings;
-    final bool canStop = _isCameraActive && _isScannerExpanded;
-    if (canStop) _cameraController.stop();
+    if (Platform.isWindows) return;
 
+    // Toggle: tap OCR again to return to barcode mode.
+    if (_scannerMode == _ScannerMode.ocrArmed) {
+      setState(() => _scannerMode = _ScannerMode.barcode);
+      return;
+    }
+
+    setState(() {
+      _scannerMode = _ScannerMode.ocrArmed;
+      _isScannerExpanded = true;
+      _isCameraActive = true;
+    });
+    _cameraController.start();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.tapToScanOcrHelper),
+        backgroundColor: AppColors.secondaryAccent,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<File?> _captureScannerFrameToFile() async {
+    final boundary = _scannerPreviewKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+
+    final image = await boundary.toImage(pixelRatio: 2.0);
+    final byteData = await image.toByteData(format: ImageByteFormat.png);
+    image.dispose();
+    if (byteData == null) return null;
+
+    final Uint8List bytes = byteData.buffer.asUint8List();
+    final dir = await getTemporaryDirectory();
+    final filePath = p.join(
+      dir.path,
+      'ocr_scanner_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    final file = File(filePath);
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
+
+  Future<void> _runOcrFromScanner() async {
+    final l10n = context.read<LanguageProvider>().strings;
+    if (_scannerMode != _ScannerMode.ocrArmed || _isProcessingScan) return;
+    if (!_isCameraActive) {
+      _toggleScannerCameraState();
+      return;
+    }
+
+    final bool canStop = _isCameraActive && _isScannerExpanded;
     bool loadingDialogOpen = false;
+    setState(() => _isProcessingScan = true);
 
     try {
-      final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 95,
-        preferredCameraDevice: CameraDevice.rear,
-      );
-
-      if (file == null) {
-        if (canStop && mounted) _cameraController.start();
+      final imageFile = await _captureScannerFrameToFile();
+      if (imageFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.ocrCaptureFailed),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
         return;
       }
 
-      if (!mounted) return;
-
+      if (canStop) _cameraController.stop();
       loadingDialogOpen = true;
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -610,22 +711,22 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
 
-      final imageFile = File(file.path);
       final products = context.read<POSProvider>().products;
       final results = await OcrService.process(imageFile, products);
 
       if (!mounted) return;
-      loadingDialogOpen = false;
-      Navigator.pop(context);
+      if (loadingDialogOpen) {
+        loadingDialogOpen = false;
+        Navigator.pop(context);
+      }
 
       if (results.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
+          SnackBar(
             content: Text(l10n.noMedicineDetected),
             backgroundColor: AppColors.warningOrange,
           ),
         );
-        if (canStop && mounted) _cameraController.start();
         return;
       }
 
@@ -653,8 +754,46 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
-      if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+      if (mounted) {
+        setState(() {
+          _isProcessingScan = false;
+        });
+      }
+      if (canStop && mounted && !Platform.isWindows) {
+        _cameraController.start();
+      }
     }
+  }
+
+  Future<void> _handleScannerTap() async {
+    if (_scannerMode == _ScannerMode.ocrArmed) {
+      await _runOcrFromScanner();
+      return;
+    }
+    _toggleScannerCameraState();
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+
+  Future<void> _navigateFromDrawer(Future<void> Function() navigate) async {
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop && !Platform.isWindows) _cameraController.stop();
+    await navigate();
+    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+  }
+
+  Future<void> _handleManualAdd({String? genericFilter}) async {
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop && !Platform.isWindows) _cameraController.stop();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManualAddScreen(initialGenericFilter: genericFilter),
+      ),
+    );
+    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -664,7 +803,8 @@ class _HomeScreenState extends State<HomeScreen>
     final adminProvider = context.watch<AdminProvider>();
     final posProvider = context.watch<POSProvider>();
     final cart = posProvider.cart;
-    final filteredCart = posProvider.filteredCart;
+    // Home cart should always reflect the full cart; filtering belongs to Manual Add.
+    final filteredCart = cart;
 
     // Subscription warning
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -708,15 +848,21 @@ class _HomeScreenState extends State<HomeScreen>
 
     Widget quickActions = PosQuickActions(
       isScannerExpanded: _isScannerExpanded,
-      onToggleScanner: () =>
-          setState(() => _isScannerExpanded = !_isScannerExpanded),
+      isOcrArmed: _scannerMode == _ScannerMode.ocrArmed,
+      onToggleScanner: () => setState(() {
+        _scannerMode = _ScannerMode.barcode;
+        _isScannerExpanded = !_isScannerExpanded;
+      }),
       onManualAdd: _handleManualAdd,
-      onOcrScan: _handleOcrScan,
-      onVoiceSearch: () {
-        if (_isVoiceSearchActive) {
-          _stopHomeVoiceSearch();
-        } else {
+      onOcrScan: _armOcrCapture,
+      onVoiceHoldStart: () {
+        if (!_isVoiceSearchActive) {
           _startHomeVoiceSearch(posProvider);
+        }
+      },
+      onVoiceHoldEnd: () {
+        if (_isVoiceSearchActive) {
+          _finishHomeVoiceSearchOnRelease(posProvider);
         }
       },
       isVoiceActive: _isVoiceSearchActive,
@@ -727,22 +873,14 @@ class _HomeScreenState extends State<HomeScreen>
       scanAnimation: _scanAnimation,
       isTablet: false,
       isCameraActive: _isCameraActive,
+      isOcrArmed: _scannerMode == _ScannerMode.ocrArmed,
       isProcessingScan: _isProcessingScan,
       onBarcodeScanned: (code) => _handleBarcodeScan(code, posProvider),
-      onToggleCamera: () {
-        if (Platform.isWindows) return;
-        setState(() {
-          _isCameraActive = !_isCameraActive;
-          if (_isCameraActive && _isScannerExpanded) {
-            _cameraController.start();
-          } else if (!_isCameraActive && _isScannerExpanded) {
-            _cameraController.stop();
-          }
-        });
-      },
+      onScannerTap: _handleScannerTap,
       isExpanded: _isScannerExpanded,
       onToggleExpanded: () =>
           setState(() => _isScannerExpanded = !_isScannerExpanded),
+      scannerPreviewKey: _scannerPreviewKey,
     );
 
     Widget voiceSearchBar = _VoiceSearchBar(
@@ -759,6 +897,7 @@ class _HomeScreenState extends State<HomeScreen>
       cart: cart,
       filteredCart: filteredCart,
       provider: posProvider,
+      onGenericTap: (generic) => _handleManualAdd(genericFilter: generic),
     );
 
     Widget checkoutFooter = PosCheckoutFooter(
@@ -801,23 +940,15 @@ class _HomeScreenState extends State<HomeScreen>
                         scanAnimation: _scanAnimation,
                         isTablet: true,
                         isCameraActive: _isCameraActive,
+                        isOcrArmed: _scannerMode == _ScannerMode.ocrArmed,
                         isProcessingScan: _isProcessingScan,
                         onBarcodeScanned: (code) =>
                             _handleBarcodeScan(code, posProvider),
-                        onToggleCamera: () {
-                          if (Platform.isWindows) return;
-                          setState(() {
-                            _isCameraActive = !_isCameraActive;
-                            if (_isCameraActive) {
-                              _cameraController.start();
-                            } else {
-                              _cameraController.stop();
-                            }
-                          });
-                        },
+                        onScannerTap: _handleScannerTap,
                         isExpanded: _isScannerExpanded,
                         onToggleExpanded: () => setState(
                             () => _isScannerExpanded = !_isScannerExpanded),
+                        scannerPreviewKey: _scannerPreviewKey,
                       ),
                       const Spacer(),
                     ],

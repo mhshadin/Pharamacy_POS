@@ -7,6 +7,7 @@ import '../../utils/inventory_alert_tiers.dart';
 import 'low_stock_screen.dart';
 import 'expiring_soon_screen.dart';
 import '../../providers/language_provider.dart';
+import '../../models/product.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -16,6 +17,21 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
+  String _productTitle(Product product) {
+    final type = product.medType?.trim();
+    final power = product.power?.trim();
+    if (power != null && power.isNotEmpty) {
+      if (type != null && type.isNotEmpty) {
+        return '${product.name} (${type} • ${power})';
+      }
+      return '${product.name} (${power})';
+    }
+    if (type != null && type.isNotEmpty) {
+      return '${product.name} (${type})';
+    }
+    return product.name;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -78,13 +94,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
                 ...lowStock.map((product) => _buildNotificationItem(
                   context: context,
-                  title: product.name,
+                  title: _productTitle(product),
                   subtitle: l10n.lowStockSubtitle(product.stockStrips),
                   icon: Icons.inventory_2_outlined,
                   color: adminProvider.lowStockTierFor(product).accentColor,
-                  onTap: () => Navigator.push(
+                  onTap: () => Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(builder: (context) => const LowStockScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const LowStockScreen()),
+                    (route) => route.isFirst,
                   ),
                 )),
               ],
@@ -104,18 +122,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   };
                   return _buildNotificationItem(
                     context: context,
-                    title: product.name,
+                    title: _productTitle(product),
                     subtitle: l10n.expiresOnDate(
                       product.expiryDate?.toLocal().toString().split(' ')[0] ??
                           '',
                     ),
                     icon: iconData,
                     color: tier.accentColor,
-                    onTap: () => Navigator.push(
+                    onTap: () => Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const ExpiringSoonScreen(),
                       ),
+                      (route) => route.isFirst,
                     ),
                   );
                 }),

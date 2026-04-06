@@ -51,6 +51,21 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
+  String _saleProductDisplay(SaleRecord sale) {
+    final type = sale.medType?.trim();
+    final power = sale.power?.trim();
+    if (power != null && power.isNotEmpty) {
+      if (type != null && type.isNotEmpty) {
+        return '${sale.productName} (${type} • ${power})';
+      }
+      return '${sale.productName} (${power})';
+    }
+    if (type != null && type.isNotEmpty) {
+      return '${sale.productName} (${type})';
+    }
+    return sale.productName;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -763,7 +778,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            sale.productName,
+                                            _saleProductDisplay(sale),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w600,
                                               color: AppColors.primaryDark,

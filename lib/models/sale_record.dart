@@ -9,6 +9,7 @@ class SaleRecord {
   final bool isReturned;
   final int returnedQuantity;
   final String? medType;
+  final String? power;
 
   /// Cost price per piece at the time of this sale (from the batch).
   /// Stored at sale time so profit remains accurate even if buying prices change later.
@@ -25,6 +26,7 @@ class SaleRecord {
     this.isReturned = false,
     this.returnedQuantity = 0,
     this.medType,
+    this.power,
     this.costPricePerPc = 0.0,
   });
 
@@ -50,6 +52,7 @@ class SaleRecord {
       'isReturned': isReturned ? 1 : 0,
       'returnedQuantity': returnedQuantity,
       'medType': medType,
+      'power': power,
       'costPricePerPc': costPricePerPc,
     };
   }
@@ -66,6 +69,7 @@ class SaleRecord {
       isReturned: (map['isReturned'] as int?) == 1,
       returnedQuantity: map['returnedQuantity'] as int? ?? 0,
       medType: map['medType'] as String?,
+      power: map['power'] as String?,
       costPricePerPc: (map['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
     );
   }

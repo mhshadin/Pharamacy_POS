@@ -37,6 +37,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     'SupplierName',
     'SupplierPhone',
     'MedType',
+    'Power',
   ];
 
   static const List<String> _sampleRow = [
@@ -54,6 +55,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
     'Best Pharma Supplier',
     '+1234567890',
     'Tablet',
+    '500mg',
   ];
 
   bool _isProcessing = false;
@@ -121,6 +123,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
               .toList();
         }
       } else {
+        if (!mounted) return;
         final l10n = context.read<LanguageProvider>().strings;
         String errorMsg = extension == 'xls'
             ? l10n.xlsLegacyNotSupported
@@ -136,6 +139,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
 
       _processFields(fields);
     } catch (e) {
+      if (!mounted) return;
       final l10n = context.read<LanguageProvider>().strings;
       setState(() {
         _errors.add("${l10n.error}: $e");
@@ -257,6 +261,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
               ? null
               : getString('SupplierPhone'),
           medType: getString('MedType').isEmpty ? 'Tablet' : getString('MedType'),
+          power: getString('Power').isEmpty ? null : getString('Power'),
           expiryDate: expiry,
         );
 
@@ -686,6 +691,8 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                             _buildMiniStat(context.read<LanguageProvider>().strings.barcodeLabel, product.barcode!),
                           if (product.medType != null)
                             _buildMiniStat(context.read<LanguageProvider>().strings.category, product.medType!),
+                          if (product.power != null && product.power!.trim().isNotEmpty)
+                            _buildMiniStat(context.read<LanguageProvider>().strings.powerLabel, product.power!),
                         ],
                       ),
                     ],

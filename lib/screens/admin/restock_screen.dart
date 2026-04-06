@@ -26,9 +26,15 @@ class _RestockScreenState extends State<RestockScreen> {
   final _stockBoxesCtrl = TextEditingController();
   final _stockStripsCtrl = TextEditingController();
   final _buyingPriceCtrl = TextEditingController();
+  final _sellingPriceCtrl = TextEditingController();
+  final _buyingPriceFocus = FocusNode();
+  final _sellingPriceFocus = FocusNode();
   DateTime? _expiryDate;
   bool _submitting = false;
   bool _loadingLastPrice = true;
+  bool _isPricingExpanded = false;
+  bool _buyingPriceAutoSelected = false;
+  bool _sellingPriceAutoSelected = false;
 
   Product get _p => widget.product;
 
@@ -43,6 +49,7 @@ class _RestockScreenState extends State<RestockScreen> {
       setState(() {
         _expiryDate =
             DateTime.now().add(Duration(days: admin.expiryDelayMonths * 30));
+        _isPricingExpanded = !admin.restockPricingCollapsedByDefault;
       });
 
       // Pre-fill buying price from the last batch of this product
@@ -50,10 +57,26 @@ class _RestockScreenState extends State<RestockScreen> {
       if (!mounted) return;
       setState(() {
         _loadingLastPrice = false;
+        final pcsPerBox = (_p.stripsPerBox > 0 ? _p.stripsPerBox : 1) *
+            (_p.pcsPerStrip > 0 ? _p.pcsPerStrip : 10);
         if (lastCost > 0) {
-          _buyingPriceCtrl.text = lastCost.toStringAsFixed(2);
+          _buyingPriceCtrl.text = (lastCost * pcsPerBox).toStringAsFixed(2);
+        }
+        if (_p.pricePc > 0) {
+          _sellingPriceCtrl.text = (_p.pricePc * pcsPerBox).toStringAsFixed(2);
         }
       });
+    });
+
+    _buyingPriceFocus.addListener(() {
+      if (!_buyingPriceFocus.hasFocus) {
+        _buyingPriceAutoSelected = false;
+      }
+    });
+    _sellingPriceFocus.addListener(() {
+      if (!_sellingPriceFocus.hasFocus) {
+        _sellingPriceAutoSelected = false;
+      }
     });
   }
 
@@ -63,6 +86,9 @@ class _RestockScreenState extends State<RestockScreen> {
     _stockBoxesCtrl.dispose();
     _stockStripsCtrl.dispose();
     _buyingPriceCtrl.dispose();
+    _sellingPriceCtrl.dispose();
+    _buyingPriceFocus.dispose();
+    _sellingPriceFocus.dispose();
     super.dispose();
   }
 
@@ -151,11 +177,26 @@ class _RestockScreenState extends State<RestockScreen> {
       return;
     }
 
-    final costPricePerPc =
-        double.tryParse(_buyingPriceCtrl.text.trim()) ?? 0.0;
+    final pcsPerBox = spb * pps;
+    final buyingPricePerBox = double.tryParse(_buyingPriceCtrl.text.trim()) ?? 0.0;
+    final costPricePerPc = pcsPerBox > 0 ? (buyingPricePerBox / pcsPerBox) : 0.0;
+    final hasSellingInput = _sellingPriceCtrl.text.trim().isNotEmpty;
+    final sellingPricePerBox =
+        double.tryParse(_sellingPriceCtrl.text.trim()) ?? 0.0;
+    final sellingPricePerPc =
+        pcsPerBox > 0 ? (sellingPricePerBox / pcsPerBox) : 0.0;
 
     setState(() => _submitting = true);
     try {
+      if (hasSellingInput && sellingPricePerPc > 0) {
+        final updated = _p.copyWith(
+          pricePc: sellingPricePerPc,
+          priceStrip: sellingPricePerPc * pps,
+          priceBox: sellingPricePerPc * pps * spb,
+        );
+        await context.read<AdminProvider>().updateProduct(updated);
+      }
+
       await context.read<AdminProvider>().addBatch(
             productId: _p.id,
             batchNumber: _batchCtrl.text.trim(),
@@ -238,6 +279,59 @@ class _RestockScreenState extends State<RestockScreen> {
     );
   }
 
+  Widget _buildCollapsibleSection({
+    required String title,
+    required IconData icon,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Row(
+                children: [
+                  Icon(icon, color: AppColors.primaryDark, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    color: AppColors.secondaryAccent,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1, color: AppColors.divider),
+            Padding(padding: const EdgeInsets.all(16), child: child),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildField({
     required TextEditingController controller,
     required String label,
@@ -248,12 +342,16 @@ class _RestockScreenState extends State<RestockScreen> {
     List<TextInputFormatter>? inputFormatters,
     String? helperText,
     Color? prefixIconColor,
+    FocusNode? focusNode,
+    VoidCallback? onTap,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       validator: validator,
       onChanged: onChanged,
+      onTap: onTap,
       inputFormatters: inputFormatters,
       style: const TextStyle(
         color: AppColors.primaryDark,
@@ -327,7 +425,9 @@ class _RestockScreenState extends State<RestockScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _p.name,
+                      _p.power != null && _p.power!.trim().isNotEmpty
+                          ? '${_p.name} (${_p.medType ?? 'Tablet'} • ${_p.power!.trim()})'
+                          : _p.name,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
@@ -478,9 +578,13 @@ class _RestockScreenState extends State<RestockScreen> {
               ),
 
               // Buying Price
-              _buildSection(
-                title: l10n.buyingPriceSection,
+              _buildCollapsibleSection(
+                title: l10n.pricing,
                 icon: LucideIcons.tag,
+                isExpanded: _isPricingExpanded,
+                onToggle: () {
+                  setState(() => _isPricingExpanded = !_isPricingExpanded);
+                },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -495,6 +599,17 @@ class _RestockScreenState extends State<RestockScreen> {
                             controller: _buyingPriceCtrl,
                             label: l10n.buyingPricePerPc,
                             icon: LucideIcons.coins,
+                            focusNode: _buyingPriceFocus,
+                            onTap: () {
+                              if (!_buyingPriceAutoSelected &&
+                                  _buyingPriceCtrl.text.isNotEmpty) {
+                                _buyingPriceCtrl.selection = TextSelection(
+                                  baseOffset: 0,
+                                  extentOffset: _buyingPriceCtrl.text.length,
+                                );
+                                _buyingPriceAutoSelected = true;
+                              }
+                            },
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -506,17 +621,47 @@ class _RestockScreenState extends State<RestockScreen> {
                             helperText: l10n.buyingPriceHelper,
                             prefixIconColor: AppColors.success,
                           ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _sellingPriceCtrl,
+                      label: l10n.sellingPricePerPc,
+                      icon: LucideIcons.badgeDollarSign,
+                      focusNode: _sellingPriceFocus,
+                      onTap: () {
+                        if (!_sellingPriceAutoSelected &&
+                            _sellingPriceCtrl.text.isNotEmpty) {
+                          _sellingPriceCtrl.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: _sellingPriceCtrl.text.length,
+                          );
+                          _sellingPriceAutoSelected = true;
+                        }
+                      },
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      ],
+                      helperText: l10n.sellingPriceHelper,
+                      prefixIconColor: AppColors.primaryDark,
+                    ),
                     const SizedBox(height: 8),
                     // Live profit preview
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _buyingPriceCtrl,
-                      builder: (_, val, __) {
-                        final cost = double.tryParse(val.text) ?? 0.0;
-                        final sellPc = _p.pricePc;
-                        if (cost <= 0 || sellPc <= 0) return const SizedBox.shrink();
-                        final profit = sellPc - cost;
-                        final margin = sellPc > 0
-                            ? ((profit / sellPc) * 100).toStringAsFixed(1)
+                      builder: (_, val, _) {
+                        final costBox = double.tryParse(val.text) ?? 0.0;
+                        final sellBox =
+                            (double.tryParse(_sellingPriceCtrl.text) ?? 0.0) > 0
+                            ? (double.tryParse(_sellingPriceCtrl.text) ?? 0.0)
+                            : _p.priceBox;
+                        if (costBox <= 0 || sellBox <= 0) {
+                          return const SizedBox.shrink();
+                        }
+                        final profit = sellBox - costBox;
+                        final margin = sellBox > 0
+                            ? ((profit / sellBox) * 100).toStringAsFixed(1)
                             : '0.0';
                         final isLoss = profit < 0;
                         return Container(
@@ -528,13 +673,13 @@ class _RestockScreenState extends State<RestockScreen> {
                             color: (isLoss
                                     ? AppColors.error
                                     : AppColors.success)
-                                .withOpacity(0.1),
+                                .withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: (isLoss
                                       ? AppColors.error
                                       : AppColors.success)
-                                  .withOpacity(0.4),
+                                  .withValues(alpha: 0.4),
                             ),
                           ),
                           child: Row(

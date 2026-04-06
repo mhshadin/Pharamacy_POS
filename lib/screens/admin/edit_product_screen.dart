@@ -28,14 +28,15 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late TextEditingController _supplierNameCtrl;
   late TextEditingController _supplierPhoneCtrl;
   late TextEditingController _barcodeCtrl;
-  late TextEditingController _priceBoxCtrl; // New
+  late TextEditingController _priceBoxCtrl;
   late TextEditingController _priceStripCtrl;
   late TextEditingController _pricePcCtrl;
   late TextEditingController _pcsPerStripCtrl;
-  late TextEditingController _stripsPerBoxCtrl; // New
-  late TextEditingController _buyingPriceBoxCtrl; // New
-  late TextEditingController _buyingPriceStripCtrl; // New
+  late TextEditingController _stripsPerBoxCtrl;
+  late TextEditingController _buyingPriceBoxCtrl;
+  late TextEditingController _buyingPriceStripCtrl;
   late TextEditingController _lowStockWarningCtrl;
+  late TextEditingController _powerCtrl;
   DateTime? _selectedExpiryDate;
   String? _selectedMedType;
 
@@ -54,6 +55,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
         TextEditingController(text: widget.product.supplierName ?? '');
     _supplierPhoneCtrl =
         TextEditingController(text: widget.product.supplierPhone ?? '');
+    _powerCtrl = TextEditingController(text: widget.product.power ?? '');
     _barcodeCtrl = TextEditingController(text: widget.product.barcode ?? '');
     _priceStripCtrl = TextEditingController(
       text: widget.product.priceStrip.toStringAsFixed(2),
@@ -74,30 +76,42 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _buyingPriceBoxCtrl = TextEditingController();
     _buyingPriceStripCtrl = TextEditingController();
 
+    // FIXED: Convert from total pieces correctly back to boxes for the UI display
+    int spbInit = widget.product.stripsPerBox > 0 ? widget.product.stripsPerBox : 1;
+    int ppsInit = widget.product.pcsPerStrip > 0 ? widget.product.pcsPerStrip : 1;
+    int piecesPerBoxInit = spbInit * ppsInit;
+
     _lowStockWarningCtrl = TextEditingController(
-      text: (widget.product.minStockLevel / widget.product.stripsPerBox)
-          .toStringAsFixed(0),
+      text: (widget.product.minStockLevel / piecesPerBoxInit).toStringAsFixed(0),
     );
+
     _loadBatchesAndInitialCost();
   }
 
   Future<void> _loadBatchesAndInitialCost() async {
     setState(() => _isLoadingBatches = true);
     final admin = context.read<AdminProvider>();
-    
+
     // Load batches
     final batches = await admin.getBatchesForProduct(widget.product.id);
-    
-    // Load latest cost
-    final lastCost = await admin.getLastBatchCostPrice(widget.product.id);
+
+    // Load latest cost (this is fetched as Cost Per PC)
+    final lastCostPerPc = await admin.getLastBatchCostPrice(widget.product.id);
+
     final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+    final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
 
     if (!mounted) return;
     setState(() {
       _batches = batches;
       _isLoadingBatches = false;
-      _buyingPriceStripCtrl.text = lastCost.toStringAsFixed(2);
-      _buyingPriceBoxCtrl.text = (lastCost * spb).toStringAsFixed(2);
+
+      // FIXED: Multiply by pcsPerStrip to get the Cost Per Strip, and by stripsPerBox to get Cost Per Box
+      final stripCost = lastCostPerPc * pps;
+      final boxCost = stripCost * spb;
+
+      _buyingPriceStripCtrl.text = stripCost.toStringAsFixed(2);
+      _buyingPriceBoxCtrl.text = boxCost.toStringAsFixed(2);
     });
   }
 
@@ -117,6 +131,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _buyingPriceBoxCtrl.dispose();
     _buyingPriceStripCtrl.dispose();
     _lowStockWarningCtrl.dispose();
+    _powerCtrl.dispose();
     super.dispose();
   }
 
@@ -152,12 +167,18 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
     final admin = context.read<AdminProvider>();
     final showSupplierInfo = admin.showSupplierInfo;
-    
+
     int pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
     if (pps <= 0) pps = 1;
-    
+
     int spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
     if (spb <= 0) spb = 1;
+
+    final newCostStrip = double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0;
+    final newCostPerPc = newCostStrip / pps;
+
+    final parsedLowStockBoxes = int.tryParse(_lowStockWarningCtrl.text) ?? admin.lowStockThreshold;
+    final computedMinStockLevel = parsedLowStockBoxes * spb * pps;
 
     final updatedProduct = Product(
       id: widget.product.id,
@@ -174,24 +195,23 @@ class _EditProductScreenState extends State<EditProductScreen> {
           ? null
           : _barcodeCtrl.text.trim(),
       expiryDate: _selectedExpiryDate,
-      minStockLevel:
-          (int.tryParse(_lowStockWarningCtrl.text) ??
-              admin.lowStockThreshold) *
-          spb * pps,
+      minStockLevel: computedMinStockLevel,
       companyName: _companyCtrl.text.trim().isEmpty
           ? null
           : _companyCtrl.text.trim(),
       supplierName: showSupplierInfo
           ? (_supplierNameCtrl.text.trim().isEmpty
-              ? null
-              : _supplierNameCtrl.text.trim())
+          ? null
+          : _supplierNameCtrl.text.trim())
           : widget.product.supplierName,
       supplierPhone: showSupplierInfo
           ? (_supplierPhoneCtrl.text.trim().isEmpty
-              ? null
-              : _supplierPhoneCtrl.text.trim())
+          ? null
+          : _supplierPhoneCtrl.text.trim())
           : widget.product.supplierPhone,
       medType: _selectedMedType,
+      power: _powerCtrl.text.trim().isEmpty ? null : _powerCtrl.text.trim(),
+      costPricePerPc: newCostPerPc,
     );
 
     // Active stock batches override product.expiryDate on load; sync them first so the new date sticks.
@@ -203,8 +223,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
     await admin.updateProduct(updatedProduct);
 
     // 2. Update active batches cost if buying price is set
-    final newCostStrip = double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0;
-    final newCostPerPc = newCostStrip / pps;
     if (newCostPerPc > 0) {
       await admin.updateProductCostPrice(widget.product.id, newCostPerPc);
     }
@@ -272,7 +290,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       label: l10n.productName,
                       icon: LucideIcons.pill,
                       validator: (v) =>
-                          v == null || v.isEmpty ? l10n.required : null,
+                      v == null || v.isEmpty ? l10n.required : null,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
@@ -280,7 +298,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       label: l10n.genericDescription,
                       icon: LucideIcons.fileText,
                       validator: (v) =>
-                          v == null || v.isEmpty ? l10n.required : null,
+                      v == null || v.isEmpty ? l10n.required : null,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
@@ -290,6 +308,12 @@ class _EditProductScreenState extends State<EditProductScreen> {
                     ),
                     const SizedBox(height: 12),
                     _buildMedTypeDropdown(l10n),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _powerCtrl,
+                      label: '${l10n.powerLabel} (${l10n.powerHint})',
+                      icon: LucideIcons.flaskConical,
+                    ),
                     const SizedBox(height: 12),
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -408,7 +432,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                             onChanged: (val) {
                               if (val.isEmpty) return;
                               final boxPrice = double.tryParse(val);
-                               final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
+                              final spb = int.tryParse(_stripsPerBoxCtrl.text) ?? 1;
                               if (boxPrice != null && spb > 0) {
                                 _priceStripCtrl.text = (boxPrice / spb).toStringAsFixed(2);
                                 final pps = int.tryParse(_pcsPerStripCtrl.text) ?? 1;
@@ -488,11 +512,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // Live profit preview
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _buyingPriceStripCtrl,
-                      builder: (_, val, _) {
-                        final cost = double.tryParse(val.text) ?? 0.0;
+                    // Live profit preview: Now listening to both Buying Price and Selling Price
+                    AnimatedBuilder(
+                      animation: Listenable.merge([_buyingPriceStripCtrl, _priceStripCtrl]),
+                      builder: (_, __) {
+                        final cost = double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0;
                         final sell = double.tryParse(_priceStripCtrl.text) ?? 0.0;
                         if (cost <= 0 || sell <= 0) return const SizedBox.shrink();
                         final profit = sell - cost;
@@ -586,57 +610,97 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 child: _isLoadingBatches
                     ? const Center(child: CircularProgressIndicator())
                     : (_batches == null || _batches!.isEmpty)
-                        ? Center(child: Text(l10n.noActiveBatches, style: const TextStyle(color: AppColors.textSecondary)))
-                        : Column(
-                            children: _batches!.map((batch) {
-                              final isExpired = batch.isExpired;
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: isExpired ? AppColors.error.withValues(alpha: 0.05) : AppColors.surfaceLight,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: isExpired ? AppColors.error.withValues(alpha: 0.3) : AppColors.divider),
+                    ? Center(child: Text(l10n.noActiveBatches, style: const TextStyle(color: AppColors.textSecondary)))
+                    : Column(
+                  children: _batches!.map((batch) {
+                    final isExpired = batch.isExpired;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isExpired ? AppColors.error.withValues(alpha: 0.05) : AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: isExpired ? AppColors.error.withValues(alpha: 0.3) : AppColors.divider),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${l10n.batchNumber}: ${batch.batchNumber}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text('${l10n.batchNumber}: ${batch.batchNumber}',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                        const SizedBox(height: 2),
-                                        Text(l10n.expiresDate(batch.expiryDate),
-                                            style: TextStyle(
-                                                color: isExpired ? AppColors.error : AppColors.textSecondary,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w500)),
-                                        const SizedBox(height: 4),
-                                        Text('Cost: ৳${batch.costPricePerPc.toStringAsFixed(2)}/pc',
-                                            style: const TextStyle(fontSize: 11, color: AppColors.secondaryAccent, fontWeight: FontWeight.w600)),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(l10n.pcsSuffixCount(batch.remainingPieces),
-                                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryDark)),
-                                        if (widget.product.pcsPerStrip > 0)
-                                          Text(
-                                            l10n.batchRemaining(
-                                              batch.remainingPieces ~/ widget.product.pcsPerStrip,
-                                              batch.remainingPieces % widget.product.pcsPerStrip,
-                                            ),
-                                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
+                                const SizedBox(height: 2),
+                                Text(
+                                  l10n.expiresDate(batch.expiryDate),
+                                  style: TextStyle(
+                                    color: isExpired
+                                        ? AppColors.error
+                                        : AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              );
-                            }).toList(),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Cost: ৳${batch.costPricePerPc.toStringAsFixed(2)}/pc',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.secondaryAccent,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  l10n.pcsSuffixCount(batch.remainingPieces),
+                                  textAlign: TextAlign.end,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                                if (widget.product.pcsPerStrip > 0)
+                                  Text(
+                                    l10n.batchRemaining(
+                                      batch.remainingPieces ~/
+                                          widget.product.pcsPerStrip,
+                                      batch.remainingPieces %
+                                          widget.product.pcsPerStrip,
+                                    ),
+                                    textAlign: TextAlign.end,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
 
               const SizedBox(height: 12),

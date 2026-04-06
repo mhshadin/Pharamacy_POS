@@ -126,6 +126,32 @@ class AppStringsEn implements AppStrings {
       'Item is low on stock ($strips strips left)';
   @override
   String expiresOnDate(String date) => 'Expires on $date';
+  @override
+  String get notificationLowStockTitle => 'Low Stock Alert ⚠️';
+  @override
+  String notificationLowStockBody(String productName, int stock) =>
+      '$productName is low in stock ($stock remaining). Please restock soon.';
+  @override
+  String get notificationExpiryTitle => 'Expiry Warning ⌛';
+  @override
+  String notificationExpiryBody(String productName, String expiryDate) =>
+      '$productName is expiring on $expiryDate. Check your inventory.';
+  @override
+  String get alarmInventoryCheckTitle => '⏰ Inventory Check Reminder';
+  @override
+  String get alarmInventoryCheckBody =>
+      'Time to check low stock and expiring soon products!';
+  @override
+  String get alarmStockReminderTitle => 'Stock Reminder';
+  @override
+  String get alarmStockReminderBody => 'It is time to check your inventory!';
+  @override
+  String get alarmStockExpiryReminderTitle => 'Stock & Expiry Reminder';
+  @override
+  String get alarmStockExpiryReminderBody =>
+      'Check your inventory for low stock or expiring meds.';
+  @override
+  String get alarmDismiss => 'Dismiss';
 
   // ── Top Products ───────────────────────────────
   @override
@@ -733,6 +759,8 @@ class AppStringsEn implements AppStrings {
   @override
   String get editDisplayName => 'Edit Display Name';
   @override
+  String get editPhoneNumber => 'Edit Phone Number';
+  @override
   String get updateAdminPin => 'Update Admin PIN';
   @override
   String get setLocalPassword => 'Set Local Password';
@@ -762,7 +790,21 @@ class AppStringsEn implements AppStrings {
   @override
   String get nameUpdated => 'Name updated successfully!';
   @override
+  String get phoneUpdated => 'Phone number updated successfully!';
+  @override
   String get saveNameBtn => 'Save Name';
+  @override
+  String get savePhoneBtn => 'Save Phone Number';
+  @override
+  String get phoneNumberLabel => 'Phone Number';
+  @override
+  String get newPhoneNumber => 'New Phone Number';
+  @override
+  String get phoneRequired => 'Phone number is required';
+  @override
+  String get phoneMustBe11Digits => 'Phone number must be exactly 11 digits';
+  @override
+  String get phoneDigitsOnly => 'Phone number must contain digits only';
   @override
   String get updateSecurityPin => 'Update Security PIN';
   @override
@@ -810,6 +852,15 @@ class AppStringsEn implements AppStrings {
   String get adminLoginPinEmpty => 'Please enter the PIN';
   @override
   String get adminLoginBtn => 'Login';
+  @override
+  String get adminPinSetupTitle => 'Set admin PIN';
+  @override
+  String get adminPinSetupSubtitle =>
+      'First-time setup: create your admin PIN to continue';
+  @override
+  String get adminPinSetupBtn => 'Set PIN';
+  @override
+  String get adminPinSetupFailed => 'Failed to set admin PIN.';
   @override
   String get biometricUnlockReason => 'Unlock admin portal';
   @override
@@ -864,6 +915,10 @@ class AppStringsEn implements AppStrings {
   String get saveChanges => 'Save Changes';
   @override
   String get medicineType => 'Medicine Type';
+  @override
+  String get powerLabel => 'Power';
+  @override
+  String get powerHint => 'e.g. 200mg, 5ml, 1g';
   @override
   String editProductTitle(String name) => 'Edit: $name';
   @override
@@ -1392,6 +1447,14 @@ class AppStringsEn implements AppStrings {
   String get manual => 'Manual';
   @override
   String get ocr => 'OCR';
+  @override
+  String get tapToScanOcr => 'Tap Scanner';
+  @override
+  String get tapToScanOcrHelper => 'OCR armed. Tap scanner to read strip.';
+  @override
+  String get scannerTapToReadStrip => 'OCR ready - tap scanner to read strip';
+  @override
+  String get ocrCaptureFailed => 'Could not capture scanner frame. Try again.';
   @override
   String get voice => 'Voice';
   @override
