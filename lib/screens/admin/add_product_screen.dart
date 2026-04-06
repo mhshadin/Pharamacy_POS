@@ -803,37 +803,56 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        l10n.addProduct,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          l10n.addProductStepperModeToggle,
-                          style: const TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.addProduct,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: constraints.maxWidth < 360 ? 19 : 22,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Switch.adaptive(
-                          value: useStepperMode,
-                          activeThumbColor: AppColors.primaryDark,
-                          onChanged: (value) {
-                            setState(() {
-                              _useStepperOverride = value;
-                              _currentStep = 0;
-                            });
-                          },
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  l10n.addProductStepperModeToggle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppColors.secondaryAccent,
+                                    fontSize: constraints.maxWidth < 360
+                                        ? 11
+                                        : 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Transform.scale(
+                                  scale: constraints.maxWidth < 360 ? 0.88 : 1,
+                                  child: Switch.adaptive(
+                                    value: useStepperMode,
+                                    activeThumbColor: AppColors.primaryDark,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _useStepperOverride = value;
+                                        _currentStep = 0;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     if (useStepperMode) _buildHorizontalStepper(l10n),
                   ],
