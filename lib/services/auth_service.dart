@@ -14,10 +14,13 @@ class AuthResult {
     required this.subscriptionValidUntil,
     required this.planName,
     required this.userEmail,
+    required this.refreshToken,
     this.userAvatarUrl,
+    this.userPhoneNumber,
   });
 
   final String licenseToken;
+  final String refreshToken;
   final String userId;
   final String userName;
   final String userEmail;
@@ -26,6 +29,7 @@ class AuthResult {
   final String subscriptionValidUntil;
   final String planName;
   final String? userAvatarUrl;
+  final String? userPhoneNumber;
 }
 
 class AuthException implements Exception {
@@ -36,6 +40,13 @@ class AuthException implements Exception {
 
   @override
   String toString() => 'AuthException($statusCode): $message';
+}
+
+class AdminPinStatus {
+  const AdminPinStatus({required this.isPinSet, this.adminPin});
+
+  final bool isPinSet;
+  final String? adminPin;
 }
 
 class AuthService {
@@ -86,6 +97,17 @@ class AuthService {
     return _handleAuthResponse(response);
   }
 
+  /// Refreshes the JWT license token using a valid refresh token.
+  Future<AuthResult> refreshJwtToken(String refreshToken) async {
+    final uri = _buildUri('refresh_token.php');
+    final response = await http.post(
+      uri,
+      headers: _jsonHeaders(),
+      body: jsonEncode({'refresh_token': refreshToken}),
+    );
+    return _handleAuthResponse(response);
+  }
+
   Future<AuthResult> registerLocal({
     required String email,
     required String password,
@@ -125,7 +147,7 @@ class AuthService {
     }
   }
 
-  Future<String> getAdminPin(String token) async {
+  Future<AdminPinStatus> getAdminPinStatus(String token) async {
     final uri = _buildUri('admin_pin.php');
     final response = await http.get(uri, headers: _jsonHeaders(token: token));
 
@@ -133,8 +155,10 @@ class AuthService {
       throw _buildException(response);
     }
 
-    final data = jsonDecode(response.body);
-    return data['admin_pin']?.toString() ?? '12345';
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final isPinSet = data['is_pin_set'] == true;
+    final adminPin = data['admin_pin']?.toString();
+    return AdminPinStatus(isPinSet: isPinSet, adminPin: adminPin);
   }
 
   Future<void> updateAdminPin({
@@ -153,16 +177,57 @@ class AuthService {
     }
   }
 
+  Future<void> requestAdminPinResetOtp({required String email}) async {
+    final uri = _buildUri('request_admin_pin_reset.php');
+    final response = await http.post(
+      uri,
+      headers: _jsonHeaders(),
+      body: jsonEncode({'email': email.trim()}),
+    );
+
+    if (response.statusCode != 200) {
+      throw _buildException(response);
+    }
+  }
+
+  Future<void> resetAdminPinWithOtp({
+    required String email,
+    required String otp,
+    required String newPin,
+  }) async {
+    final uri = _buildUri('reset_admin_pin_with_otp.php');
+    final response = await http.post(
+      uri,
+      headers: _jsonHeaders(),
+      body: jsonEncode({
+        'email': email.trim(),
+        'otp': otp.trim(),
+        'new_pin': newPin.trim(),
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw _buildException(response);
+    }
+  }
+
   /// Updates the user's display name (and optionally avatar URL) on the backend.
-  /// Returns a map with updated `name` and `avatar` keys on success.
+  /// Returns a map with updated `name`, `avatar`, and `phone_number` keys on success.
   Future<Map<String, String?>> updateProfile({
     required String token,
-    required String fullName,
+    String? fullName,
     String? avatarUrl,
+    String? phoneNumber,
   }) async {
     final uri = _buildUri('update_profile.php');
-    final body = <String, dynamic>{'full_name': fullName};
+    final body = <String, dynamic>{};
+    if (fullName != null) body['full_name'] = fullName;
     if (avatarUrl != null) body['avatar_url'] = avatarUrl;
+    if (phoneNumber != null) body['phone_number'] = phoneNumber;
+
+    if (body.isEmpty) {
+      throw AuthException('At least one profile field is required for update.');
+    }
 
     final response = await http.post(
       uri,
@@ -179,6 +244,7 @@ class AuthService {
     return {
       'name': (user['name'] ?? '').toString(),
       'avatar': user['avatar']?.toString(),
+      'phone_number': user['phone_number']?.toString(),
     };
   }
 
@@ -209,7 +275,9 @@ class AuthService {
       subscriptionStatus: (subscription['status'] ?? '').toString(),
       subscriptionValidUntil: (subscription['valid_until'] ?? '').toString(),
       planName: (subscription['plan_name'] ?? 'N/A').toString(),
+      refreshToken: (data['refresh_token'] ?? '').toString(),
       userAvatarUrl: user['avatar']?.toString(),
+      userPhoneNumber: user['phone_number']?.toString(),
     );
   }
 
