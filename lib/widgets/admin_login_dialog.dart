@@ -180,8 +180,8 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
       if (!mounted) return;
       setState(() => _otpSent = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('OTP sent to your email.'),
+        SnackBar(
+          content: Text(l10n.otpSent),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -206,7 +206,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
       return;
     }
     if (otp.isEmpty) {
-      setState(() => _errorText = 'Please enter the OTP.');
+      setState(() => _errorText = l10n.otpRequired);
       return;
     }
     if (newPin.isEmpty) {
@@ -352,7 +352,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
             const SizedBox(height: 16),
             Text(
               _resetMode
-                  ? 'Reset admin PIN'
+                  ? l10n.forgotPinTitle
                   : (isPinSet ? l10n.adminLoginTitle : l10n.adminPinSetupTitle),
               style: const TextStyle(
                 fontSize: 22,
@@ -364,9 +364,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
             const SizedBox(height: 4),
             Text(
               _resetMode
-                  ? (email.isEmpty
-                      ? 'Enter the OTP sent to your email and set a new PIN.'
-                      : 'Enter the OTP sent to $email and set a new PIN.')
+                  ? l10n.resetPinSubtitle(email)
                   : (isPinSet
                       ? l10n.adminLoginEnterPin
                       : l10n.adminPinSetupSubtitle),
@@ -522,7 +520,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: _isSubmitting ? null : _enterResetMode,
-                    child: const Text('Forgot PIN?'),
+                    child: Text(l10n.forgotPin),
                   ),
                 ),
               ],
@@ -546,6 +544,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                   ),
                   errorText: _errorText,
                   errorStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  labelText: l10n.enterOtpCode,
                   filled: true,
                   fillColor: AppColors.white,
                   border: OutlineInputBorder(
@@ -576,7 +575,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: _isSubmitting ? null : _sendOtp,
-                  child: Text(_otpSent ? 'Resend OTP' : 'Send OTP'),
+                  child: Text(_otpSent ? l10n.resendOtp : l10n.sendOtp),
                 ),
               ),
               const SizedBox(height: 12),
@@ -592,7 +591,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                   letterSpacing: 8,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'New PIN',
+                  hintText: l10n.newPin,
                   filled: true,
                   fillColor: AppColors.white,
                   border: OutlineInputBorder(
@@ -639,7 +638,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                   letterSpacing: 8,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Confirm PIN',
+                  hintText: l10n.confirmPin,
                   filled: true,
                   fillColor: AppColors.white,
                   border: OutlineInputBorder(
@@ -695,7 +694,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                       ),
                     ),
                     child: Text(
-                      _resetMode ? 'Back' : l10n.cancelBtn,
+                      _resetMode ? l10n.wizardBack : l10n.cancelBtn,
                       style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
@@ -717,7 +716,7 @@ class _AdminLoginDialogState extends State<AdminLoginDialog> {
                     ),
                     child: Text(
                       _resetMode
-                          ? 'Reset PIN'
+                          ? l10n.resetPin
                           : (isPinSet ? l10n.adminLoginBtn : l10n.adminPinSetupBtn),
                       style: const TextStyle(
                         color: AppColors.white,

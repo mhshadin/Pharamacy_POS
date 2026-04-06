@@ -871,6 +871,26 @@ class AppStringsBn implements AppStrings {
   @override
   String get adminPinSetupFailed => 'অ্যাডমিন পিন সেট করা যায়নি।';
   @override
+  String get forgotPin => 'পিন ভুলে গেছেন?';
+  @override
+  String get forgotPinTitle => 'অ্যাডমিন পিন রিসেট';
+  @override
+  String resetPinSubtitle(String email) => email.trim().isEmpty
+      ? 'আপনার ইমেইলে পাঠানো ওটিপি লিখে নতুন পিন সেট করুন।'
+      : '$email এ পাঠানো ওটিপি লিখে নতুন পিন সেট করুন।';
+  @override
+  String get sendOtp => 'ওটিপি পাঠান';
+  @override
+  String get resendOtp => 'আবার ওটিপি পাঠান';
+  @override
+  String get enterOtpCode => 'ওটিপি কোড লিখুন';
+  @override
+  String get otpSent => 'ওটিপি আপনার ইমেইলে পাঠানো হয়েছে।';
+  @override
+  String get otpRequired => 'অনুগ্রহ করে ওটিপি লিখুন।';
+  @override
+  String get resetPin => 'পিন রিসেট';
+  @override
   String get biometricUnlockReason => 'অ্যাডমিন পোর্টাল আনলক করুন';
   @override
   String get biometricUseFace => 'ফেস আইডি ব্যবহার করুন';

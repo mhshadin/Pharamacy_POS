@@ -862,6 +862,26 @@ class AppStringsEn implements AppStrings {
   @override
   String get adminPinSetupFailed => 'Failed to set admin PIN.';
   @override
+  String get forgotPin => 'Forgot PIN?';
+  @override
+  String get forgotPinTitle => 'Reset admin PIN';
+  @override
+  String resetPinSubtitle(String email) => email.trim().isEmpty
+      ? 'Enter the OTP sent to your email and set a new PIN.'
+      : 'Enter the OTP sent to $email and set a new PIN.';
+  @override
+  String get sendOtp => 'Send OTP';
+  @override
+  String get resendOtp => 'Resend OTP';
+  @override
+  String get enterOtpCode => 'Enter OTP code';
+  @override
+  String get otpSent => 'OTP sent to your email.';
+  @override
+  String get otpRequired => 'Please enter the OTP.';
+  @override
+  String get resetPin => 'Reset PIN';
+  @override
   String get biometricUnlockReason => 'Unlock admin portal';
   @override
   String get biometricUseFace => 'Use Face ID';

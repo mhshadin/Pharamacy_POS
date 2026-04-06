@@ -467,6 +467,15 @@ abstract class AppStrings {
   String get adminPinSetupSubtitle;
   String get adminPinSetupBtn;
   String get adminPinSetupFailed;
+  String get forgotPin;
+  String get forgotPinTitle;
+  String resetPinSubtitle(String email);
+  String get sendOtp;
+  String get resendOtp;
+  String get enterOtpCode;
+  String get otpSent;
+  String get otpRequired;
+  String get resetPin;
   String get biometricUnlockReason;
   String get biometricUseFace;
   String get biometricUseFingerprint;
