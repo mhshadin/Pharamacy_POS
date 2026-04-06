@@ -850,55 +850,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 380;
-                    if (compact) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildSortActionTile(l10n, expand: false),
-                            const SizedBox(width: 8),
-                            adminActionTileButton(
-                              icon: LucideIcons.listFilter,
-                              label: 'Filter',
-                              tooltip: l10n.filterByExpiryUrgency,
-                              activeCount: _filter == 'All' ? 0 : 1,
-                              minWidth: 74,
-                              onPressed: () =>
-                                  _showExpiryUrgencyFilterPanel(l10n),
-                            ),
-                            if (hasCompanies) ...[
-                              const SizedBox(width: 8),
-                              adminActionTileButton(
-                                icon: LucideIcons.building2,
-                                label: 'Company',
-                                tooltip: l10n.filterByCompany,
-                                activeCount: _selectedCompanies.length,
-                                minWidth: 74,
-                                onPressed: () =>
-                                    _showCompanySheet(allCompanies, l10n),
-                              ),
-                            ],
-                            if (filtered.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              adminActionTileButton(
-                                icon: LucideIcons.download,
-                                label: 'Export',
-                                tooltip: l10n.exportOrderList,
-                                activeCount: 0,
-                                minWidth: 74,
-                                onPressed: () => _showOrderQtyModal(filtered),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }
-
+                    final gap = constraints.maxWidth < 380 ? 6.0 : 8.0;
                     return Row(
                       children: [
                         _buildSortActionTile(l10n, expand: true),
-                        const SizedBox(width: 8),
+                        SizedBox(width: gap),
                         adminActionTileButton(
                           icon: LucideIcons.listFilter,
                           label: 'Filter',
@@ -908,7 +864,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           onPressed: () => _showExpiryUrgencyFilterPanel(l10n),
                         ),
                         if (hasCompanies) ...[
-                          const SizedBox(width: 8),
+                          SizedBox(width: gap),
                           adminActionTileButton(
                             icon: LucideIcons.building2,
                             label: 'Company',
@@ -920,7 +876,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           ),
                         ],
                         if (filtered.isNotEmpty) ...[
-                          const SizedBox(width: 8),
+                          SizedBox(width: gap),
                           adminActionTileButton(
                             icon: LucideIcons.download,
                             label: 'Export',
