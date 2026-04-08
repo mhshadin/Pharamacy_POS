@@ -34,7 +34,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _embeddedSearchVisible = false;
 
   int get _currentIndex => _navStack.last;
-  bool get _isStockSearchPage => _currentIndex == 3 || _currentIndex == 4;
+  bool get _isEmbeddedSearchPage =>
+      _currentIndex == 1 ||
+      _currentIndex == 3 ||
+      _currentIndex == 4 ||
+      _currentIndex == 5;
 
   final List<_NavItemData> _navItemsData = [
     _NavItemData(icon: LucideIcons.layoutDashboard, labelKey: (l10n) => l10n.navDashboard),   // 0
@@ -60,7 +64,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (!isMenuNavigation && index == _currentIndex) return;
 
     setState(() {
-      if (index != 3 && index != 4) {
+      if (index != 3 && index != 4 && index != 5) {
         _embeddedSearchVisible = false;
       }
       if (index == 6) {
@@ -98,6 +102,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return ProductListScreen(
           isAdmin: true,
           onOpenAddProduct: () => _navigateTo(2),
+          externalSearchVisible: _embeddedSearchVisible,
+          onSearchVisibilityChanged: (visible) {
+            if (_embeddedSearchVisible != visible) {
+              setState(() => _embeddedSearchVisible = visible);
+            }
+          },
         );
       case 2:
         return const AddProductScreen();
@@ -122,7 +132,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           },
         );
       case 5:
-        return const ReturnsScreen();
+        return ReturnsScreen(
+          externalSearchVisible: _embeddedSearchVisible,
+          onSearchVisibilityChanged: (visible) {
+            if (_embeddedSearchVisible != visible) {
+              setState(() => _embeddedSearchVisible = visible);
+            }
+          },
+        );
       case 6:
         return SalesReportScreen(
           onNavigateToProfit: () => _navigateTo(7),
@@ -162,6 +179,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
+        // Keep swipe-open for mobile drawer; wide layout uses fixed sidebar.
+        drawerEnableOpenDragGesture: !isWide,
         appBar: AppBar(
           backgroundColor: AppColors.primaryDark,
           automaticallyImplyLeading: false,
@@ -181,7 +200,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           actions: [
-            if (_isStockSearchPage)
+            if (_isEmbeddedSearchPage)
               IconButton(
                 icon: Icon(
                   _embeddedSearchVisible ? LucideIcons.x : LucideIcons.search,
@@ -386,8 +405,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildDashboardPage() {
     final l10n = Provider.of<LanguageProvider>(context).strings;
     final admin = context.watch<AdminProvider>();
-    final screenWidth = MediaQuery.of(context).size.width;
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
     final isTablet = screenWidth > 600;
+    const overviewCardRunSpacing = 12.0;
+    const overviewRows = 3.0; // 6 cards, 2 columns on phone
+    final phoneOverviewHeightBudget = screenHeight * 0.5;
+    final phoneCardHeight =
+        ((phoneOverviewHeightBudget - (overviewCardRunSpacing * (overviewRows - 1))) /
+                overviewRows)
+            .clamp(96.0, 140.0);
+    final overviewCardHeight = isTablet ? 110.0 : phoneCardHeight;
 
     return SingleChildScrollView(
       padding: ResponsiveHelper.screenPadding(context),
@@ -454,10 +483,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                   return Wrap(
                     spacing: 12,
-                    runSpacing: 12,
+                    runSpacing: overviewCardRunSpacing,
                     children: [
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _StatCard(
                           title: l10n.todaySales,
                           value: admin.todaysSales.toStringAsFixed(2),
@@ -473,6 +503,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _StatCard(
                           title: l10n.totalOrders,
                           value: '${admin.todaysOrders}',
@@ -489,6 +520,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _StatCard(
                           title: l10n.lowStock,
                           value: '${admin.lowStockProducts.length}',
@@ -500,6 +532,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _StatCard(
                           title: l10n.expiringSoon,
                           value: '${admin.expiringSoonProducts.length}',
@@ -513,6 +546,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _StatCard(
                           title: l10n.profitReport,
                           value: admin.totalProfitToday.toStringAsFixed(2),
@@ -527,6 +561,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                       SizedBox(
                         width: cardWidth,
+                        height: overviewCardHeight,
                         child: _SubscriptionRenewalCard(
                           l10n: l10n,
                           session: admin.authSession,
@@ -821,14 +856,14 @@ class _SubscriptionRenewalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final raw = session?.subscriptionValidUntil.trim() ?? '';
+    final totalPlanDays = session?.subscriptionTotalPlanDays ?? 0;
     late final Color accent;
-    late final double fill;
     late final String headline;
-    String? dateLine;
+    double remainingFraction = 0;
+    bool showTimeline = false;
 
     if (raw.isEmpty) {
       accent = AppColors.secondaryAccent;
-      fill = 0;
       headline = l10n.subscriptionRenewalUnavailable;
     } else {
       try {
@@ -836,14 +871,14 @@ class _SubscriptionRenewalCard extends StatelessWidget {
         final daysRemaining = validUntil.difference(DateTime.now()).inDays;
         final tier = subscriptionRenewalTier(daysRemaining);
         accent = tier.accentColor;
-        fill = daysRemaining >= 0
-            ? (daysRemaining / 90.0).clamp(0.0, 1.0)
-            : 0.0;
         headline = l10n.subscriptionRenewalDaysLeft(daysRemaining);
-        dateLine = raw.split(' ').first;
+        if (totalPlanDays > 0) {
+          final clampedRemaining = daysRemaining.clamp(0, totalPlanDays);
+          remainingFraction = clampedRemaining / totalPlanDays;
+          showTimeline = true;
+        }
       } catch (_) {
         accent = AppColors.secondaryAccent;
-        fill = 0;
         headline = l10n.subscriptionRenewalUnavailable;
       }
     }
@@ -901,30 +936,50 @@ class _SubscriptionRenewalCard extends StatelessWidget {
             Text(
               headline,
               style: const TextStyle(
-                fontSize: 16,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
                 color: AppColors.primaryDark,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            if (dateLine != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                dateLine,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondaryAccent,
-                ),
-              ),
+            if (showTimeline) ...[
+              const SizedBox(height: 8),
+              _SubscriptionTimelineBar(remainingFraction: remainingFraction),
             ],
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: fill,
-                backgroundColor: accent.withValues(alpha: 0.1),
-                valueColor: AlwaysStoppedAnimation<Color>(accent),
-                minHeight: 6,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubscriptionTimelineBar extends StatelessWidget {
+  final double remainingFraction;
+
+  const _SubscriptionTimelineBar({required this.remainingFraction});
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsedFraction = (1 - remainingFraction).clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        height: 8,
+        child: Stack(
+          children: [
+            const Row(
+              children: [
+                Expanded(child: ColoredBox(color: AppColors.success)),
+                Expanded(child: ColoredBox(color: AppColors.warningOrange)),
+                Expanded(child: ColoredBox(color: AppColors.error)),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: elapsedFraction,
+                child: Container(color: AppColors.white.withValues(alpha: 0.7)),
               ),
             ),
           ],
