@@ -5,7 +5,7 @@ import '../utils/colors.dart';
 import '../providers/pos_provider.dart';
 import '../providers/admin_provider.dart';
 import '../models/product.dart';
-import '../services/speech_service.dart';
+import '../services/continuous_voice_session_service.dart';
 import '../utils/product_matcher.dart';
 import '../utils/med_type_icons.dart';
 import '../providers/language_provider.dart';
@@ -21,27 +21,89 @@ class ManualAddScreen extends StatefulWidget {
 }
 class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderStateMixin {
   late AnimationController _pulseController;
+  late final ContinuousVoiceSessionService _voiceSession;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _isListening = false;
+  /// Cached in [didChangeDependencies] so [dispose] can clear search without using [context].
+  POSProvider? _posProvider;
   // Track selected variant ID per product name
   final Map<String, String> _selectedVariantIds = {};
 
   @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(() {
-      context.read<POSProvider>().setSearchQuery(_searchController.text);
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _posProvider = context.read<POSProvider>();
+  }
+
+  void _onSearchControllerChanged() {
+    _posProvider?.setSearchQuery(_searchController.text);
+  }
+
+  /// Apply initial/clear search after the first frame so [POSProvider.notifyListeners]
+  /// does not run during the surrounding build (e.g. when opened with a generic filter).
+  void _syncInitialSearchFilter() {
+    if (!mounted) return;
+    final pos = _posProvider;
+    if (pos == null) return;
+    pos.setSearchQuery('');
     final initialGeneric = widget.initialGenericFilter?.trim() ?? '';
     if (initialGeneric.isNotEmpty) {
       _searchController.text = initialGeneric;
-      context.read<POSProvider>().setSearchQuery(initialGeneric);
     }
-    
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncInitialSearchFilter());
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
+    );
+
+    _voiceSession = ContinuousVoiceSessionService(
+      onTranscript: (text, {required isFinal}) {
+        if (!mounted) return;
+        setState(() {
+          _searchController.text = text;
+          _searchController.selection = TextSelection.fromPosition(
+            TextPosition(offset: _searchController.text.length),
+          );
+        });
+      },
+      onFinalTranscript: (text) async {
+        if (!mounted) return;
+        _handleFinalSpeechResult(context.read<POSProvider>(), text);
+      },
+      onError: (error) {
+        if (!mounted || error.isEmpty) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<LanguageProvider>().strings.voiceError(error),
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      },
+      onStateChanged: () {
+        if (!mounted) return;
+        final listening = _voiceSession.isListening;
+        setState(() {
+          _isListening = listening;
+        });
+        if (listening) {
+          if (!_pulseController.isAnimating) {
+            _pulseController.repeat(reverse: true);
+          }
+        } else {
+          _pulseController.stop();
+        }
+      },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,84 +114,26 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
   @override
   void dispose() {
     // Reset POS cart filter when leaving Manual Add so Home cart is unfiltered.
-    context.read<POSProvider>().setSearchQuery('');
+    _searchController.removeListener(_onSearchControllerChanged);
+    _posProvider?.setSearchQuery('');
+    _voiceSession.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
-  Future<void> _startListening(POSProvider posProvider) async {
-    setState(() {
-      _isListening = true;
-    });
-    _pulseController.repeat(reverse: true);
-
-    final service = SpeechService.instance;
-
-    await service.startListening(
-      preferredLocaleId: 'en_US',
-      onResult: (text, isFinal) {
-        if (!mounted) return;
-        setState(() {
-          _searchController.text = text;
-          _searchController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _searchController.text.length),
-          );
-        });
-
-        if (isFinal) {
-          _handleFinalSpeechResult(posProvider, text);
-          setState(() {
-            _isListening = false;
-          });
-          _pulseController.stop();
-        }
-      },
-      onError: (error) {
-        if (!mounted) return;
-        setState(() {
-          _isListening = false;
-        });
-        _pulseController.stop();
-        if (error.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                context.read<LanguageProvider>().strings.voiceError(error),
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      },
-    );
+  Future<void> _startListening() async {
+    await _voiceSession.start(clearTranscript: false);
   }
 
   Future<void> _stopListening() async {
-    await SpeechService.instance.stopListening();
-    if (!mounted) return;
-    setState(() {
-      _isListening = false;
-    });
-    _pulseController.stop();
+    await _voiceSession.stop(clearTranscript: false);
   }
 
   void _closeManualAdd() {
     _searchFocus.unfocus();
     Navigator.of(context).pop();
-  }
-
-  void _filterByGeneric(String generic) {
-    final trimmed = generic.trim();
-    if (trimmed.isEmpty) return;
-    setState(() {
-      _searchController.text = trimmed;
-      _searchController.selection = TextSelection.fromPosition(
-        TextPosition(offset: _searchController.text.length),
-      );
-    });
   }
 
   void _handleFinalSpeechResult(POSProvider posProvider, String text) {
@@ -139,6 +143,10 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
     final l10n = context.read<LanguageProvider>().strings;
     if (best != null) {
       posProvider.updatePcQuantity(best.product, 1);
+      // After successful add, clear local/global search so all medicines stay
+      // visible for the next voice command.
+      _searchController.clear();
+      posProvider.setSearchQuery('');
       final unitLabels = MedTypeUnits.getLabels(best.product.medType, l10n);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -381,7 +389,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                         label: Text(type),
                         avatar: Icon(
                           MedTypeIcons.getIcon(type),
-                          size: 14,
+                          size: 10,
                           color: isSelected 
                             ? MedTypeIcons.getContrastColor(chipColor) 
                             : AppColors.primaryDark,
@@ -418,7 +426,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                       style: const TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 10,
                       ),
                     ),
                   )
@@ -500,83 +508,85 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                       Text(
                                         product.name,
                                         style: const TextStyle(
-                                          fontSize: 18,
+                                          fontSize: 16,
                                           color: AppColors.primaryDark,
                                           fontWeight: FontWeight.bold,
                                           height: 1.1,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                       if (product.generic.trim().isNotEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 6),
-                                          child: GestureDetector(
-                                            onTap: () => _filterByGeneric(product.generic),
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 3,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.background,
-                                                borderRadius: BorderRadius.circular(999),
-                                                border: Border.all(
-                                                  color: AppColors.secondaryAccent
-                                                      .withValues(alpha: 0.5),
-                                                ),
-                                              ),
-                                              child: Text(
-                                                product.generic.trim(),
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: AppColors.secondaryAccent,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
+                                          padding: const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            product.generic.trim(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.secondaryAccent,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
                                         ),
-                                      if (availableVariants.length > 1)
+                                      if (product.companyName != null &&
+                                          product.companyName!.trim().isNotEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 8),
-                                          child: Wrap(
-                                            spacing: 4,
-                                            children: availableVariants.map((v) {
-                                              final isSelected = v.id == activeProduct.id;
-                                              return GestureDetector(
-                                                onTap: () {
-                                                  setState(() {
-                                                    _selectedVariantIds[product.name] = v.id;
-                                                  });
-                                                },
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? MedTypeIcons.getColor(v.medType)
-                                                        : AppColors.background,
-                                                    borderRadius: BorderRadius.circular(4),
-                                                    border: Border.all(
-                                                      color: MedTypeIcons.getColor(v.medType),
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    posProvider.getVariantLabel(v),
-                                                    style: TextStyle(
-                                                      fontSize: 8,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: isSelected
-                                                          ? MedTypeIcons.getContrastColor(MedTypeIcons.getColor(v.medType))
-                                                          : MedTypeIcons.getColor(v.medType),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }).toList(),
+                                          padding: const EdgeInsets.only(top: 2),
+                                          child: Text(
+                                            product.companyName!.trim(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.secondaryAccent,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Wrap(
+                                          spacing: 4,
+                                          runSpacing: 4,
+                                          children: availableVariants.map((v) {
+                                            final isSelected = v.id == activeProduct.id;
+                                            return GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  _selectedVariantIds[product.name] = v.id;
+                                                });
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 3,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: isSelected
+                                                      ? MedTypeIcons.getColor(v.medType)
+                                                      : AppColors.background,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: MedTypeIcons.getColor(v.medType),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  posProvider.getVariantLabel(v),
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isSelected
+                                                        ? MedTypeIcons.getContrastColor(MedTypeIcons.getColor(v.medType))
+                                                        : MedTypeIcons.getColor(v.medType),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -696,7 +706,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
               color: AppColors.primaryDark,
               size: 18,
             ),
-            onPressed: () => _startListening(posProvider),
+            onPressed: _startListening,
           ),
         ],
       );
@@ -708,7 +718,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
         color: AppColors.primaryDark,
         size: 18,
       ),
-      onPressed: () => _startListening(posProvider),
+      onPressed: _startListening,
     );
   }
 }
