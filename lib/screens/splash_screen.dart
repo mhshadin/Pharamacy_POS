@@ -50,6 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _showSubscriptionBlockedDialog(session.pharmacyId);
         return;
       }
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
@@ -73,9 +74,17 @@ class _SplashScreenState extends State<SplashScreen> {
         googleAccessToken: session.googleAccessToken,
       );
       return true;
+    } on AuthException catch (e) {
+      // Server explicitly rejected the token (invalid or revoked) — force re-login.
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await _authStorage.clearAuth();
+        return false;
+      }
+      // Server error (5xx) — treat same as offline, proceed with cached session.
+      return true;
     } catch (_) {
-      await _authStorage.clearAuth();
-      return false;
+      // Network failure, timeout, socket error — proceed with cached session.
+      return true;
     }
   }
 
