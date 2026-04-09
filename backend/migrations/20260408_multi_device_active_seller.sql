@@ -15,12 +15,12 @@ WHERE `device_display_name` IS NULL OR TRIM(`device_display_name`) = '';
 -- Pick one device per pharmacy with no active seller: earliest last_login (tie-break by id).
 UPDATE `devices` d
 INNER JOIN (
-  SELECT `pharmacy_id`, MIN(`id`) AS `chosen_id`
+  SELECT d1.`pharmacy_id`, MIN(d1.`id`) AS `chosen_id`
   FROM `devices` d1
   INNER JOIN (
-    SELECT `pharmacy_id`, MIN(COALESCE(`last_login_at`, '1970-01-01 00:00:00')) AS `ml`
-    FROM `devices`
-    GROUP BY `pharmacy_id`
+    SELECT d2.`pharmacy_id`, MIN(COALESCE(d2.`last_login_at`, '1970-01-01 00:00:00')) AS `ml`
+    FROM `devices` d2
+    GROUP BY d2.`pharmacy_id`
   ) t ON d1.`pharmacy_id` = t.`pharmacy_id`
      AND COALESCE(d1.`last_login_at`, '1970-01-01 00:00:00') = t.`ml`
   GROUP BY d1.`pharmacy_id`
