@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -30,31 +32,62 @@ class _SplashScreenState extends State<SplashScreen> {
     // Small delay so the splash is visible and storage can initialize.
     await Future.delayed(const Duration(milliseconds: 600));
 
+    dev.log('[SplashAuth] Bootstrap started', name: 'SplashAuth');
+
     // Try to sync time at startup if online
     await TimeService().fetchServerTime();
 
     final session = await _authStorage.loadAuth();
+
+    dev.log(
+      '[SplashAuth] Session loaded: '
+      'hasToken=${session?.hasValidToken}, '
+      'userId=${session?.userId}, '
+      'email=${session?.userEmail}, '
+      'hasRefreshToken=${session?.refreshToken.isNotEmpty}, '
+      'isActive=${session?.isActive}, '
+      'validUntil=${session?.subscriptionValidUntil}',
+      name: 'SplashAuth',
+    );
 
     if (!mounted) return;
 
     if (session != null && session.hasValidToken) {
       final canContinue = await _validateSessionAtStartup(session);
       if (!mounted) return;
+
+      dev.log('[SplashAuth] canContinue=$canContinue', name: 'SplashAuth');
+
       if (!canContinue) {
+        dev.log('[SplashAuth] -> LoginScreen (token rejected)', name: 'SplashAuth');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
         return;
       }
-      if (await _shouldBlockForExpiredSubscription(session)) {
-        _showSubscriptionBlockedDialog(session.pharmacyId);
+
+      // Reload session so subscription check uses the freshly refreshed values.
+      final freshSession = await _authStorage.loadAuth() ?? session;
+      dev.log(
+        '[SplashAuth] Fresh session after refresh: '
+        'isActive=${freshSession.isActive}, '
+        'validUntil=${freshSession.subscriptionValidUntil}, '
+        'email=${freshSession.userEmail}',
+        name: 'SplashAuth',
+      );
+
+      if (await _shouldBlockForExpiredSubscription(freshSession)) {
+        dev.log('[SplashAuth] -> Subscription blocked dialog', name: 'SplashAuth');
+        _showSubscriptionBlockedDialog(freshSession.pharmacyId);
         return;
       }
       if (!mounted) return;
+      dev.log('[SplashAuth] -> HomeScreen', name: 'SplashAuth');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } else {
+      dev.log('[SplashAuth] -> LoginScreen (no session)', name: 'SplashAuth');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
@@ -63,9 +96,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<bool> _validateSessionAtStartup(AuthSession session) async {
     if (session.refreshToken.isEmpty) {
+      dev.log('[SplashAuth] No refresh token stored — clearing auth', name: 'SplashAuth');
       await _authStorage.clearAuth();
       return false;
     }
+
+    dev.log('[SplashAuth] Attempting token refresh...', name: 'SplashAuth');
 
     try {
       final refreshed = await _authApi.refreshJwtToken(session.refreshToken);
@@ -73,8 +109,22 @@ class _SplashScreenState extends State<SplashScreen> {
         refreshed,
         googleAccessToken: session.googleAccessToken,
       );
+      dev.log(
+        '[SplashAuth] Token refresh SUCCESS: '
+        'userId=${refreshed.userId}, '
+        'email=${refreshed.userEmail}, '
+        'isActive=${refreshed.isActive}, '
+        'validUntil=${refreshed.subscriptionValidUntil}, '
+        'hasNewRefreshToken=${refreshed.refreshToken.isNotEmpty}',
+        name: 'SplashAuth',
+      );
       return true;
     } on AuthException catch (e) {
+      dev.log(
+        '[SplashAuth] Token refresh REJECTED by server: '
+        'status=${e.statusCode}, message=${e.message}',
+        name: 'SplashAuth',
+      );
       // Server explicitly rejected the token (invalid or revoked) — force re-login.
       if (e.statusCode == 401 || e.statusCode == 403) {
         await _authStorage.clearAuth();
@@ -82,7 +132,11 @@ class _SplashScreenState extends State<SplashScreen> {
       }
       // Server error (5xx) — treat same as offline, proceed with cached session.
       return true;
-    } catch (_) {
+    } catch (e) {
+      dev.log(
+        '[SplashAuth] Token refresh FAILED (offline/timeout): $e',
+        name: 'SplashAuth',
+      );
       // Network failure, timeout, socket error — proceed with cached session.
       return true;
     }

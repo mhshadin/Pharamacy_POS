@@ -34,7 +34,8 @@ try {
     // 1. Validate token from database
     $stmt = $pdo->prepare('
         SELECT rt.*, u.id as user_id, u.pharmacy_id, u.role, u.is_active, u.full_name, u.avatar_url,
-               s.valid_until, s.status as sub_status, sp.name as plan_name
+               u.email, u.phone_number,
+               s.valid_until, s.status as sub_status, sp.name as plan_name, sp.trial_days
         FROM refresh_tokens rt
         JOIN users u ON rt.user_id = u.id
         LEFT JOIN subscribers s ON u.pharmacy_id = s.pharmacy_id
@@ -108,14 +109,19 @@ try {
         'subscription' => [
             'status' => $data['sub_status'],
             'valid_until' => $data['valid_until'],
-            'plan_name' => $data['plan_name']
+            'plan_name' => $data['plan_name'],
+            'total_plan_days' => (int)($data['trial_days'] ?? 0) > 0
+                ? (int)$data['trial_days']
+                : ($data['sub_status'] === null ? 0 : 30)
         ],
         'user' => [
             'id' => $data['user_id'],
             'pharmacy_id' => $data['pharmacy_id'],
             'role' => $data['role'],
+            'email' => $data['email'],
             'name' => $data['full_name'],
             'avatar' => $data['avatar_url'],
+            'phone_number' => $data['phone_number'],
             'is_active' => (int)$data['is_active']
         ]
     ]);
