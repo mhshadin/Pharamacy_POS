@@ -117,6 +117,13 @@ try {
 
     $pdo->commit();
 
+    // Issue a refresh token for the new account.
+    $refreshToken = bin2hex(random_bytes(32));
+    $refreshTokenHash = hash('sha256', $refreshToken);
+    $refreshTokenExpiry = date('Y-m-d H:i:s', time() + (60 * 60 * 24 * 30));
+    $pdo->prepare('INSERT INTO refresh_tokens (id, user_id, hardware_uid, token_hash, expires_at) VALUES (?, ?, ?, ?, ?)')
+        ->execute([generate_uuid_v4(), $userId, $hardwareUid, $refreshTokenHash, $refreshTokenExpiry]);
+
     $issuedAt = time();
     $subExpiryTimestamp = strtotime($expiryDate); 
     $jwtExpiry = $issuedAt + (60 * 60 * 24 * 30); 
@@ -138,6 +145,7 @@ try {
     echo json_encode([
         'message' => 'Account created successfully',
         'license_token' => $licenseToken,
+        'refresh_token' => $refreshToken,
         'subscription' => [
             'status' => 'active',
             'valid_until' => $expiryDate,
@@ -149,6 +157,7 @@ try {
             'id' => $userId,
             'pharmacy_id' => $pharmacyId,
             'role' => 'owner',
+            'email' => $email,
             'name' => $fullName,
             'avatar' => null,
             'is_active' => 1

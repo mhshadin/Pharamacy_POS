@@ -127,6 +127,16 @@ try {
         $isActiveSeller = ((int)$sellerRow['is_active_seller'] === 1);
     }
 
+    // Revoke old refresh tokens for this user+device, then issue a fresh one.
+    $pdo->prepare('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ? AND hardware_uid = ? AND revoked = 0')
+        ->execute([$user['id'], $hardwareUid]);
+
+    $refreshToken = bin2hex(random_bytes(32));
+    $refreshTokenHash = hash('sha256', $refreshToken);
+    $refreshTokenExpiry = date('Y-m-d H:i:s', time() + (60 * 60 * 24 * 30));
+    $pdo->prepare('INSERT INTO refresh_tokens (id, user_id, hardware_uid, token_hash, expires_at) VALUES (?, ?, ?, ?, ?)')
+        ->execute([generate_uuid_v4(), $user['id'], $hardwareUid, $refreshTokenHash, $refreshTokenExpiry]);
+
     $issuedAt = time();
     $validUntil = $user['valid_until'] ?? null;
     $subExpiryTimestamp = $validUntil ? strtotime($validUntil) : null;
@@ -165,6 +175,7 @@ try {
     echo json_encode([
         'message' => 'License granted',
         'license_token' => $licenseToken,
+        'refresh_token' => $refreshToken,
         'subscription' => [
             'status' => $effectiveSubStatus,
             'valid_until' => $user['valid_until'],
