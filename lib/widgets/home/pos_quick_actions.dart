@@ -55,22 +55,24 @@ class PosQuickActions extends StatelessWidget {
     ];
 
     if (isPanelMode) {
+      // Expanded fills the parent SizedBox height — buttons share equally
       return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: actions
-            .map(
-              (a) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: _VerticalActionButton(
-                  label: a.label,
-                  icon: a.icon,
-                  isActive: a.isActive,
-                  activeColor: a.activeColor,
-                  onPressed: a.onPressed,
-                ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: actions.asMap().entries.map((e) {
+          final isLast = e.key == actions.length - 1;
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 5),
+              child: _VerticalActionButton(
+                label: e.value.label,
+                icon: e.value.icon,
+                isActive: e.value.isActive,
+                activeColor: e.value.activeColor,
+                onPressed: e.value.onPressed,
               ),
-            )
-            .toList(),
+            ),
+          );
+        }).toList(),
       );
     }
 
@@ -167,7 +169,7 @@ class _VerticalActionButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: 64,
+      height: double.infinity,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -175,20 +177,20 @@ class _VerticalActionButton extends StatelessWidget {
           foregroundColor: fg,
           shadowColor: Colors.transparent,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 22),
-            const SizedBox(height: 4),
+            Icon(icon, size: 20),
+            const SizedBox(height: 3),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.2,
               ),

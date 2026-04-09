@@ -895,56 +895,108 @@ class _HomeScreenState extends State<HomeScreen>
       appBar: _buildGradientAppBar(),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // Right panel: fixed 84px wide — just enough for icon+label buttons
-          const double rightPanelWidth = 84;
+          const double rightPanelWidth = 80;
+          // Cap the scanner+buttons content to 35% of body height
+          final double topContentHeight =
+              (constraints.maxHeight * 0.35).clamp(160.0, 260.0);
 
           return Column(
             children: [
               expandableSearch,
-              // ── Top row: scanner left + action buttons right ──────────────
-              AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                child: _isTopSectionCollapsed
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Scanner — fills remaining width
-                            Expanded(child: scannerSection),
-                            const SizedBox(width: 8),
-                            // Action buttons — fixed width vertical column
-                            SizedBox(
-                              width: rightPanelWidth,
-                              child: quickActionsPanel,
+              // ── Collapsible top card ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ── Toggle header ──────────────────────────────
+                      InkWell(
+                        onTap: () => setState(() =>
+                            _isTopSectionCollapsed = !_isTopSectionCollapsed),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.secondaryAccent,
+                                AppColors.primaryDark,
+                              ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
                             ),
-                          ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(LucideIcons.scan,
+                                  size: 14, color: Colors.white70),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Scanner & Actions',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                _isTopSectionCollapsed
+                                    ? LucideIcons.chevronDown
+                                    : LucideIcons.chevronUp,
+                                size: 14,
+                                color: Colors.white60,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-              ),
-              voiceSearchBar,
-              // ── Subtle collapse handle ─────────────────────────────────────
-              GestureDetector(
-                onTap: () =>
-                    setState(() => _isTopSectionCollapsed = !_isTopSectionCollapsed),
-                child: Container(
-                  width: double.infinity,
-                  color: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Center(
-                    child: Container(
-                      width: 48,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.divider,
-                        borderRadius: BorderRadius.circular(2),
+                      // ── Scanner + buttons content ──────────────────
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeInOut,
+                        child: _isTopSectionCollapsed
+                            ? const SizedBox.shrink()
+                            : SizedBox(
+                                height: topContentHeight,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(child: scannerSection),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: rightPanelWidth,
+                                        child: quickActionsPanel,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
+              voiceSearchBar,
               // ── Cart list (always visible) ─────────────────────────────────
               Expanded(child: cartList),
               // ── Checkout footer (always visible) ──────────────────────────

@@ -100,186 +100,173 @@ class PosScannerSection extends StatelessWidget {
     );
   }
 
-  // ── Expanded: white card with camera + bottom info row ───────────────────
+  // ── Expanded: fills parent height via LayoutBuilder ─────────────────────
 
   Widget _buildExpandedCard(BuildContext context, AppStrings l10n) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isNarrow = screenWidth < 380;
-    // Camera fills more height when in side-by-side layout
-    final cameraHeight =
-        isTablet ? 280.0 : (screenWidth * 0.52).clamp(130.0, 220.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Status bar is 26px; camera fills everything else
+        const double statusBarH = 26;
+        final double cameraHeight =
+            (constraints.maxHeight - statusBarH).clamp(60.0, 400.0);
+        final bool isNarrow = constraints.maxWidth < 200;
 
-    return Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF111827),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 8,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Camera view ──────────────────────────────────────────────
-            Container(
-              height: cameraHeight,
-              width: double.infinity,
-              color: const Color(0xFF111827),
-              child: Stack(
-                children: [
-                  if (!Platform.isWindows)
-                    MobileScanner(
-                      controller: cameraController,
-                      onDetect: (capture) {
-                        final barcodes = capture.barcodes;
-                        if (barcodes.isNotEmpty &&
-                            barcodes.first.rawValue != null) {
-                          onBarcodeScanned(barcodes.first.rawValue!);
-                        }
-                      },
-                    ),
-                  // Paused overlay
-                  if (!isCameraActive)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black87,
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                LucideIcons.cameraOff,
-                                color: Colors.white54,
-                                size: isNarrow ? 26.0 : 32.0,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                l10n.cameraPaused,
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                l10n.tapToResume,
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF111827),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              // ── Camera view ────────────────────────────────────────────
+              Expanded(
+                child: Stack(
+                  children: [
+                    if (!Platform.isWindows)
+                      Positioned.fill(
+                        child: MobileScanner(
+                          controller: cameraController,
+                          onDetect: (capture) {
+                            final barcodes = capture.barcodes;
+                            if (barcodes.isNotEmpty &&
+                                barcodes.first.rawValue != null) {
+                              onBarcodeScanned(barcodes.first.rawValue!);
+                            }
+                          },
                         ),
                       ),
-                    ),
-                  // Scan line animation
-                  if (isCameraActive)
-                    AnimatedBuilder(
-                      animation: scanAnimation,
-                      builder: (context, _) {
-                        return Positioned(
-                          top: scanAnimation.value * cameraHeight,
-                          left: 0,
-                          right: 0,
-                          child: Container(
-                            height: 2,
-                            decoration: BoxDecoration(
-                              color: AppColors.highlightActive,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.highlightActive
-                                      .withValues(alpha: 0.8),
-                                  blurRadius: 10,
-                                  spreadRadius: 1,
+                    // Paused overlay
+                    if (!isCameraActive)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black87,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  LucideIcons.cameraOff,
+                                  color: Colors.white54,
+                                  size: isNarrow ? 20.0 : 26.0,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.cameraPaused,
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  // Corner brackets
-                  const Positioned(
-                    top: 8, left: 8,
-                    child: _CornerBracket(bT: true, bL: true),
-                  ),
-                  const Positioned(
-                    top: 8, right: 8,
-                    child: _CornerBracket(bT: true, bR: true),
-                  ),
-                  const Positioned(
-                    bottom: 8, left: 8,
-                    child: _CornerBracket(bB: true, bL: true),
-                  ),
-                  const Positioned(
-                    bottom: 8, right: 8,
-                    child: _CornerBracket(bB: true, bR: true),
-                  ),
-                  // Tap-to-pause/resume
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        if (isProcessingScan) return;
-                        onToggleCamera();
-                      },
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                  // Processing overlay
-                  if (isProcessingScan)
+                        ),
+                      ),
+                    // Scan line animation
+                    if (isCameraActive)
+                      AnimatedBuilder(
+                        animation: scanAnimation,
+                        builder: (context, _) {
+                          return Positioned(
+                            top: scanAnimation.value * cameraHeight,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              height: 2,
+                              decoration: BoxDecoration(
+                                color: AppColors.highlightActive,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.highlightActive
+                                        .withValues(alpha: 0.8),
+                                    blurRadius: 8,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    // Corner brackets
+                    const Positioned(
+                        top: 6, left: 6,
+                        child: _CornerBracket(bT: true, bL: true)),
+                    const Positioned(
+                        top: 6, right: 6,
+                        child: _CornerBracket(bT: true, bR: true)),
+                    const Positioned(
+                        bottom: 6, left: 6,
+                        child: _CornerBracket(bB: true, bL: true)),
+                    const Positioned(
+                        bottom: 6, right: 6,
+                        child: _CornerBracket(bB: true, bR: true)),
+                    // Tap-to-pause/resume
                     Positioned.fill(
-                      child: Container(
-                        color: Colors.black45,
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.highlightActive,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (isProcessingScan) return;
+                          onToggleCamera();
+                        },
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    // Processing overlay
+                    if (isProcessingScan)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black45,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.highlightActive,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-
-            // ── Compact status bar ───────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    isCameraActive ? LucideIcons.scan : LucideIcons.cameraOff,
-                    size: 13,
-                    color: isCameraActive
-                        ? Colors.white70
-                        : Colors.white38,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      isCameraActive
-                          ? l10n.tapScannerToPauseResume
-                          : l10n.scannerPausedTapToResume,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w500,
+              // ── Status bar ─────────────────────────────────────────────
+              SizedBox(
+                height: statusBarH,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCameraActive
+                            ? LucideIcons.scan
+                            : LucideIcons.cameraOff,
+                        size: 11,
+                        color:
+                            isCameraActive ? Colors.white60 : Colors.white30,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          isCameraActive
+                              ? l10n.tapScannerToPauseResume
+                              : l10n.scannerPausedTapToResume,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white38,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
