@@ -1,5 +1,3 @@
-import 'dart:math' show min;
-
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +14,7 @@ import 'edit_product_screen.dart';
 import 'restock_screen.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../widgets/shared/empty_state_widget.dart';
+import '../../widgets/shared/right_filter_panel.dart';
 import '../../utils/med_type_icons.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -259,57 +258,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return list;
   }
 
-  void _showRightFilterPanel(Widget Function(BuildContext dialogContext) body) {
-    showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel:
-      MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        final size = MediaQuery.sizeOf(dialogContext);
-        final panelWidth = min(size.width * 0.88, 420.0);
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Material(
-            color: AppColors.background,
-            elevation: 12,
-            shadowColor: AppColors.primaryDark.withValues(alpha: 0.15),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              width: panelWidth,
-              height: size.height,
-              child: SafeArea(
-                left: false,
-                child: body(dialogContext),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            ),
-          ),
-          child: child,
-        );
-      },
-    );
-  }
-
   void _showCompanySheet(List<String> allCompanies, AppStrings l10n) {
-    _showRightFilterPanel((dialogContext) {
+    showRightFilterPanel(context, (dialogContext) {
       String sheetSearch = '';
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
@@ -456,7 +406,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _showGenericSheet(List<String> allGenerics, AppStrings l10n) {
-    _showRightFilterPanel((dialogContext) {
+    showRightFilterPanel(context, (dialogContext) {
       String sheetSearch = '';
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
@@ -1346,7 +1296,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _showMedTypeSheet(List<String> types, AppStrings l10n) {
-    _showRightFilterPanel((dialogContext) {
+    showRightFilterPanel(context, (dialogContext) {
       return StatefulBuilder(
         builder: (ctx, setSheetState) {
           return Column(
