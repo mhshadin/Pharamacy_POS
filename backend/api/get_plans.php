@@ -8,8 +8,8 @@ header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers
 require_once __DIR__ . '/config.php';
 
 try {
-    // Fetch all active plans
-    $query = "SELECT id, name, price, description, billing_cycle, trial_days FROM subscription_plans ORDER BY price ASC";
+    // Fetch purchasable plans only (excludes Trial which has trial_days > 0)
+    $query = "SELECT id, name, price, description, billing_cycle, trial_days FROM subscription_plans WHERE trial_days = 0 ORDER BY price ASC";
     $stmt = $pdo->prepare($query);
     $stmt->execute();
 

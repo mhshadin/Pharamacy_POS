@@ -4,6 +4,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../utils/colors.dart';
 import '../utils/api_error_mapper.dart';
 import '../services/eps_service.dart';
+import '../services/auth_service.dart';
+import '../services/auth_storage.dart';
 import '../widgets/plan_card.dart';
 import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
@@ -32,6 +34,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String? _selectedPlanId;
   bool _isMonthly = true;
   bool _isProcessing = false;
+  
+  // Coupon state
+  Map<String, dynamic>? _appliedCoupon;
+  bool _isValidatingCoupon = false;
+  String? _couponError;
 
   @override
   void initState() {
@@ -64,20 +71,115 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
+  Future<void> _handleApplyCoupon() async {
+    final code = _couponController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() {
+      _isValidatingCoupon = true;
+      _couponError = null;
+      _appliedCoupon = null;
+    });
+
+    try {
+      final coupon = await _epsService.validateCoupon(code);
+      if (mounted) {
+        setState(() {
+          _appliedCoupon = coupon;
+          _isValidatingCoupon = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.read<LanguageProvider>().strings.couponApplied),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _couponError = e.toString().contains('Exception:') 
+              ? e.toString().split('Exception:').last.trim() 
+              : context.read<LanguageProvider>().strings.invalidCoupon;
+          _isValidatingCoupon = false;
+        });
+      }
+    }
+  }
+
+  double _calculatePayableAmount(double originalPrice) {
+    if (_appliedCoupon == null) return originalPrice;
+    
+    final discountPercent = (_appliedCoupon!['discount_percent'] as num?)?.toDouble() ?? 0.0;
+    if (discountPercent <= 0) return originalPrice;
+    
+    final discountAmount = originalPrice * (discountPercent / 100);
+    final finalPrice = originalPrice - discountAmount;
+    return finalPrice < 0 ? 0 : finalPrice;
+  }
+
+  Future<void> _refreshSessionAfterRenewal() async {
+    try {
+      const storage = AuthStorage();
+      final session = await storage.loadAuth();
+      if (session == null || session.refreshToken.isEmpty) return;
+      final result = await const AuthService().refreshJwtToken(session.refreshToken);
+      await storage.saveAuth(result);
+    } catch (_) {
+      // Non-fatal: user proceeds to home; worst case they re-login
+    }
+  }
+
   void _handleBuyNow() async {
     if (_selectedPlanId == null) return;
+
+    final l10n = context.read<LanguageProvider>().strings;
+    final selectedPlan = _plans.firstWhere((p) => p['id'] == _selectedPlanId);
+    final originalPrice = (selectedPlan['price'] as num).toDouble();
+    final payableAmount = _calculatePayableAmount(originalPrice);
 
     setState(() {
       _isProcessing = true;
     });
 
     try {
+      // Logic for 100% Free or 0-amount discount
+      final hasFreeDays = (_appliedCoupon?['free_days'] as num?) != null && (_appliedCoupon!['free_days'] as num) > 0;
+      
+      if (hasFreeDays || payableAmount <= 0) {
+        final success = await _epsService.applyFreeCoupon(
+          pharmacyId: widget.pharmacyId,
+          planId: _selectedPlanId!,
+          couponCode: _appliedCoupon?['code'] ?? _couponController.text.trim(),
+        );
+
+        if (!mounted) return;
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(hasFreeDays 
+                ? l10n.freeDaysAdded((_appliedCoupon!['free_days'] as num).toInt())
+                : l10n.success),
+              backgroundColor: Colors.green.shade700,
+            ),
+          );
+          await _refreshSessionAfterRenewal();
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+          return;
+        } else {
+          throw Exception('Failed to apply coupon');
+        }
+      }
+
+      // Standard payment flow
       final result = await _epsService.initializePayment(
         pharmacyId: widget.pharmacyId,
         planId: _selectedPlanId!,
-        couponCode: _couponController.text.trim().isEmpty
-            ? null
-            : _couponController.text.trim(),
+        couponCode: _appliedCoupon?['code'],
       );
 
       if (!mounted) return;
@@ -93,6 +195,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
 
       if (success == true) {
+        await _refreshSessionAfterRenewal();
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -126,6 +229,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               : p['billing_cycle'] == 'yearly',
         )
         .toList();
+
+    final selectedPlan = _selectedPlanId != null 
+        ? _plans.firstWhere((p) => p['id'] == _selectedPlanId, orElse: () => _plans.first)
+        : null;
+    final originalPrice = selectedPlan != null ? (selectedPlan['price'] as num).toDouble() : 0.0;
+    final payableAmount = _calculatePayableAmount(originalPrice);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -240,23 +349,58 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton(
-                        onPressed: () {
-                          //TODO: Validate coupon UI if needed
-                        },
+                        onPressed: _isValidatingCoupon ? null : _handleApplyCoupon,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text(
-                          context.watch<LanguageProvider>().strings.applyBtn,
-                          style: const TextStyle(color: Colors.white),
-                        ),
+                        child: _isValidatingCoupon
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                l10n.applyBtn,
+                                style: const TextStyle(color: Colors.white),
+                              ),
                       ),
                     ],
                   ),
+                  if (_couponError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 4),
+                      child: Text(
+                        _couponError!,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  if (_appliedCoupon != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 4),
+                      child: Text(
+                        (_appliedCoupon!['discount_percent'] as num?) != null && (_appliedCoupon!['discount_percent'] as num) > 0
+                            ? l10n.discountAmount(
+                                (originalPrice - payableAmount).abs().toStringAsFixed(0)
+                              )
+                            : l10n.freeDaysAdded((_appliedCoupon!['free_days'] as num).toInt()),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
 
                   const SizedBox(height: 60),
 
@@ -276,7 +420,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       child: _isProcessing
                           ? const CircularProgressIndicator(color: Colors.white)
                           : Text(
-                              context.watch<LanguageProvider>().strings.getStartedSubscription,
+                              payableAmount > 0 
+                                ? '${l10n.getStartedSubscription} (৳${payableAmount.toStringAsFixed(0)})'
+                                : l10n.activate,
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
