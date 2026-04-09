@@ -44,12 +44,12 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
   /// does not run during the surrounding build (e.g. when opened with a generic filter).
   void _syncInitialSearchFilter() {
     if (!mounted) return;
-    final pos = _posProvider;
-    if (pos == null) return;
-    pos.setSearchQuery('');
+    if (_posProvider == null) return;
     final initialGeneric = widget.initialGenericFilter?.trim() ?? '';
     if (initialGeneric.isNotEmpty) {
       _searchController.text = initialGeneric;
+    } else {
+      _posProvider!.setSearchQuery('');
     }
   }
 
