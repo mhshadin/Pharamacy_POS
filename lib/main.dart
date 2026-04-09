@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'utils/colors.dart';
 import 'screens/splash_screen.dart';
@@ -11,14 +13,29 @@ import 'providers/admin_provider.dart';
 import 'services/database_helper.dart';
 import 'services/speech_service.dart';
 import 'services/notification_service.dart';
+import 'screens/alarm_alert_screen.dart';
 import 'widgets/time_lock_barrier.dart';
 import 'providers/language_provider.dart';
+import 'package:alarm/alarm.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize notifications
+  // Initialize notifications & alarms
   await NotificationService().init();
+  
+  // Initialize the 'alarm' package (supports iOS, Android, and macOS)
+  if (!Platform.isWindows && !Platform.isLinux) {
+    try {
+      await Alarm.init();
+      await Alarm.setWarningNotificationOnKill(
+        'Alarm reliability warning',
+        'Please keep Pharmacy POS in recent apps for best alarm reliability.',
+      );
+    } catch (e) {
+      developer.log("Alarm package init failed: $e");
+    }
+  }
 
   // Initialize FFI for desktop platforms (Windows, Linux, macOS)
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -44,8 +61,39 @@ void main() async {
   runApp(const PharmacyPOSApp());
 }
 
-class PharmacyPOSApp extends StatelessWidget {
+class PharmacyPOSApp extends StatefulWidget {
   const PharmacyPOSApp({super.key});
+
+  @override
+  State<PharmacyPOSApp> createState() => _PharmacyPOSAppState();
+}
+
+class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
+  StreamSubscription? _ringingSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _ringingSubscription = Alarm.ringing.listen((alarmSet) {
+      if (alarmSet.alarms.isEmpty) return;
+      final alarm = alarmSet.alarms.first;
+      final args = AlarmAlertArgs.fromPayload(alarm.payload)
+          .copyWith(alarmId: alarm.id);
+      final navigator = NotificationService.navigatorKey.currentState;
+      if (navigator == null) return;
+      navigator.pushNamedAndRemoveUntil(
+        '/alarm_alert',
+        (route) => route.settings.name == '/alarm_alert',
+        arguments: args,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _ringingSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +111,7 @@ class PharmacyPOSApp extends StatelessWidget {
           final isBn = langProvider.isBangla;
           
           return MaterialApp(
+            navigatorKey: NotificationService.navigatorKey,
             title: isBn ? langProvider.strings.appName : 'Pharmacy POS',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
@@ -125,7 +174,19 @@ class PharmacyPOSApp extends StatelessWidget {
               ),
             ),
             builder: (context, child) {
-              return TimeLockBarrier(child: child!);
+              final mq = MediaQuery.of(context);
+              return MediaQuery(
+                data: mq.copyWith(
+                  textScaler: mq.textScaler.clamp(
+                    minScaleFactor: 0.95,
+                    maxScaleFactor: 1.0,
+                  ),
+                ),
+                child: TimeLockBarrier(child: child!),
+              );
+            },
+            routes: {
+              '/alarm_alert': (_) => const AlarmAlertScreen(),
             },
             home: const SplashScreen(),
           );
