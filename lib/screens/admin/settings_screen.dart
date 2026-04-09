@@ -21,6 +21,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// Horizontal + bottom inset for tab bodies; no top padding so content sits flush under tabs.
+  static const EdgeInsets _tabScrollPadding = EdgeInsets.fromLTRB(16, 0, 16, 16);
+
   final _lowStockCtrl = TextEditingController();
   final _expiryWarningCtrl = TextEditingController();
   final _expiryCriticalCtrl = TextEditingController();
@@ -133,6 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
+        primary: false,
         backgroundColor: AppColors.background,
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -142,6 +146,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: AppColors.background,
                     child: TabBar(
                       isScrollable: true,
+                      dividerColor: Colors.transparent,
+                      dividerHeight: 0,
                       indicatorColor: AppColors.primaryDark,
                       labelColor: AppColors.primaryDark,
                       unselectedLabelColor: AppColors.secondaryAccent,
@@ -173,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildGeneralTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: _tabScrollPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -219,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildInventoryTab() {
     final l10n = context.read<LanguageProvider>().strings;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: _tabScrollPadding,
       child: Column(
         children: [
           _buildSectionCard(
@@ -284,14 +290,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAlarmsTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: _tabScrollPadding,
       child: _buildStockReminderSection(context),
     );
   }
 
   Widget _buildDataSecurityTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: _tabScrollPadding,
       child: Column(
         children: [
           _buildSellingDevicesSection(context),
