@@ -1,5 +1,5 @@
 <?php
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 header('Content-Type: application/json');
 
@@ -8,16 +8,6 @@ use \Firebase\JWT\JWT;
 
 // Import config (This gives us $pdo, the constants, and generate_uuid_v4)
 require_once __DIR__ . '/config.php';
-
-// Debug logging helper
-function debug_log($message)
-{
-    $log_file = __DIR__ . '/debug_google.log';
-    $timestamp = date('Y-m-d H:i:s');
-    file_put_contents($log_file, "[$timestamp] $message\n", FILE_APPEND);
-}
-
-debug_log("--- NEW LOGIN ATTEMPT ---");
 
 $inputData = json_decode(file_get_contents('php://input'), true);
 
@@ -41,8 +31,6 @@ $allowedClientIds = array_filter([
     defined('WEB_CLIENT_ID') ? WEB_CLIENT_ID : null,
     defined('DESKTOP_CLIENT_ID') ? DESKTOP_CLIENT_ID : null,
 ]);
-debug_log("Verifying ID Token with allowed Client IDs: " . implode(', ', $allowedClientIds));
-
 $payload = false;
 try {
     foreach ($allowedClientIds as $audienceClientId) {
@@ -54,12 +42,9 @@ try {
     }
 
     if (!$payload) {
-        debug_log("Verification failed: verifyIdToken returned false");
         throw new Exception("Verification failed.");
     }
-    debug_log("Verification successful for email: " . $payload['email']);
 } catch (Exception $e) {
-    debug_log("Verification Error: " . $e->getMessage());
     http_response_code(401);
     echo json_encode(['error' => 'Invalid Google Token.']);
     exit;
@@ -280,8 +265,5 @@ try {
         $pdo->rollBack();
     error_log("Login Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode([
-        'error' => 'Server error.',
-        'debug_msg' => $e->getMessage() // TEMPORARY for diagnosis
-    ]);
+    echo json_encode(['error' => 'Server error.']);
 }

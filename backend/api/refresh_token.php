@@ -2,7 +2,7 @@
 // backend/api/refresh_token.php
 // Refactored to use persistent database-backed refresh tokens
 
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
 header('Content-Type: application/json');
 
@@ -15,14 +15,7 @@ require_once __DIR__ . '/config.php';
 $inputData = json_decode(file_get_contents('php://input'), true);
 $refreshToken = isset($inputData['refresh_token']) ? trim($inputData['refresh_token']) : null;
 
-// Debug logging
-$log_file = __DIR__ . '/debug_refresh.log';
-$timestamp = date('Y-m-d H:i:s');
-$received = $refreshToken ? substr($refreshToken, 0, 10) . "..." : "EMPTY";
-file_put_contents($log_file, "[$timestamp] Received token: $received\n", FILE_APPEND);
-
 if (!$refreshToken) {
-    file_put_contents($log_file, "[$timestamp] Error: Token missing in JSON body\n", FILE_APPEND);
     http_response_code(400);
     echo json_encode(['error' => 'Refresh token is required.']);
     exit;
