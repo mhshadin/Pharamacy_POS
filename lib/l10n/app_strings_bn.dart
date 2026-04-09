@@ -34,6 +34,10 @@ class AppStringsBn implements AppStrings {
   String get adminPortal => 'অ্যাডমিন পোর্টাল';
   @override
   String get backToPos => 'পিওএস-এ ফিরে যান';
+  @override
+  String get adminSettings => 'অ্যাডমিন সেটিংস';
+  @override
+  String get general => 'সাধারণ';
 
   // ── POS / Home Screen ──────────────────────────────
   @override
@@ -146,8 +150,7 @@ class AppStringsBn implements AppStrings {
   @override
   String get alarmStockReminderTitle => 'স্টক রিমাইন্ডার';
   @override
-  String get alarmStockReminderBody =>
-      'এখন আপনার ইনভেন্টরি পরীক্ষা করার সময়।';
+  String get alarmStockReminderBody => 'এখন আপনার ইনভেন্টরি পরীক্ষা করার সময়।';
   @override
   String get alarmStockExpiryReminderTitle => 'স্টক ও মেয়াদ রিমাইন্ডার';
   @override
@@ -216,6 +219,10 @@ class AppStringsBn implements AppStrings {
   String get minStockLevel => 'সর্বনিম্ন স্টক লেভেল';
   @override
   String get expiryDate => 'মিয়াদ শেষ হবার তারিখ';
+  @override
+  String get powerLabel => 'পাওয়ার/শক্তি';
+  @override
+  String get powerHint => 'যেমন: ৫০০ মি.গ্রা.';
   @override
   String get supplierName => 'সরবরাহকারীর নাম';
   @override
@@ -420,7 +427,7 @@ class AppStringsBn implements AppStrings {
   String get googleSignInFailed =>
       'গুগল সাইন-ইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।';
   @override
-  String get inventoryAlerts => 'ইনভেন্টরি অ্যালার্ট';
+  String get inventoryAlerts => 'ইনভেন্টরি';
   @override
   String get lowStockThreshold => 'লো স্টক থ্রেশহোল্ড (বক্স)';
   @override
@@ -465,18 +472,11 @@ class AppStringsBn implements AppStrings {
   @override
   String get addProductStepperModeToggle => 'স্টেপার মোড';
   @override
-  String get expandOptionalFields => 'ঐচ্ছিক তথ্য সবসময় খুলে রাখুন';
-  @override
-  String get expandOptionalFieldsHelper =>
-      'নতুন ওষুধ যোগ করার সময় সাধারণ নাম এবং কোম্পানি ফিল্ড সবসময় খোলা রাখুন।';
-  @override
   String get restockPricingCollapsedByDefault =>
       'রিস্টকে Pricing সেকশন ডিফল্টে বন্ধ রাখুন';
   @override
   String get restockPricingCollapsedByDefaultHelper =>
       'চালু থাকলে রিস্টক স্ক্রিনে Pricing সেকশন শুরুতে বন্ধ থাকবে।';
-  @override
-  String get optionalDetails => 'অতিরিক্ত তথ্য';
   @override
   String get saveSettings => 'সেটিংস সংরক্ষণ করুন';
   @override
@@ -862,6 +862,37 @@ class AppStringsBn implements AppStrings {
   @override
   String get adminLoginBtn => 'লগইন';
   @override
+  String get otpSent => 'ওটিপি আপনার নিবন্ধিত নম্বরে পাঠানো হয়েছে';
+  @override
+  String get otpRequired => 'পিন রিসেট করতে ওটিপি প্রয়োজন';
+  @override
+  String get forgotPinTitle => 'অ্যাডমিন পিন ভুলে গেছেন?';
+  @override
+  String resetPinSubtitle(String contact) =>
+      'আমরা $contact নম্বরে একটি রিসেট কোড পাঠাব';
+  @override
+  String get resetPinWithPasswordSubtitle =>
+      'আপনার অ্যাকাউন্ট পাসওয়ার্ড দিয়ে নতুন অ্যাডমিন পিন সেট করুন।';
+  @override
+  String get forgotPin => 'পিন ভুলে গেছেন?';
+  @override
+  String get pinResetMethodTitle => 'রিসেট পদ্ধতি নির্বাচন করুন';
+  @override
+  String get resetWithOtp => 'ওটিপি দিয়ে রিসেট';
+  @override
+  String get resetWithPassword => 'অ্যাকাউন্ট পাসওয়ার্ড ব্যবহার করুন';
+  @override
+  String get enterOtpCode => 'ওটিপি কোড দিন';
+  @override
+  String get resendOtp => 'ওটিপি পুনরায় পাঠান';
+  @override
+  String get sendOtp => 'ওটিপি পাঠান';
+  @override
+  String get resetPin => 'পিন রিসেট করুন';
+  @override
+  String get passwordRequiredForPinReset =>
+      'পিন রিসেট করতে অ্যাকাউন্ট পাসওয়ার্ড দিন';
+  @override
   String get adminPinSetupTitle => 'অ্যাডমিন পিন সেট করুন';
   @override
   String get adminPinSetupSubtitle =>
@@ -871,26 +902,6 @@ class AppStringsBn implements AppStrings {
   @override
   String get adminPinSetupFailed => 'অ্যাডমিন পিন সেট করা যায়নি।';
   @override
-  String get forgotPin => 'পিন ভুলে গেছেন?';
-  @override
-  String get forgotPinTitle => 'অ্যাডমিন পিন রিসেট';
-  @override
-  String resetPinSubtitle(String email) => email.trim().isEmpty
-      ? 'আপনার ইমেইলে পাঠানো ওটিপি লিখে নতুন পিন সেট করুন।'
-      : '$email এ পাঠানো ওটিপি লিখে নতুন পিন সেট করুন।';
-  @override
-  String get sendOtp => 'ওটিপি পাঠান';
-  @override
-  String get resendOtp => 'আবার ওটিপি পাঠান';
-  @override
-  String get enterOtpCode => 'ওটিপি কোড লিখুন';
-  @override
-  String get otpSent => 'ওটিপি আপনার ইমেইলে পাঠানো হয়েছে।';
-  @override
-  String get otpRequired => 'অনুগ্রহ করে ওটিপি লিখুন।';
-  @override
-  String get resetPin => 'পিন রিসেট';
-  @override
   String get biometricUnlockReason => 'অ্যাডমিন পোর্টাল আনলক করুন';
   @override
   String get biometricUseFace => 'ফেস আইডি ব্যবহার করুন';
@@ -898,6 +909,33 @@ class AppStringsBn implements AppStrings {
   String get biometricUseFingerprint => 'আঙুলের ছাপ ব্যবহার করুন';
   @override
   String get biometricUseGeneric => 'বায়োমেট্রিক ব্যবহার করুন';
+  @override
+  String get multiDeviceSellingTitle => 'বিক্রয় ডিভাইস';
+  @override
+  String get multiDeviceSellingSubtitle =>
+      'একটি ফোনে মাত্র চেকআউট চালু থাকে। সক্রিয় ডিভাইস অন্য ফোনে বিক্রয় হস্তান্তর করতে পারে।';
+  @override
+  String get activeSellerBadge => 'সক্রিয়';
+  @override
+  String get thisDeviceLabel => 'এই ফোন';
+  @override
+  String get useAsActiveSeller => 'বিক্রয়ের জন্য ব্যবহার করুন';
+  @override
+  String get transferSellingConfirmTitle => 'বিক্রয় স্থানান্তর?';
+  @override
+  String get transferSellingConfirmBody =>
+      'আবার সক্রিয় না করা পর্যন্ত এই ফোনে চেকআউট বন্ধ থাকবে।';
+  @override
+  String get onlyActiveDeviceCanSwitch =>
+      'শুধুমাত্র বর্তমানে সক্রিয় বিক্রয় ফোন অন্য ডিভাইস বেছে নিতে পারে।';
+  @override
+  String get checkoutRequiresActiveDevice =>
+      'চেকআউট শুধু সক্রিয় বিক্রয় ফোনে। সেটিংসে পরিবর্তন করুন।';
+  @override
+  String get refreshDeviceList => 'রিফ্রেশ';
+  @override
+  String get sellingDeviceListError =>
+      'ডিভাইস লোড করা যায়নি। রিফ্রেশ চেষ্টা করুন।';
   @override
   String get passwordSet => 'পাসওয়ার্ড সফলভাবে তৈরি হয়েছে!';
   @override
@@ -914,6 +952,10 @@ class AppStringsBn implements AppStrings {
   String get confirmPassword => 'পাসওয়ার্ড নিশ্চিত করুন';
   @override
   String get passwordsDoNotMatch => 'পাসওয়ার্ড মিলছে না';
+  @override
+  String get profilePhotoUpdated => 'প্রোফাইল ছবি আপডেট হয়েছে';
+  @override
+  String get profilePhotoPickFailed => 'গ্যালারি থেকে ছবি নির্বাচন করা যায়নি';
 
   // ── Product Edit Extension ─────────────────────
   @override
@@ -944,10 +986,6 @@ class AppStringsBn implements AppStrings {
   String get saveChanges => 'পরিবর্তন সংরক্ষণ করুন';
   @override
   String get medicineType => 'ওষুধের ধরণ';
-  @override
-  String get powerLabel => 'পাওয়ার';
-  @override
-  String get powerHint => 'যেমন: 200mg, 5ml, 1g';
   @override
   String editProductTitle(String name) => 'সম্পাদনা: $name';
   @override
@@ -1480,17 +1518,6 @@ class AppStringsBn implements AppStrings {
   String get manual => 'ম্যানুয়াল';
   @override
   String get ocr => 'ওসিআর (ছবি)';
-  @override
-  String get tapToScanOcr => 'স্ক্যানারে ট্যাপ';
-  @override
-  String get tapToScanOcrHelper =>
-      'ওসিআর প্রস্তুত। স্ট্রিপ পড়তে স্ক্যানারে ট্যাপ করুন।';
-  @override
-  String get scannerTapToReadStrip =>
-      'ওসিআর প্রস্তুত — স্ট্রিপ পড়তে স্ক্যানারে ট্যাপ করুন';
-  @override
-  String get ocrCaptureFailed =>
-      'স্ক্যানার থেকে ছবি নেওয়া যায়নি। আবার চেষ্টা করুন।';
   @override
   String get voice => 'ভয়েস';
   @override

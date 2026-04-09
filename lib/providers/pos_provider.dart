@@ -233,6 +233,8 @@ class POSProvider extends ChangeNotifier {
 
   /// Complete a sale: persist sale records, deduct stock, then clear the cart.
   Future<String> completeSale() async {
+    await _admin.assertCanCheckoutSale();
+
     // Generate a single invoice number for this entire transaction
     final invoiceNumber = await _db.getNextInvoiceNumber();
 

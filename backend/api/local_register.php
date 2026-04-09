@@ -34,6 +34,11 @@ $password = $inputData['password'];
 $fullName = trim($inputData['full_name']);
 $businessName = trim($inputData['business_name']);
 $hardwareUid = isset($inputData['hardware_uid']) ? $inputData['hardware_uid'] : 'unknown_device';
+$deviceModel = isset($inputData['device_model']) ? trim((string)$inputData['device_model']) : '';
+$deviceDisplayName = isset($inputData['device_display_name']) ? trim((string)$inputData['device_display_name']) : '';
+if ($deviceDisplayName === '') {
+    $deviceDisplayName = 'POS Device';
+}
 
 try {
     $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ?');
@@ -94,11 +99,11 @@ try {
     $pdo->prepare('INSERT INTO users (id, pharmacy_id, role, email, auth_provider, oauth_uid, password_hash, full_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         ->execute([$userId, $pharmacyId, 'owner', $email, 'local', null, $passwordHash, $fullName]);
 
-    $pdo->prepare('INSERT INTO subscribers (id, pharmacy_id, plan_id, valid_until, status, coupon_id) VALUES (?, ?, ?, ?, ?, ?)')
+    $pdo->prepare('INSERT INTO subscribers (id, pharmacy_id, plan_id, valid_until, renewed_at, status, coupon_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
         ->execute([$subscriberId, $pharmacyId, $planId, $expiryDate, 'active', $couponId]);
 
-    $pdo->prepare('INSERT INTO devices (id, pharmacy_id, hardware_uid, device_name, last_login_at) VALUES (?, ?, ?, ?, NOW())')
-        ->execute([$deviceId, $pharmacyId, $hardwareUid, 'POS Device']);
+    $pdo->prepare('INSERT INTO devices (id, pharmacy_id, hardware_uid, device_name, device_model, device_display_name, last_login_at, is_active_seller, activated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), 1, NOW())')
+        ->execute([$deviceId, $pharmacyId, $hardwareUid, 'POS Device', $deviceModel !== '' ? $deviceModel : null, $deviceDisplayName]);
 
     $pdo->commit();
 
@@ -127,13 +132,20 @@ try {
             'status' => 'active',
             'valid_until' => $expiryDate,
             'plan_name' => 'Trial',
+            'total_plan_days' => $totalDays,
             'coupon_applied' => $couponId ? true : false
         ],
         'user' => [
             'id' => $userId,
+            'pharmacy_id' => $pharmacyId,
             'role' => 'owner',
             'name' => $fullName,
-            'avatar' => null
+            'avatar' => null,
+            'is_active' => 1
+        ],
+        'device' => [
+            'hardware_uid' => $hardwareUid,
+            'is_active_seller' => true,
         ]
     ]);
 

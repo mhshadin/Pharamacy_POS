@@ -14,6 +14,8 @@ import '../services/notification_service.dart';
 import '../services/drive_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
+import '../models/pharmacy_device.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../services/google_drive_auth.dart';
 import '../services/time_service.dart';
 import '../utils/inventory_alert_tiers.dart';
@@ -68,7 +70,6 @@ class AdminProvider extends ChangeNotifier {
   bool _addProductUseStepperDefault = true;
   bool _adminBiometricEnabled = false;
   int _defaultOrderBoxes = 100;
-  bool _expandOptionalFields = false;
   bool _restockPricingCollapsedByDefault = true;
   List<String> _medicineTypes = [];
   static const List<String> defaultMedicineTypes = [
@@ -120,15 +121,143 @@ class AdminProvider extends ChangeNotifier {
 
   AuthSession? _authSession;
 
+  final AuthService _authApi = const AuthService();
+  final AuthStorage _authStorageInst = const AuthStorage();
+
+  List<PharmacyDevice> _pharmacyDevices = [];
+  String? _pharmacyDevicesLoadError;
+
+  List<PharmacyDevice> get pharmacyDevices =>
+      List<PharmacyDevice>.unmodifiable(_pharmacyDevices);
+  String? get pharmacyDevicesLoadError => _pharmacyDevicesLoadError;
+
+  /// True when this phone may complete checkout (synced from server).
+  bool get isCurrentDeviceActiveSeller =>
+      _authSession != null && _authSession!.isActiveSeller;
+
+  String _normalizePin(String pin) {
+    final buffer = StringBuffer();
+    for (final codePoint in pin.runes) {
+      // Bengali digits: U+09E6..U+09EF
+      if (codePoint >= 0x09E6 && codePoint <= 0x09EF) {
+        buffer.writeCharCode(0x30 + (codePoint - 0x09E6));
+        continue;
+      }
+      // Arabic-Indic digits: U+0660..U+0669
+      if (codePoint >= 0x0660 && codePoint <= 0x0669) {
+        buffer.writeCharCode(0x30 + (codePoint - 0x0660));
+        continue;
+      }
+      // Extended Arabic-Indic digits: U+06F0..U+06F9
+      if (codePoint >= 0x06F0 && codePoint <= 0x06F9) {
+        buffer.writeCharCode(0x30 + (codePoint - 0x06F0));
+        continue;
+      }
+      buffer.writeCharCode(codePoint);
+    }
+    return buffer.toString().trim();
+  }
+
   /// Reloads the authentication session from storage.
   /// Called after login or when tokens are rotated.
   Future<void> reloadAuthSession() async {
     developer.log("AdminProvider: Reloading auth session from storage...");
-    _authSession = await const AuthStorage().loadAuth();
+    _authSession = await _authStorageInst.loadAuth();
     notifyListeners();
     developer.log(
       "AdminProvider: Session reloaded. RefreshToken present: ${_authSession?.refreshToken.isNotEmpty}",
     );
+  }
+
+  /// Refreshes [is_active_seller] from the server for this hardware UID.
+  Future<bool> refreshActiveSellerFromServer() async {
+    final s = _authSession;
+    if (s == null || !s.hasValidToken) return false;
+    try {
+      final uid = await _authStorageInst.getOrCreateHardwareUid();
+      final ok = await _authApi.verifyActiveSeller(
+        token: s.licenseToken,
+        hardwareUid: uid,
+      );
+      await _authStorageInst.setActiveSeller(ok);
+      await reloadAuthSession();
+      return ok;
+    } catch (e, st) {
+      developer.log('refreshActiveSellerFromServer failed', error: e, stackTrace: st);
+      return s.isActiveSeller;
+    }
+  }
+
+  Future<void> loadPharmacyDevices() async {
+    final s = _authSession;
+    if (s == null || !s.hasValidToken) {
+      _pharmacyDevices = [];
+      _pharmacyDevicesLoadError = null;
+      notifyListeners();
+      return;
+    }
+    try {
+      final uid = await _authStorageInst.getOrCreateHardwareUid();
+      _pharmacyDevices = await _authApi.listDevices(
+        token: s.licenseToken,
+        hardwareUid: uid,
+      );
+      _pharmacyDevicesLoadError = null;
+    } catch (e, st) {
+      _pharmacyDevicesLoadError = e.toString();
+      developer.log('loadPharmacyDevices failed', error: e, stackTrace: st);
+    }
+    notifyListeners();
+  }
+
+  /// Only the active selling device may transfer selling to another phone.
+  Future<void> transferSellingToDevice(String targetDeviceId) async {
+    final s = _authSession;
+    if (s == null || !s.hasValidToken) {
+      throw AuthException('Not signed in.', statusCode: 401);
+    }
+    final uid = await _authStorageInst.getOrCreateHardwareUid();
+    await _authApi.switchActiveDevice(
+      token: s.licenseToken,
+      hardwareUid: uid,
+      targetDeviceId: targetDeviceId,
+    );
+    await _authStorageInst.setActiveSeller(false);
+    await reloadAuthSession();
+    await loadPharmacyDevices();
+  }
+
+  /// Call before completing a sale: verifies with server when online.
+  Future<void> assertCanCheckoutSale() async {
+    final s = _authSession;
+    if (s == null || !s.hasValidToken) return;
+
+    final results = await Connectivity().checkConnectivity();
+    final hasRealNetwork = results.any(
+      (r) =>
+          r == ConnectivityResult.wifi ||
+          r == ConnectivityResult.mobile ||
+          r == ConnectivityResult.ethernet ||
+          r == ConnectivityResult.vpn,
+    );
+
+    if (!hasRealNetwork) {
+      if (!s.isActiveSeller) {
+        throw InactiveSellingDeviceException();
+      }
+      return;
+    }
+
+    final uid = await _authStorageInst.getOrCreateHardwareUid();
+    final ok = await _authApi.verifyActiveSeller(
+      token: s.licenseToken,
+      hardwareUid: uid,
+    );
+    await _authStorageInst.setActiveSeller(ok);
+    await reloadAuthSession();
+    if (!ok) {
+      throw InactiveSellingDeviceException();
+    }
   }
 
   bool get isAdminLoggedIn => _isAdminLoggedIn;
@@ -158,7 +287,6 @@ class AdminProvider extends ChangeNotifier {
   TimeOfDay get reminderTime => _reminderTime;
   String? get reminderAudioPath => _reminderAudioPath;
 
-  bool get expandOptionalFields => _expandOptionalFields;
   bool get restockPricingCollapsedByDefault =>
       _restockPricingCollapsedByDefault;
   bool get stockReminderMasterEnabled => _stockReminderMasterEnabled;
@@ -210,7 +338,9 @@ class AdminProvider extends ChangeNotifier {
 
   bool login(String pin) {
     if (!_isAdminPinSet) return false;
-    if (pin == _currentPin) {
+    final normalizedInput = _normalizePin(pin);
+    final normalizedCurrent = _normalizePin(_currentPin);
+    if (normalizedInput == normalizedCurrent) {
       _isAdminLoggedIn = true;
       notifyListeners();
       return true;
@@ -237,7 +367,6 @@ class AdminProvider extends ChangeNotifier {
         loadProducts(notify: false),
         loadSales(notify: false),
       ]);
-      await fetchBackendAdminPin();
       notifyListeners();
       await checkForNotifications();
       await checkSubscriptionStatus();
@@ -337,7 +466,6 @@ class AdminProvider extends ChangeNotifier {
     _adminBiometricEnabled = settings['adminBiometricEnabled'] == 'true';
     _defaultOrderBoxes =
         int.tryParse(settings['defaultOrderBoxes'] ?? '') ?? 100;
-    _expandOptionalFields = settings['expandOptionalFields'] == 'true';
     final restockPricingCollapsedRaw =
         settings['restockPricingCollapsedByDefault'];
     _restockPricingCollapsedByDefault = restockPricingCollapsedRaw == null
@@ -347,9 +475,29 @@ class AdminProvider extends ChangeNotifier {
     // Load auth session for user info
     _authSession = await const AuthStorage().loadAuth();
 
-    // Load local PIN
-    _currentPin = settings['adminPin'] ?? '';
-    _isAdminPinSet = _currentPin.isNotEmpty;
+    // Load per-device local PIN from secure storage.
+    final session = _authSession;
+    if (session != null &&
+        session.userId.isNotEmpty &&
+        session.userEmail.isNotEmpty) {
+      await const AuthStorage().migrateLegacyAdminPinIfNeeded(
+        userId: session.userId,
+        userEmail: session.userEmail,
+        legacyPin: settings['adminPin'],
+      );
+      _currentPin = await const AuthStorage().getLocalAdminPin(
+            userId: session.userId,
+            userEmail: session.userEmail,
+          ) ??
+          '';
+      _isAdminPinSet = _currentPin.isNotEmpty;
+      if ((settings['adminPin'] ?? '').isNotEmpty) {
+        await _db.saveSetting('adminPin', '');
+      }
+    } else {
+      _currentPin = '';
+      _isAdminPinSet = false;
+    }
 
     // Load read notification IDs
     final readLowStockStr = settings['readLowStockIds'] ?? '';
@@ -409,71 +557,11 @@ class AdminProvider extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
-  /// Secure Just-In-Time fetch of Admin PIN from backend
+  /// Deprecated: Admin PIN is now local-only per device.
   Future<void> fetchBackendAdminPin() async {
-    if (_authSession == null) return;
-
-    bool needRetry = false;
-    try {
-      final status = await const AuthService().getAdminPinStatus(
-        _authSession!.licenseToken,
-      );
-      if (status.isPinSet && (status.adminPin?.isNotEmpty ?? false)) {
-        if (status.adminPin != _currentPin || !_isAdminPinSet) {
-          _currentPin = status.adminPin!;
-          _isAdminPinSet = true;
-          await _db.saveSetting('adminPin', _currentPin);
-        }
-      } else if (_isAdminPinSet || _currentPin.isNotEmpty) {
-        _currentPin = '';
-        _isAdminPinSet = false;
-        await _db.saveSetting('adminPin', '');
-      }
-    } on AuthException catch (e) {
-      if (e.statusCode == 401) {
-        needRetry = true;
-      } else {
-        developer.log("Failed to fetch admin PIN from backend", error: e);
-      }
-    } catch (e) {
-      developer.log("Failed to fetch admin PIN from backend", error: e);
-    }
-
-    if (needRetry) {
-      try {
-        // Attempt JWT Refresh
-        developer.log("JWT expired, attempting auto-refresh...");
-        final result = await const AuthService().refreshJwtToken(
-          _authSession!.refreshToken,
-        );
-
-        // Update storage (this saves both the new license_token and the new rotated refresh_token)
-        await const AuthStorage().saveAuth(result);
-
-        // Reload in-memory auth session so UI uses the new tokens
-        _authSession = await const AuthStorage().loadAuth();
-        notifyListeners();
-
-        // Retry the PIN fetch with the fresh token
-        final status = await const AuthService().getAdminPinStatus(
-          _authSession!.licenseToken,
-        );
-        if (status.isPinSet && (status.adminPin?.isNotEmpty ?? false)) {
-          if (status.adminPin != _currentPin || !_isAdminPinSet) {
-            _currentPin = status.adminPin!;
-            _isAdminPinSet = true;
-            await _db.saveSetting('adminPin', _currentPin);
-          }
-        } else if (_isAdminPinSet || _currentPin.isNotEmpty) {
-          _currentPin = '';
-          _isAdminPinSet = false;
-          await _db.saveSetting('adminPin', '');
-        }
-        developer.log("JWT auto-refresh and retry successful.");
-      } catch (retryException) {
-        developer.log("JWT retry failure on admin PIN", error: retryException);
-      }
-    }
+    developer.log(
+      "fetchBackendAdminPin ignored: admin PIN is local-only per device.",
+    );
   }
 
   void _clampExpiryThresholds() {
@@ -511,26 +599,6 @@ class AdminProvider extends ChangeNotifier {
     // fresh AdminProvider instance (e.g. POSProvider), which never called loadData().
     await loadSettings(notify: false);
 
-    // Determine a valid Google access token, refreshing silently if possible.
-    final authSession = await const AuthStorage().loadAuth();
-    final storedToken = authSession?.googleAccessToken;
-
-    // No stored token means user never signed in with Google — skip quietly.
-    if (storedToken == null || storedToken.isEmpty) {
-      developer.log("Skipping Drive sync: No Google access token found.");
-      return;
-    }
-
-    // Attempt a silent token refresh. On failure, we no longer fall back to the
-    // stored token, as it is almost certainly expired (tokens last 1 hour).
-    final googleToken = await refreshGoogleAccessToken();
-    if (googleToken == null) {
-      _syncError =
-          "Google Drive session expired. Please reconnect in Settings.";
-      notifyListeners();
-      return;
-    }
-
     _isSyncing = true;
     _syncError = null;
     notifyListeners();
@@ -540,6 +608,32 @@ class AdminProvider extends ChangeNotifier {
       if (dbPath == null) {
         _syncError = "Could not find database path";
         notifyListeners();
+        return;
+      }
+
+      // Always persist a local backup first so users still have recoverable data
+      // even if Drive auth/network is unavailable.
+      await _performLocalExport(dbPath);
+
+      // Determine a valid Google access token, refreshing silently if possible.
+      final authSession = await const AuthStorage().loadAuth();
+      final storedToken = authSession?.googleAccessToken;
+      if (storedToken == null || storedToken.isEmpty) {
+        developer.log(
+          "Skipping Drive upload: no Google token. Local backup completed.",
+        );
+        _lastSyncTime = DateTime.now();
+        await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
+        return;
+      }
+
+      // Attempt a silent token refresh.
+      final googleToken = await refreshGoogleAccessToken();
+      if (googleToken == null) {
+        _syncError =
+            "Google Drive session expired. Local backup saved. Please reconnect.";
+        _lastSyncTime = DateTime.now();
+        await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
         return;
       }
 
@@ -561,19 +655,18 @@ class AdminProvider extends ChangeNotifier {
       _googleDriveFileId = newFileId;
       await saveSetting('googleDriveFileId', newFileId);
 
-      await _performLocalExport(dbPath);
-
       _lastSyncTime = DateTime.now();
-      await saveSetting('lastSyncTime', _lastSyncTime!.toIso8601String());
+      await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
     } catch (e, stack) {
       developer.log("Drive Sync Exception", error: e, stackTrace: stack);
       final errMsg = e.toString().toLowerCase();
       if (errMsg.contains('401') ||
           errMsg.contains('unauthorized') ||
           errMsg.contains('403')) {
-        _syncError = "Google Drive session expired. Please sign in again.";
+        _syncError =
+            "Google Drive sync failed, but local backup was saved. Please sign in again.";
       } else {
-        _syncError = e.toString();
+        _syncError = "Drive sync failed, local backup saved: $e";
       }
     } finally {
       _isSyncing = false;
@@ -717,12 +810,16 @@ class AdminProvider extends ChangeNotifier {
   }
 
   /// Searches for and downloads a backup from Drive after login.
-  Future<void> checkAndRestoreFromDrive() async {
-    final googleToken = _authSession?.googleAccessToken;
-    if (googleToken == null) return;
+  /// Returns true when a DB file is successfully restored.
+  Future<bool> checkAndRestoreFromDrive() async {
+    final session = await const AuthStorage().loadAuth();
+    _authSession = session;
+    final googleToken = session?.googleAccessToken;
+    if (googleToken == null || googleToken.isEmpty) return false;
 
     _isSyncing = true;
     notifyListeners();
+    var restored = false;
 
     try {
       final driveService = DriveService();
@@ -770,6 +867,7 @@ class AdminProvider extends ChangeNotifier {
             if (downloadResponse.statusCode == 200) {
               await File(dbPath).writeAsBytes(downloadResponse.bodyBytes);
               await loadData();
+              restored = true;
             } else {
               developer.log(
                 "Download failed with status ${downloadResponse.statusCode}",
@@ -784,6 +882,7 @@ class AdminProvider extends ChangeNotifier {
       _isSyncing = false;
       notifyListeners();
     }
+    return restored;
   }
 
   Future<void> updateProduct(Product product) async {
@@ -1079,31 +1178,33 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> updatePin(String oldPin, String newPin) async {
     if (!_isAdminPinSet) return false;
-    if (oldPin != _currentPin) return false;
+    final normalizedOldPin = _normalizePin(oldPin);
+    final normalizedCurrentPin = _normalizePin(_currentPin);
+    final normalizedNewPin = _normalizePin(newPin);
+    if (normalizedOldPin != normalizedCurrentPin) return false;
 
-    // 1. Update backend if logged in
-    if (_authSession != null) {
-      try {
-        await const AuthService().updateAdminPin(
-          token: _authSession!.licenseToken,
-          newPin: newPin,
-        );
-      } catch (e) {
-        developer.log("Failed to sync admin PIN to backend", error: e);
-        // We still proceed with local update for offline usability,
-        // but user might want to know it didn't sync.
-      }
+    final session = _authSession;
+    if (session == null ||
+        session.userId.isEmpty ||
+        session.userEmail.isEmpty) {
+      throw Exception('Not authenticated.');
     }
 
-    // 2. Update local
-    _currentPin = newPin;
+    await const AuthStorage().setLocalAdminPin(
+      userId: session.userId,
+      userEmail: session.userEmail,
+      pin: normalizedNewPin,
+    );
+
+    _currentPin = normalizedNewPin;
     _isAdminPinSet = true;
-    await saveSetting('adminPin', newPin);
+    await _db.saveSetting('adminPin', '');
+    notifyListeners();
     return true;
   }
 
   Future<void> setupAdminPin(String newPin) async {
-    final normalizedPin = newPin.trim();
+    final normalizedPin = _normalizePin(newPin);
     if (normalizedPin.length < 4) {
       throw Exception('PIN must be at least 4 characters.');
     }
@@ -1111,14 +1212,16 @@ class AdminProvider extends ChangeNotifier {
       throw Exception('Not authenticated.');
     }
 
-    await const AuthService().updateAdminPin(
-      token: _authSession!.licenseToken,
-      newPin: normalizedPin,
+    await const AuthStorage().setLocalAdminPin(
+      userId: _authSession!.userId,
+      userEmail: _authSession!.userEmail,
+      pin: normalizedPin,
     );
 
     _currentPin = normalizedPin;
     _isAdminPinSet = true;
-    await saveSetting('adminPin', normalizedPin);
+    await _db.saveSetting('adminPin', '');
+    notifyListeners();
   }
 
   /// Updates the user's display name on the backend, then persists and
@@ -1168,11 +1271,22 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateLocalProfileImagePath(String? imagePath) async {
+    final storage = const AuthStorage();
+    if (imagePath != null && imagePath.isNotEmpty) {
+      await storage.setLocalProfileImagePath(imagePath);
+    } else {
+      await storage.clearLocalProfileImagePath();
+    }
+    _authSession = await storage.loadAuth();
+    notifyListeners();
+  }
+
   List<TopSellingProduct> getTopSellingProducts({
     required DateTime start,
     required DateTime end,
   }) {
-    String _variantKey(String name, String? medType, String? power) {
+    String _generateVariantKey(String name, String? medType, String? power) {
       final n = name.trim().toLowerCase();
       final t = (medType ?? '').trim().toLowerCase();
       final p = (power ?? '').trim().toLowerCase();
@@ -1188,7 +1302,7 @@ class AdminProvider extends ChangeNotifier {
     );
 
     for (final s in filtered) {
-      final key = _variantKey(s.productName, s.medType, s.power);
+      final key = _generateVariantKey(s.productName, s.medType, s.power);
       if (!map.containsKey(key)) {
         map[key] = _TopSellingAcc(
           productName: s.productName,
@@ -1203,14 +1317,14 @@ class AdminProvider extends ChangeNotifier {
     // Optimization: Create a hash map for O(1) product lookups instead of O(N) linear searches
     final Map<String, Product> productLookup = {
       for (var p in _products)
-        _variantKey(p.name, p.medType, p.power): p,
+        _generateVariantKey(p.name, p.medType, p.power): p,
     };
 
     return map.entries
         .map((e) {
           final acc = e.value;
           final product =
-              productLookup[_variantKey(acc.productName, acc.medType, acc.power)];
+              productLookup[_generateVariantKey(acc.productName, acc.medType, acc.power)];
 
           return TopSellingProduct(
             name: acc.productName,
@@ -1328,12 +1442,6 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateExpandOptionalFields(bool expand) async {
-    _expandOptionalFields = expand;
-    await saveSetting('expandOptionalFields', expand.toString());
-    notifyListeners();
-  }
-
   Future<void> toggleStockReminderMaster(bool enabled) async {
     _stockReminderMasterEnabled = enabled;
     await saveSetting(
@@ -1427,16 +1535,23 @@ class AdminProvider extends ChangeNotifier {
           assetAudioPath: _customRingtonePath ?? 'assets/sounds/alarm.mp3',
           loopAudio: true,
           vibrate: true,
+          payload: jsonEncode({
+            'alarmId': slot.id.hashCode.abs() % 100000 + (day * 100000),
+            'source': 'stock_slot',
+            'title': strings.alarmStockReminderTitle,
+            'body': strings.alarmStockReminderBody,
+          }),
           notificationSettings: NotificationSettings(
             title: strings.alarmStockReminderTitle,
             body: strings.alarmStockReminderBody,
             stopButton: strings.alarmDismiss,
           ),
           volumeSettings: VolumeSettings.fade(
-            volume: 1.0,
             fadeDuration: const Duration(seconds: 3),
+            volumeEnforced: false,
           ),
           androidFullScreenIntent: true,
+          androidStopAlarmOnTermination: false,
         );
 
         await Alarm.set(alarmSettings: alarmSettings);
@@ -1482,20 +1597,27 @@ class AdminProvider extends ChangeNotifier {
       final alarmSettings = AlarmSettings(
         id: day, // Unique ID per weekday 1-7
         dateTime: scheduledDate,
-        assetAudioPath: _reminderAudioPath ?? 'assets/alarm.mp3',
+        assetAudioPath: _reminderAudioPath ?? 'assets/sounds/alarm.mp3',
         loopAudio: true,
         vibrate: true,
+        payload: jsonEncode({
+          'alarmId': day,
+          'source': 'expiry_extra',
+          'title': strings.alarmStockExpiryReminderTitle,
+          'body': strings.alarmStockExpiryReminderBody,
+        }),
         notificationSettings: NotificationSettings(
           title: strings.alarmStockExpiryReminderTitle,
           body: strings.alarmStockExpiryReminderBody,
           stopButton: strings.alarmDismiss,
         ),
         volumeSettings: VolumeSettings.fade(
-          volume: 1.0,
           fadeDuration: const Duration(seconds: 3),
+          volumeEnforced: false,
         ),
         warningNotificationOnKill: true,
         androidFullScreenIntent: true,
+        androidStopAlarmOnTermination: false,
       );
 
       await Alarm.set(alarmSettings: alarmSettings);

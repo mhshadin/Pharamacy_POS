@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../utils/colors.dart';
 import '../utils/api_error_mapper.dart';
 import '../services/auth_service.dart';
 import '../services/auth_storage.dart';
+import '../services/device_info_service.dart';
 import '../services/google_drive_auth.dart';
 import '../services/google_oauth_desktop.dart';
 import 'package:provider/provider.dart';
@@ -68,13 +70,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final hardwareUid = await _authStorage.getOrCreateHardwareUid();
+      final dev = await DeviceInfoService.getDescriptor();
       final result = await _authService.loginWithEmail(
         email: _emailController.text,
         password: _passwordController.text,
         hardwareUid: hardwareUid,
+        deviceModel: dev.model,
+        deviceDisplayName: dev.displayName,
       );
 
       await _authStorage.saveAuth(result);
+      await context.read<AdminProvider>().reloadAuthSession();
+
+      if (mounted) {
+        await _showRestoreSourcePrompt();
+      }
 
       if (!mounted) return;
 
@@ -83,8 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
         nextScreen = const HomeScreen();
       } else {
         nextScreen = SubscriptionScreen(
-          pharmacyId: result.userId,
-          isDismissible: true,
+          pharmacyId: result.pharmacyId,
+          isDismissible: false,
         );
       }
 
@@ -114,15 +124,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final hardwareUid = await _authStorage.getOrCreateHardwareUid();
+      final dev = await DeviceInfoService.getDescriptor();
       final result = await _authService.registerLocal(
         email: _regEmailController.text,
         password: _regPasswordController.text,
         fullName: _regFullNameController.text,
         businessName: _regBusinessNameController.text,
         hardwareUid: hardwareUid,
+        deviceModel: dev.model,
+        deviceDisplayName: dev.displayName,
       );
 
       await _authStorage.saveAuth(result);
+      await context.read<AdminProvider>().reloadAuthSession();
+
+      if (mounted) {
+        await _showRestoreSourcePrompt();
+      }
 
       if (!mounted) return;
 
@@ -130,8 +148,8 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => SubscriptionScreen(
-            pharmacyId: result.userId,
-            isDismissible: true,
+            pharmacyId: result.pharmacyId,
+            isDismissible: false,
           ),
         ),
       );
@@ -186,16 +204,20 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final hardwareUid = await _authStorage.getOrCreateHardwareUid();
+      final dev = await DeviceInfoService.getDescriptor();
 
       final result = await _authService.loginWithGoogle(
         idToken: idToken,
         hardwareUid: hardwareUid,
+        deviceModel: dev.model,
+        deviceDisplayName: dev.displayName,
       );
 
       await _authStorage.saveAuth(result, googleAccessToken: accessToken);
+      await context.read<AdminProvider>().reloadAuthSession();
 
       if (mounted) {
-        await context.read<AdminProvider>().checkAndRestoreFromDrive();
+        await _showRestoreSourcePrompt();
       }
 
       if (!mounted) return;
@@ -205,8 +227,8 @@ class _LoginScreenState extends State<LoginScreen> {
         nextScreen = const HomeScreen();
       } else {
         nextScreen = SubscriptionScreen(
-          pharmacyId: result.userId,
-          isDismissible: true,
+          pharmacyId: result.pharmacyId,
+          isDismissible: false,
         );
       }
 
@@ -231,6 +253,128 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  Future<void> _showRestoreSourcePrompt() async {
+    if (!mounted) return;
+    final l10n = context.read<LanguageProvider>().strings;
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Restore Backup'),
+          content: const Text('Choose where to restore your database from.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('skip'),
+              child: Text(l10n.cancelBtn),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop('local'),
+              child: const Text('Local File'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop('drive'),
+              child: const Text('Google Drive'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || choice == null || choice == 'skip') return;
+    if (choice == 'local') {
+      await _restoreFromLocalFile();
+      return;
+    }
+    await _restoreFromGoogleDriveWithAuth();
+  }
+
+  Future<void> _restoreFromLocalFile() async {
+    if (!mounted) return;
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+    if (result == null || result.files.single.path == null) return;
+
+    try {
+      await context.read<AdminProvider>().importDatabaseLocally(
+        result.files.single.path!,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Database restored from local backup.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Local restore failed: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _restoreFromGoogleDriveWithAuth() async {
+    if (!mounted) return;
+    final admin = context.read<AdminProvider>();
+    await admin.reloadAuthSession();
+    var session = admin.authSession;
+
+    if (session?.googleAccessToken == null || session!.googleAccessToken!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please sign in with Gmail to restore from Google Drive.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+
+      String? accessToken;
+      if (Platform.isWindows) {
+        try {
+          final tokens = await signInWithGoogleDesktop();
+          accessToken = tokens.accessToken;
+        } on GoogleDesktopAuthCancelled {
+          return;
+        }
+      } else {
+        final account = await _googleSignIn.signIn();
+        if (account == null) return;
+        final auth = await account.authentication;
+        accessToken = auth.accessToken;
+      }
+
+      if (accessToken == null || accessToken.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google login did not return a Drive token.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      await _authStorage.setGoogleAccessToken(accessToken);
+      await admin.reloadAuthSession();
+      session = admin.authSession;
+    }
+
+    final restored = await admin.checkAndRestoreFromDrive();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          restored
+              ? 'Database restored from Google Drive.'
+              : 'No Google Drive backup file found.',
+        ),
+        backgroundColor: restored ? AppColors.success : AppColors.error,
+      ),
+    );
   }
 
   void _showErrorSnackBar(String message) {

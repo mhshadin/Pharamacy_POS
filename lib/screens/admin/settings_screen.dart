@@ -8,6 +8,7 @@ import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../models/alarm_slot.dart';
+import '../../models/pharmacy_device.dart';
 import '../../services/biometric_auth_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
@@ -33,6 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadCurrentSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final admin = context.read<AdminProvider>();
+      await admin.refreshActiveSellerFromServer();
+      await admin.loadPharmacyDevices();
+      if (mounted) setState(() {});
+    });
   }
 
   void _loadCurrentSettings() {
@@ -123,218 +130,248 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = context.watch<LanguageProvider>().strings;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
-                  _buildSectionCard(
-                    title: l10n.inventoryAlerts,
-                    icon: LucideIcons.bell,
-                    children: [
-                      _buildTextField(
-                        controller: _lowStockCtrl,
-                        label: l10n.lowStockThreshold,
-                        helperText: l10n.lowStockThresholdHelper,
-                        icon: LucideIcons.packageMinus,
-                      ),
-                      const Divider(height: 32, color: AppColors.divider),
-                      _buildTextField(
-                        controller: _defaultOrderBoxesCtrl,
-                        label: l10n.defaultBoxesToOrder,
-                        helperText: l10n.defaultBoxesHelper,
-                        icon: LucideIcons.packagePlus,
-                      ),
-                      const Divider(height: 32, color: AppColors.divider),
-                      _buildTextField(
-                        controller: _expiryWarningCtrl,
-                        label: l10n.expiringSoonWindow,
-                        helperText: l10n.expiringSoonWindowHelper,
-                        icon: LucideIcons.clock,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        controller: _expiryModerateCtrl,
-                        label: l10n.moderateExpiry,
-                        helperText: l10n.moderateExpiryHelper,
-                        icon: LucideIcons.alertTriangle,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        controller: _expiryCriticalCtrl,
-                        label: l10n.criticalExpiry,
-                        helperText: l10n.criticalExpiryHelper,
-                        icon: LucideIcons.alertOctagon,
-                      ),
-                      const Divider(height: 32, color: AppColors.divider),
-                      _buildTextField(
-                        controller: _expiryDelayCtrl,
-                        label: l10n.defaultExpiryDelay,
-                        helperText: l10n.defaultExpiryDelayHelper,
-                        icon: LucideIcons.calendarDays,
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: Text(
-                          l10n.showSupplierInfo,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          l10n.showSupplierInfoHelper,
-                          style: const TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 12,
-                          ),
-                        ),
-                        value: context.watch<AdminProvider>().showSupplierInfo,
-                        onChanged: (val) {
-                          context.read<AdminProvider>().saveSetting(
-                            'showSupplierInfo',
-                            val.toString(),
-                          );
-                        },
-                        activeThumbColor: AppColors.primaryDark,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: Text(
-                          l10n.addProductDefaultStepperMode,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          l10n.addProductDefaultStepperModeHelper,
-                          style: const TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 12,
-                          ),
-                        ),
-                        value: context
-                            .watch<AdminProvider>()
-                            .addProductUseStepperDefault,
-                        onChanged: (val) {
-                          context.read<AdminProvider>().saveSetting(
-                            'addProductUseStepperDefault',
-                            val.toString(),
-                          );
-                        },
-                        activeThumbColor: AppColors.primaryDark,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: Text(
-                          l10n.expandOptionalFields,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          l10n.expandOptionalFieldsHelper,
-                          style: const TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 12,
-                          ),
-                        ),
-                        value: context
-                            .watch<AdminProvider>()
-                            .expandOptionalFields,
-                        onChanged: (val) {
-                          context.read<AdminProvider>().saveSetting(
-                            'expandOptionalFields',
-                            val.toString(),
-                          );
-                        },
-                        activeThumbColor: AppColors.primaryDark,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: Text(
-                          l10n.restockPricingCollapsedByDefault,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          l10n.restockPricingCollapsedByDefaultHelper,
-                          style: const TextStyle(
-                            color: AppColors.secondaryAccent,
-                            fontSize: 12,
-                          ),
-                        ),
-                        value: context
-                            .watch<AdminProvider>()
-                            .restockPricingCollapsedByDefault,
-                        onChanged: (val) {
-                          context.read<AdminProvider>().saveSetting(
-                            'restockPricingCollapsedByDefault',
-                            val.toString(),
-                          );
-                        },
-                        activeThumbColor: AppColors.primaryDark,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSecuritySection(context),
-                  const SizedBox(height: 24),
-                  _buildStockReminderSection(context),
-                  const SizedBox(height: 24),
-                  _buildMedicineTypesSection(context),
-                  const SizedBox(height: 24),
-                  _buildLanguageSection(context),
-                  const SizedBox(height: 24),
-                  _buildDriveSection(context),
-                  const SizedBox(height: 24),
-                  _buildLocalBackupSection(context),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _saveSettings,
-                      icon: const Icon(
-                        LucideIcons.save,
-                        color: AppColors.white,
-                      ),
-                      label: Text(
-                        l10n.saveSettings,
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryDark,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
+                  Container(
+                    color: AppColors.background,
+                    child: TabBar(
+                      isScrollable: true,
+                      indicatorColor: AppColors.primaryDark,
+                      labelColor: AppColors.primaryDark,
+                      unselectedLabelColor: AppColors.secondaryAccent,
+                      indicatorWeight: 3,
+                      tabs: [
+                        Tab(text: l10n.general),
+                        Tab(text: l10n.inventoryAlerts),
+                        const Tab(text: 'Alarms'),
+                        const Tab(text: 'Security & Data'),
+                      ],
                     ),
                   ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildGeneralTab(),
+                        _buildInventoryTab(),
+                        _buildAlarmsTab(),
+                        _buildDataSecurityTab(),
+                      ],
+                    ),
+                  ),
+                  _buildBottomSaveButton(l10n),
                 ],
               ),
-            ),
+      ),
     );
+  }
+
+  Widget _buildGeneralTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLanguageSection(context),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            title: 'Display & Behavior',
+            icon: LucideIcons.layout,
+            children: [
+              _buildSwitchSetting(
+                title: context.read<LanguageProvider>().strings.showSupplierInfo,
+                subtitle: context.read<LanguageProvider>().strings.showSupplierInfoHelper,
+                value: context.watch<AdminProvider>().showSupplierInfo,
+                onChanged: (val) {
+                  context.read<AdminProvider>().saveSetting('showSupplierInfo', val.toString());
+                },
+              ),
+              const Divider(height: 32, color: AppColors.divider),
+              _buildSwitchSetting(
+                title: context.read<LanguageProvider>().strings.addProductDefaultStepperMode,
+                subtitle: context.read<LanguageProvider>().strings.addProductDefaultStepperModeHelper,
+                value: context.watch<AdminProvider>().addProductUseStepperDefault,
+                onChanged: (val) {
+                  context.read<AdminProvider>().saveSetting('addProductUseStepperDefault', val.toString());
+                },
+              ),
+              const Divider(height: 32, color: AppColors.divider),
+              _buildSwitchSetting(
+                title: context.read<LanguageProvider>().strings.restockPricingCollapsedByDefault,
+                subtitle: context.read<LanguageProvider>().strings.restockPricingCollapsedByDefaultHelper,
+                value: context.watch<AdminProvider>().restockPricingCollapsedByDefault,
+                onChanged: (val) {
+                  context.read<AdminProvider>().saveSetting('restockPricingCollapsedByDefault', val.toString());
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInventoryTab() {
+    final l10n = context.read<LanguageProvider>().strings;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildSectionCard(
+            title: l10n.inventoryAlerts,
+            icon: LucideIcons.packageSearch,
+            children: [
+              _buildTextField(
+                controller: _lowStockCtrl,
+                label: l10n.lowStockThreshold,
+                helperText: l10n.lowStockThresholdHelper,
+                icon: LucideIcons.packageMinus,
+              ),
+              const Divider(height: 32, color: AppColors.divider),
+              _buildTextField(
+                controller: _defaultOrderBoxesCtrl,
+                label: l10n.defaultBoxesToOrder,
+                helperText: l10n.defaultBoxesHelper,
+                icon: LucideIcons.packagePlus,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildSectionCard(
+            title: 'Expiry Configuration',
+            icon: LucideIcons.calendarDays,
+            children: [
+              _buildTextField(
+                controller: _expiryWarningCtrl,
+                label: l10n.expiringSoonWindow,
+                helperText: l10n.expiringSoonWindowHelper,
+                icon: LucideIcons.clock,
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: _expiryModerateCtrl,
+                label: l10n.moderateExpiry,
+                helperText: l10n.moderateExpiryHelper,
+                icon: LucideIcons.alertTriangle,
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: _expiryCriticalCtrl,
+                label: l10n.criticalExpiry,
+                helperText: l10n.criticalExpiryHelper,
+                icon: LucideIcons.alertOctagon,
+              ),
+              const Divider(height: 32, color: AppColors.divider),
+              _buildTextField(
+                controller: _expiryDelayCtrl,
+                label: l10n.defaultExpiryDelay,
+                helperText: l10n.defaultExpiryDelayHelper,
+                icon: LucideIcons.calendarDays,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildMedicineTypesSection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlarmsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: _buildStockReminderSection(context),
+    );
+  }
+
+  Widget _buildDataSecurityTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildSellingDevicesSection(context),
+          const SizedBox(height: 24),
+          _buildSecuritySection(context),
+          const SizedBox(height: 24),
+          _buildDriveSection(context),
+          const SizedBox(height: 24),
+          _buildLocalBackupSection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomSaveButton(dynamic l10n) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _saveSettings,
+          icon: const Icon(LucideIcons.save, color: AppColors.white),
+          label: Text(
+            l10n.saveSettings,
+            style: const TextStyle(
+              color: AppColors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryDark,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchSetting({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile(
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryDark,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(
+          color: AppColors.secondaryAccent,
+          fontSize: 12,
+        ),
+      ),
+      value: value,
+      onChanged: onChanged,
+      activeThumbColor: AppColors.primaryDark,
+      contentPadding: EdgeInsets.zero,
+    );
+
   }
 
   Widget _buildDriveSection(BuildContext context) {
@@ -1468,6 +1505,219 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildSellingDevicesSection(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    final admin = context.watch<AdminProvider>();
+
+    return _buildSectionCard(
+      title: l10n.multiDeviceSellingTitle,
+      icon: LucideIcons.smartphone,
+      children: [
+        Text(
+          l10n.multiDeviceSellingSubtitle,
+          style: const TextStyle(
+            color: AppColors.secondaryAccent,
+            fontSize: 12,
+          ),
+        ),
+        if (!admin.isCurrentDeviceActiveSeller) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primaryDark.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.secondaryAccent.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  LucideIcons.info,
+                  size: 18,
+                  color: AppColors.primaryDark,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n.onlyActiveDeviceCanSwitch,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () async {
+              await admin.refreshActiveSellerFromServer();
+              await admin.loadPharmacyDevices();
+              if (context.mounted) setState(() {});
+            },
+            icon: const Icon(LucideIcons.refreshCw, size: 16),
+            label: Text(l10n.refreshDeviceList),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
+          ),
+        ),
+        if (admin.pharmacyDevicesLoadError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            l10n.sellingDeviceListError,
+            style: const TextStyle(color: AppColors.error, fontSize: 12),
+          ),
+        ],
+        const SizedBox(height: 8),
+        if (admin.pharmacyDevices.isEmpty && admin.pharmacyDevicesLoadError != null)
+          Text(
+            l10n.sellingDeviceListError,
+            style: const TextStyle(
+              color: AppColors.secondaryAccent,
+              fontSize: 13,
+            ),
+          )
+        else if (admin.pharmacyDevices.isNotEmpty)
+          ...admin.pharmacyDevices.map(
+            (d) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildDeviceTile(context, admin, d, l10n),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDeviceTile(
+    BuildContext context,
+    AdminProvider admin,
+    PharmacyDevice d,
+    dynamic l10n,
+  ) {
+    final model = (d.deviceModel ?? '').trim();
+    final subtitle = model.isNotEmpty ? model : d.hardwareUid;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: d.isCurrentDevice
+              ? AppColors.primaryDark.withValues(alpha: 0.45)
+              : AppColors.divider,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        title: Text(
+          d.isCurrentDevice
+              ? '${d.deviceDisplayName} (${l10n.thisDeviceLabel})'
+              : d.deviceDisplayName,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: AppColors.primaryDark,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(fontSize: 11, color: AppColors.secondaryAccent),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (d.isActiveSeller)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  l10n.activeSellerBadge,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.success,
+                  ),
+                ),
+              ),
+            if (admin.isCurrentDeviceActiveSeller &&
+                !d.isActiveSeller &&
+                !d.isCurrentDevice)
+              TextButton(
+                onPressed: () => _confirmTransferSelling(context, admin, d, l10n),
+                child: Text(l10n.useAsActiveSeller),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmTransferSelling(
+    BuildContext context,
+    AdminProvider admin,
+    PharmacyDevice target,
+    dynamic l10n,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.transferSellingConfirmTitle),
+        content: Text(l10n.transferSellingConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancelBtn),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              foregroundColor: AppColors.white,
+            ),
+            child: Text(l10n.useAsActiveSeller),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    try {
+      await admin.transferSellingToDevice(target.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.settingsSaved,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString(),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildSecuritySection(BuildContext context) {

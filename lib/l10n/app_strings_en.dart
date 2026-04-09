@@ -34,6 +34,10 @@ class AppStringsEn implements AppStrings {
   String get adminPortal => 'ADMIN PORTAL';
   @override
   String get backToPos => 'Back to POS';
+  @override
+  String get adminSettings => 'Admin Settings';
+  @override
+  String get general => 'General';
 
   // ── POS / Home Screen ──────────────────────────────
   @override
@@ -213,6 +217,10 @@ class AppStringsEn implements AppStrings {
   String get minStockLevel => 'Min Stock Level';
   @override
   String get expiryDate => 'Expiry Date';
+  @override
+  String get powerLabel => 'Power/Strength';
+  @override
+  String get powerHint => 'e.g. 500mg';
   @override
   String get supplierName => 'Supplier Name';
   @override
@@ -412,7 +420,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get googleSignInFailed => 'Google sign-in failed. Please try again.';
   @override
-  String get inventoryAlerts => 'Inventory Alerts';
+  String get inventoryAlerts => 'Inventory';
   @override
   String get lowStockThreshold => 'Low Stock Threshold (Boxes)';
   @override
@@ -457,18 +465,11 @@ class AppStringsEn implements AppStrings {
   @override
   String get addProductStepperModeToggle => 'Stepper Mode';
   @override
-  String get expandOptionalFields => 'Always expand optional fields';
-  @override
-  String get expandOptionalFieldsHelper =>
-      'When adding many new products, keep generic name and company fields expanded by default.';
-  @override
   String get restockPricingCollapsedByDefault =>
       'Keep Restock Pricing collapsed by default';
   @override
   String get restockPricingCollapsedByDefaultHelper =>
       'If enabled, the Pricing section starts collapsed in the Restock screen.';
-  @override
-  String get optionalDetails => 'Optional Details';
   @override
   String get saveSettings => 'Save Settings';
   @override
@@ -853,6 +854,37 @@ class AppStringsEn implements AppStrings {
   @override
   String get adminLoginBtn => 'Login';
   @override
+  String get otpSent => 'OTP has been sent to your registered number';
+  @override
+  String get otpRequired => 'OTP is required to reset your PIN';
+  @override
+  String get forgotPinTitle => 'Forgot Admin PIN?';
+  @override
+  String resetPinSubtitle(String contact) =>
+      'We will send a reset code to $contact';
+  @override
+  String get resetPinWithPasswordSubtitle =>
+      'Enter your account password and set a new admin PIN.';
+  @override
+  String get forgotPin => 'Forgot PIN?';
+  @override
+  String get pinResetMethodTitle => 'Choose reset method';
+  @override
+  String get resetWithOtp => 'Reset with OTP';
+  @override
+  String get resetWithPassword => 'Use account password';
+  @override
+  String get enterOtpCode => 'Enter OTP Code';
+  @override
+  String get resendOtp => 'Resend OTP';
+  @override
+  String get sendOtp => 'Send OTP';
+  @override
+  String get resetPin => 'Reset PIN';
+  @override
+  String get passwordRequiredForPinReset =>
+      'Account password is required to reset PIN';
+  @override
   String get adminPinSetupTitle => 'Set admin PIN';
   @override
   String get adminPinSetupSubtitle =>
@@ -862,26 +894,6 @@ class AppStringsEn implements AppStrings {
   @override
   String get adminPinSetupFailed => 'Failed to set admin PIN.';
   @override
-  String get forgotPin => 'Forgot PIN?';
-  @override
-  String get forgotPinTitle => 'Reset admin PIN';
-  @override
-  String resetPinSubtitle(String email) => email.trim().isEmpty
-      ? 'Enter the OTP sent to your email and set a new PIN.'
-      : 'Enter the OTP sent to $email and set a new PIN.';
-  @override
-  String get sendOtp => 'Send OTP';
-  @override
-  String get resendOtp => 'Resend OTP';
-  @override
-  String get enterOtpCode => 'Enter OTP code';
-  @override
-  String get otpSent => 'OTP sent to your email.';
-  @override
-  String get otpRequired => 'Please enter the OTP.';
-  @override
-  String get resetPin => 'Reset PIN';
-  @override
   String get biometricUnlockReason => 'Unlock admin portal';
   @override
   String get biometricUseFace => 'Use Face ID';
@@ -889,6 +901,33 @@ class AppStringsEn implements AppStrings {
   String get biometricUseFingerprint => 'Use fingerprint';
   @override
   String get biometricUseGeneric => 'Use biometrics';
+  @override
+  String get multiDeviceSellingTitle => 'Selling device';
+  @override
+  String get multiDeviceSellingSubtitle =>
+      'Only one phone can check out sales. The active device can transfer selling to another phone.';
+  @override
+  String get activeSellerBadge => 'Active';
+  @override
+  String get thisDeviceLabel => 'This phone';
+  @override
+  String get useAsActiveSeller => 'Use for selling';
+  @override
+  String get transferSellingConfirmTitle => 'Transfer selling?';
+  @override
+  String get transferSellingConfirmBody =>
+      'Checkout on this phone will be disabled until this device is selected as active again.';
+  @override
+  String get onlyActiveDeviceCanSwitch =>
+      'Only the phone that is currently active for selling can choose another device.';
+  @override
+  String get checkoutRequiresActiveDevice =>
+      'Checkout is only available on the phone set as the active selling device. Change it in Settings.';
+  @override
+  String get refreshDeviceList => 'Refresh';
+  @override
+  String get sellingDeviceListError =>
+      'Could not load devices. Try Refresh.';
   @override
   String get passwordSet => 'Password set successfully!';
   @override
@@ -905,6 +944,10 @@ class AppStringsEn implements AppStrings {
   String get confirmPassword => 'Confirm Password';
   @override
   String get passwordsDoNotMatch => 'Passwords do not match';
+  @override
+  String get profilePhotoUpdated => 'Profile photo updated';
+  @override
+  String get profilePhotoPickFailed => 'Could not pick image from gallery';
 
   // ── Product Edit Extension ─────────────────────
   @override
@@ -935,10 +978,6 @@ class AppStringsEn implements AppStrings {
   String get saveChanges => 'Save Changes';
   @override
   String get medicineType => 'Medicine Type';
-  @override
-  String get powerLabel => 'Power';
-  @override
-  String get powerHint => 'e.g. 200mg, 5ml, 1g';
   @override
   String editProductTitle(String name) => 'Edit: $name';
   @override
@@ -1467,14 +1506,6 @@ class AppStringsEn implements AppStrings {
   String get manual => 'Manual';
   @override
   String get ocr => 'OCR';
-  @override
-  String get tapToScanOcr => 'Tap Scanner';
-  @override
-  String get tapToScanOcrHelper => 'OCR armed. Tap scanner to read strip.';
-  @override
-  String get scannerTapToReadStrip => 'OCR ready - tap scanner to read strip';
-  @override
-  String get ocrCaptureFailed => 'Could not capture scanner frame. Try again.';
   @override
   String get voice => 'Voice';
   @override

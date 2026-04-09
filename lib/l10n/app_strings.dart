@@ -16,6 +16,8 @@ abstract class AppStrings {
   String get posTitle;
   String get adminPortal;
   String get backToPos;
+  String get adminSettings;
+  String get general;
 
   // ── POS / Home Screen ──────────────────────────────
   String get saleComplete;
@@ -107,6 +109,8 @@ abstract class AppStrings {
   String get pcsPerBox;
   String get minStockLevel;
   String get expiryDate;
+  String get powerLabel;
+  String get powerHint;
   String get supplierName;
   String get supplierPhone;
   String get saveProduct;
@@ -272,11 +276,8 @@ abstract class AppStrings {
   String get addProductDefaultStepperMode;
   String get addProductDefaultStepperModeHelper;
   String get addProductStepperModeToggle;
-  String get expandOptionalFields;
-  String get expandOptionalFieldsHelper;
   String get restockPricingCollapsedByDefault;
   String get restockPricingCollapsedByDefaultHelper;
-  String get optionalDetails;
   String get saveSettings;
   String get settingsSaved;
   String get expiryOrderError;
@@ -463,23 +464,39 @@ abstract class AppStrings {
   String get adminLoginWrongPin;
   String get adminLoginPinEmpty;
   String get adminLoginBtn;
+  String get otpSent;
+  String get otpRequired;
+  String get forgotPinTitle;
+  String resetPinSubtitle(String contact);
+  String get resetPinWithPasswordSubtitle;
+  String get forgotPin;
+  String get pinResetMethodTitle;
+  String get resetWithOtp;
+  String get resetWithPassword;
+  String get enterOtpCode;
+  String get resendOtp;
+  String get sendOtp;
+  String get resetPin;
+  String get passwordRequiredForPinReset;
   String get adminPinSetupTitle;
   String get adminPinSetupSubtitle;
   String get adminPinSetupBtn;
   String get adminPinSetupFailed;
-  String get forgotPin;
-  String get forgotPinTitle;
-  String resetPinSubtitle(String email);
-  String get sendOtp;
-  String get resendOtp;
-  String get enterOtpCode;
-  String get otpSent;
-  String get otpRequired;
-  String get resetPin;
   String get biometricUnlockReason;
   String get biometricUseFace;
   String get biometricUseFingerprint;
   String get biometricUseGeneric;
+  String get multiDeviceSellingTitle;
+  String get multiDeviceSellingSubtitle;
+  String get activeSellerBadge;
+  String get thisDeviceLabel;
+  String get useAsActiveSeller;
+  String get transferSellingConfirmTitle;
+  String get transferSellingConfirmBody;
+  String get onlyActiveDeviceCanSwitch;
+  String get checkoutRequiresActiveDevice;
+  String get refreshDeviceList;
+  String get sellingDeviceListError;
   String get passwordSet;
   String get adminRole;
   String get renew;
@@ -488,6 +505,8 @@ abstract class AppStrings {
   String get min8Chars;
   String get confirmPassword;
   String get passwordsDoNotMatch;
+  String get profilePhotoUpdated;
+  String get profilePhotoPickFailed;
 
   // ── Product Edit Extension ─────────────────────
   String get genericDescription;
@@ -504,8 +523,6 @@ abstract class AppStrings {
   String pcsSuffixCount(int n);
   String get saveChanges;
   String get medicineType;
-  String get powerLabel;
-  String get powerHint;
   String editProductTitle(String name);
   String get productDetailsTitle;
   String batchRemaining(int str, int pcs);
@@ -704,10 +721,6 @@ abstract class AppStrings {
   String get hide;
   String get manual;
   String get ocr;
-  String get tapToScanOcr;
-  String get tapToScanOcrHelper;
-  String get scannerTapToReadStrip;
-  String get ocrCaptureFailed;
   String get voice;
   String get scannerActiveExpand;
   String get scannerPausedExpand;

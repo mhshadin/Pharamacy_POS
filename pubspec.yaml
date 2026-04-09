@@ -40,14 +40,15 @@ dependencies:
   speech_to_text: ^7.3.0
   flutter_local_notifications: ^21.0.0
   timezone: ^0.11.0
+  alarm: ^5.0.0
 
   http: any
   crypto: ^3.0.3
   webview_flutter: ^4.10.0
   flutter_secure_storage: ^9.2.2
   connectivity_plus: ^6.1.1
-  android_alarm_manager_plus: ^5.0.0
   local_auth: ^3.0.1
+  device_info_plus: ^11.2.0
 
 
 dependency_overrides:
@@ -66,3 +67,4 @@ flutter:
     - assets/fonts/Roboto-Regular.ttf
     - assets/fonts/Roboto-Bold.ttf
     - assets/svg/
+    - assets/sounds/
