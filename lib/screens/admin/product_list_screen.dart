@@ -123,7 +123,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
               child: Text(
                   l10n.clearAllFilters,
-                  style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold)
+                  style: const TextStyle(color: AppColors.error, fontSize: 10, fontWeight: FontWeight.bold)
               ),
             )
           ],
@@ -136,7 +136,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: Chip(
-        label: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.primaryDark, fontWeight: FontWeight.w600)),
+        label: Text(label, style: const TextStyle(fontSize: 9, color: AppColors.primaryDark, fontWeight: FontWeight.w600)),
         backgroundColor: AppColors.primaryDark.withValues(alpha: 0.08),
         side: BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.2)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -337,7 +337,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Text(
                         l10n.filterByCompany,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
                           color: AppColors.primaryDark,
                         ),
@@ -442,7 +442,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       style: const TextStyle(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 13,
                       ),
                     ),
                   ),
@@ -484,7 +484,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Text(
                         l10n.filterByGeneric,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
                           color: AppColors.primaryDark,
                         ),
@@ -589,7 +589,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       style: const TextStyle(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 13,
                       ),
                     ),
                   ),
@@ -706,8 +706,38 @@ class _ProductListScreenState extends State<ProductListScreen> {
               tooltip: l10n.sort,
               offset: const Offset(0, 50),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              icon: Icon(LucideIcons.arrowUpDown, color: Colors.grey.shade500),
               onSelected: (v) => setState(() => _sortBy = v),
+              icon: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryDark.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primaryDark.withValues(alpha: 0.2)),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(LucideIcons.arrowUpDown, color: AppColors.primaryDark, size: 18),
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryDark,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.check,
+                          size: 7,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               itemBuilder: (_) => _sortOptions
                   .map(
                     (o) => PopupMenuItem(
@@ -742,7 +772,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(3),
                         decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle),
-                        child: Text('${_selectedCompanies.length}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        child: Text('${_selectedCompanies.length}', style: const TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold)),
                       ),
                     ),
                 ],
@@ -764,7 +794,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(3),
                         decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle),
-                        child: Text('${_selectedGenericNames.length}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        child: Text('${_selectedGenericNames.length}', style: const TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold)),
                       ),
                     ),
                 ],
@@ -786,7 +816,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(3),
                         decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle),
-                        child: Text('${_selectedMedTypes.length}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        child: Text('${_selectedMedTypes.length}', style: const TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold)),
                       ),
                     ),
                 ],
@@ -923,7 +953,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   style: const TextStyle(
                     color: AppColors.secondaryAccent,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 10,
                   ),
                 ),
               ],
@@ -1080,7 +1110,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       product.name,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         color: Colors.black87,
                                       ),
                                       maxLines: 1,
@@ -1093,7 +1123,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           : product.generic,
                                       style: TextStyle(
                                         color: Colors.grey.shade500,
-                                        fontSize: 13,
+                                        fontSize: 11,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1123,7 +1153,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         style: TextStyle(
                                           color: lowAccent ?? Colors.green.shade600,
                                           fontWeight: FontWeight.w600,
-                                          fontSize: 10,
+                                          fontSize: 8,
                                         ),
                                       ),
                                     ),
@@ -1135,7 +1165,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                           '$stockPercent%',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 11,
+                                            fontSize: 9,
                                             color: Colors.grey.shade600,
                                           ),
                                         ),
@@ -1152,7 +1182,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   product.medType!,
-                                                  style: TextStyle(fontSize: 10, color: medColor, fontWeight: FontWeight.w600),
+                                                  style: TextStyle(fontSize: 8, color: medColor, fontWeight: FontWeight.w600),
                                                 ),
                                               ],
                                             ),
@@ -1172,7 +1202,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             child: Text(
                                               product.power!,
                                               style: const TextStyle(
-                                                fontSize: 10,
+                                                fontSize: 8,
                                                 color: Colors.deepPurple,
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -1337,7 +1367,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       child: Text(
                         l10n.filterByType,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryDark,
                         ),
@@ -1403,7 +1433,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       style: const TextStyle(
                         color: AppColors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 13,
                       ),
                     ),
                   ),
@@ -1459,13 +1489,13 @@ class _ProductListExpandableSearchBar extends StatelessWidget {
             onChanged: onChanged,
             style: const TextStyle(
               color: Colors.black87,
-              fontSize: 14,
+              fontSize: 12,
             ),
             decoration: InputDecoration(
               hintText: hintText,
               hintStyle: TextStyle(
                 color: Colors.grey.shade400,
-                fontSize: 14,
+                fontSize: 12,
               ),
               prefixIcon: Icon(
                 LucideIcons.search,
@@ -1478,7 +1508,12 @@ class _ProductListExpandableSearchBar extends StatelessWidget {
                   size: 16,
                   color: Colors.grey.shade400,
                 ),
-                onPressed: onClose,
+                onPressed: controller.text.isEmpty
+                    ? null
+                    : () {
+                        controller.clear();
+                        onChanged('');
+                      },
                 tooltip: closeTooltip,
               ),
               border: InputBorder.none,
@@ -1540,7 +1575,7 @@ class _StatBox extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -1554,7 +1589,7 @@ class _StatBox extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 8,
               color: Colors.grey.shade500,
               fontWeight: FontWeight.w500,
             ),
