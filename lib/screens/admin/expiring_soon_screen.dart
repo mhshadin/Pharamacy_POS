@@ -408,7 +408,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     });
   }
 
-  Widget _buildSortActionTile(AppStrings l10n, {required bool expand}) {
+  Widget _buildSortActionTile(
+    AppStrings l10n, {
+    required bool expand,
+    int flex = 1,
+  }) {
     final tile = PopupMenuButton<String>(
       tooltip: l10n.sortBtn,
       icon: SizedBox(
@@ -472,7 +476,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           .toList(),
     );
 
-    if (expand) return Expanded(child: tile);
+    if (expand) return Expanded(flex: flex, child: tile);
     return SizedBox(width: 74, child: tile);
   }
 
@@ -866,7 +870,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                     final gap = constraints.maxWidth < 380 ? 6.0 : 8.0;
                     return Row(
                       children: [
-                        _buildSortActionTile(l10n, expand: true),
+                        _buildSortActionTile(
+                          l10n,
+                          expand: true,
+                          flex: 5,
+                        ),
                         SizedBox(width: gap),
                         adminActionTileButton(
                           icon: LucideIcons.listFilter,
@@ -874,6 +882,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           tooltip: l10n.filterByExpiryUrgency,
                           activeCount: _filter == 'All' ? 0 : 1,
                           expand: true,
+                          flex: 5,
                           onPressed: () => _showExpiryUrgencyFilterPanel(l10n),
                         ),
                         if (hasCompanies) ...[
@@ -884,6 +893,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             tooltip: l10n.filterByCompany,
                             activeCount: _selectedCompanies.length,
                             expand: true,
+                            flex: 6,
                             onPressed: () =>
                                 _showCompanySheet(allCompanies, l10n),
                           ),
@@ -896,6 +906,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                             tooltip: l10n.exportOrderList,
                             activeCount: 0,
                             expand: true,
+                            flex: 5,
                             onPressed: () => _showOrderQtyModal(filtered),
                           ),
                         ],
@@ -906,21 +917,25 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text(
-                      l10n.productsCount(filtered.length),
-                      style: const TextStyle(
-                        color: AppColors.secondaryAccent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                    Expanded(
+                      child: Text(
+                        l10n.productsCount(filtered.length),
+                        style: const TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: AppColors.divider),
               ],
             ),
           ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
 
           // ── List ─────────────────────────────────────────────
           Expanded(
@@ -962,6 +977,43 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                       final hasSupplierPhone =
                           supplierPhone != null && supplierPhone.isNotEmpty;
 
+                      final medTypeBadge = product.medType != null
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: MedTypeIcons.getColor(product.medType)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: MedTypeIcons.getColor(product.medType)
+                                      .withValues(alpha: 0.24),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    MedTypeIcons.getIcon(product.medType),
+                                    size: 10,
+                                    color: MedTypeIcons.getColor(product.medType),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    product.medType!,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: MedTypeIcons.getColor(product.medType),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : const SizedBox.shrink();
+
                       return GestureDetector(
                         onTap: () {
                           Navigator.of(context).push(
@@ -988,6 +1040,7 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                           ],
                         ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
@@ -1026,40 +1079,6 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  if (product.medType != null)
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 4, bottom: 2),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 7,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: MedTypeIcons.getColor(product.medType).withValues(alpha: 0.24),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            MedTypeIcons.getIcon(product.medType),
-                                            size: 10,
-                                            color: MedTypeIcons.getColor(product.medType),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            product.medType!,
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w800,
-                                              color: MedTypeIcons.getColor(product.medType),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
                                   if (product.power != null &&
                                       product.power!.trim().isNotEmpty)
                                     Container(
@@ -1103,39 +1122,25 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                 ],
                               ),
                             ),
-                            Row(
+                            Column(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                if (hasSupplierPhone)
-                                  IconButton(
-                                    tooltip: 'Call supplier',
-                                    onPressed: () =>
-                                        tryDialPhone(context, supplierPhone),
-                                    icon: const Icon(
-                                      LucideIcons.phoneCall,
-                                      color: AppColors.primaryDark,
-                                      size: 20,
-                                    ),
-                                  ),
+                                medTypeBadge,
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: accent.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: accent.withValues(alpha: 0.3),
-                                    ),
+                                    horizontal: 8,
+                                    vertical: 4,
                                   ),
                                   child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         '$days',
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
-                                          fontSize: 18,
+                                          fontSize: 16,
+                                          height: 1.0,
                                           color: accent,
                                         ),
                                       ),
@@ -1143,11 +1148,32 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                         'days',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 10,
+                                          fontSize: 9,
+                                          height: 1.0,
                                           color: accent,
                                         ),
                                       ),
                                     ],
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                IconButton(
+                                  tooltip: l10n.callSupplier,
+                                  padding: EdgeInsets.zero,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  onPressed: hasSupplierPhone
+                                      ? () => tryDialPhone(context, supplierPhone)
+                                      : null,
+                                  icon: Icon(
+                                    LucideIcons.phoneCall,
+                                    color: hasSupplierPhone
+                                        ? AppColors.success
+                                        : Colors.grey,
+                                    size: 20,
                                   ),
                                 ),
                               ],
