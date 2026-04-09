@@ -18,6 +18,8 @@ abstract class AppStrings {
   String get backToPos;
   String get adminSettings;
   String get general;
+  String get settingsTabAlarms;
+  String get settingsTabSecurityData;
 
   // ── POS / Home Screen ──────────────────────────────
   String get saleComplete;

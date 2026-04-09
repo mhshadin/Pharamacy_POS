@@ -38,6 +38,10 @@ class AppStringsEn implements AppStrings {
   String get adminSettings => 'Admin Settings';
   @override
   String get general => 'General';
+  @override
+  String get settingsTabAlarms => 'Alarms';
+  @override
+  String get settingsTabSecurityData => 'Security & Data';
 
   // ── POS / Home Screen ──────────────────────────────
   @override

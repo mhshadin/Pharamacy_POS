@@ -38,6 +38,10 @@ class AppStringsBn implements AppStrings {
   String get adminSettings => 'অ্যাডমিন সেটিংস';
   @override
   String get general => 'সাধারণ';
+  @override
+  String get settingsTabAlarms => 'অ্যালার্ম';
+  @override
+  String get settingsTabSecurityData => 'নিরাপত্তা ও ডাটা';
 
   // ── POS / Home Screen ──────────────────────────────
   @override

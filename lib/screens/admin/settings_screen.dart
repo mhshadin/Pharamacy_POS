@@ -156,8 +156,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       tabs: [
                         Tab(text: l10n.general),
                         Tab(text: l10n.inventoryAlerts),
-                        const Tab(text: 'Alarms'),
-                        const Tab(text: 'Security & Data'),
+                        Tab(text: l10n.settingsTabAlarms),
+                        Tab(text: l10n.settingsTabSecurityData),
                       ],
                     ),
                   ),
