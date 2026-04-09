@@ -634,21 +634,27 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        product.name,
-                                        style: TextStyle(
-                                          fontSize: nameFontSize,
-                                          color: AppColors.primaryDark,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.1,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (product.generic.trim().isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              product.name,
+                                              style: TextStyle(
+                                                fontSize: nameFontSize,
+                                                color: AppColors.primaryDark,
+                                                fontWeight: FontWeight.bold,
+                                                height: 1.1,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (product.generic
+                                              .trim()
+                                              .isNotEmpty) ...[
+                                            const SizedBox(width: 4),
                                             Flexible(
                                               child: GestureDetector(
                                                 onTap: () => _filterByGeneric(
@@ -690,8 +696,8 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                       if (product.companyName != null &&
                                           product
                                               .companyName!.trim().isNotEmpty) ...[
