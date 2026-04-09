@@ -77,6 +77,28 @@ class TimeService {
     await _storage.write(key: _keyLastWarningDate, value: dateStr);
   }
 
+  /// Returns a tamper-resistant estimate of the current time.
+  ///
+  /// When online, call [fetchServerTime] first so the cache is fresh.
+  /// When offline, this method reads the last cached server/device time pair
+  /// from [FlutterSecureStorage] and adds the elapsed device time since that
+  /// sync. If the device clock was wound backward the elapsed value is negative
+  /// and is clamped to zero — the method then returns the cached server time
+  /// itself, which is the most conservative (earliest safe) value.
+  Future<DateTime> getReliableNow() async {
+    final rawServer = await _storage.read(key: _keyLastServerTime);
+    final rawDevice = await _storage.read(key: _keyLastDeviceTime);
+    if (rawServer == null || rawDevice == null) return DateTime.now();
+
+    final serverTime = DateTime.tryParse(rawServer);
+    final deviceTime = DateTime.tryParse(rawDevice);
+    if (serverTime == null || deviceTime == null) return DateTime.now();
+
+    final elapsed = DateTime.now().difference(deviceTime);
+    final safeElapsed = elapsed.isNegative ? Duration.zero : elapsed;
+    return serverTime.add(safeElapsed);
+  }
+
   /// Helper to force update the "last known" time if server validates it
   Future<void> forceResync() async {
     final serverTime = await fetchServerTime();

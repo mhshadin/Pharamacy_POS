@@ -21,6 +21,7 @@ import '../services/time_service.dart';
 import '../utils/inventory_alert_tiers.dart';
 import 'package:intl/intl.dart';
 import 'package:alarm/alarm.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/alarm_slot.dart';
@@ -44,6 +45,17 @@ class BulkImportRecord {
     required this.expiryDate,
     this.costPricePerPc = 0.0,
   });
+}
+
+class SessionExpiredException implements Exception {
+  SessionExpiredException([
+    this.message = 'Session expired. Please log in again.',
+  ]);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 class AdminProvider extends ChangeNotifier {
@@ -169,40 +181,138 @@ class AdminProvider extends ChangeNotifier {
     );
   }
 
+  bool _isSessionAuthFailure(Object error) {
+    if (error is! AuthException) return false;
+    if (error.statusCode == 401 || error.statusCode == 403) return true;
+    final msg = error.message.toLowerCase();
+    return msg.contains('unauthorized') ||
+        msg.contains('expired') ||
+        msg.contains('invalid token') ||
+        msg.contains('forged');
+  }
+
+  Future<void> _expireSession() async {
+    await _authStorageInst.clearAuth();
+    _authSession = null;
+    _isAdminLoggedIn = false;
+    _currentPin = '';
+    _isAdminPinSet = false;
+    _pharmacyDevices = [];
+    _pharmacyDevicesLoadError = null;
+    notifyListeners();
+  }
+
+  Future<bool> _refreshAccessToken() async {
+    final currentSession = _authSession ?? await _authStorageInst.loadAuth();
+    if (currentSession == null || currentSession.refreshToken.isEmpty) {
+      await _expireSession();
+      return false;
+    }
+
+    try {
+      final refreshed = await _authApi.refreshJwtToken(currentSession.refreshToken);
+      await _authStorageInst.saveAuth(
+        refreshed,
+        googleAccessToken: currentSession.googleAccessToken,
+      );
+      await reloadAuthSession();
+      return true;
+    } catch (e, st) {
+      developer.log('JWT refresh failed. Clearing session.', error: e, stackTrace: st);
+      await _expireSession();
+      return false;
+    }
+  }
+
+  Future<T> _runWithSessionRecovery<T>(
+    Future<T> Function(AuthSession session) call,
+  ) async {
+    final session = _authSession ?? await _authStorageInst.loadAuth();
+    if (session == null || !session.hasValidToken) {
+      throw SessionExpiredException();
+    }
+
+    try {
+      return await call(session);
+    } catch (e) {
+      if (!_isSessionAuthFailure(e)) rethrow;
+    }
+
+    final refreshed = await _refreshAccessToken();
+    if (!refreshed) {
+      throw SessionExpiredException();
+    }
+
+    final updatedSession = _authSession;
+    if (updatedSession == null || !updatedSession.hasValidToken) {
+      throw SessionExpiredException();
+    }
+
+    try {
+      return await call(updatedSession);
+    } catch (e) {
+      if (_isSessionAuthFailure(e)) {
+        await _expireSession();
+        throw SessionExpiredException();
+      }
+      rethrow;
+    }
+  }
+
+  Future<bool> ensureSessionFresh() async {
+    final session = _authSession ?? await _authStorageInst.loadAuth();
+    if (session == null || !session.hasValidToken) return false;
+    final refreshed = await _refreshAccessToken();
+    return refreshed && _authSession != null && _authSession!.hasValidToken;
+  }
+
   /// Refreshes [is_active_seller] from the server for this hardware UID.
   Future<bool> refreshActiveSellerFromServer() async {
-    final s = _authSession;
-    if (s == null || !s.hasValidToken) return false;
     try {
-      final uid = await _authStorageInst.getOrCreateHardwareUid();
-      final ok = await _authApi.verifyActiveSeller(
-        token: s.licenseToken,
-        hardwareUid: uid,
-      );
-      await _authStorageInst.setActiveSeller(ok);
-      await reloadAuthSession();
-      return ok;
+      return await _runWithSessionRecovery((session) async {
+        final uid = await _authStorageInst.getOrCreateHardwareUid();
+        final ok = await _authApi.verifyActiveSeller(
+          token: session.licenseToken,
+          hardwareUid: uid,
+        );
+        await _authStorageInst.setActiveSeller(ok);
+        await reloadAuthSession();
+        return ok;
+      });
+    } on SessionExpiredException {
+      rethrow;
     } catch (e, st) {
-      developer.log('refreshActiveSellerFromServer failed', error: e, stackTrace: st);
-      return s.isActiveSeller;
+      developer.log(
+        'refreshActiveSellerFromServer failed',
+        error: e,
+        stackTrace: st,
+      );
+      return _authSession?.isActiveSeller ?? false;
     }
   }
 
   Future<void> loadPharmacyDevices() async {
-    final s = _authSession;
-    if (s == null || !s.hasValidToken) {
+    if (_authSession == null || !_authSession!.hasValidToken) {
       _pharmacyDevices = [];
       _pharmacyDevicesLoadError = null;
       notifyListeners();
       return;
     }
     try {
-      final uid = await _authStorageInst.getOrCreateHardwareUid();
-      _pharmacyDevices = await _authApi.listDevices(
-        token: s.licenseToken,
-        hardwareUid: uid,
-      );
+      final devices = await _runWithSessionRecovery((session) async {
+        final uid = await _authStorageInst.getOrCreateHardwareUid();
+        return _authApi.listDevices(
+          token: session.licenseToken,
+          hardwareUid: uid,
+        );
+      });
+      _pharmacyDevices = devices;
       _pharmacyDevicesLoadError = null;
+    } on SessionExpiredException {
+      _pharmacyDevices = [];
+      _pharmacyDevicesLoadError = null;
+      notifyListeners();
+      rethrow;
     } catch (e, st) {
       _pharmacyDevicesLoadError = e.toString();
       developer.log('loadPharmacyDevices failed', error: e, stackTrace: st);
@@ -210,18 +320,26 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updatePassword(String newPassword) async {
+    await _runWithSessionRecovery((session) {
+      return _authApi.setPassword(
+        token: session.licenseToken,
+        newPassword: newPassword,
+      );
+    });
+  }
+
   /// Only the active selling device may transfer selling to another phone.
   Future<void> transferSellingToDevice(String targetDeviceId) async {
-    final s = _authSession;
-    if (s == null || !s.hasValidToken) {
-      throw AuthException('Not signed in.', statusCode: 401);
-    }
-    final uid = await _authStorageInst.getOrCreateHardwareUid();
-    await _authApi.switchActiveDevice(
-      token: s.licenseToken,
-      hardwareUid: uid,
-      targetDeviceId: targetDeviceId,
-    );
+    await _runWithSessionRecovery((session) async {
+      final uid = await _authStorageInst.getOrCreateHardwareUid();
+      await _authApi.switchActiveDevice(
+        token: session.licenseToken,
+        hardwareUid: uid,
+        targetDeviceId: targetDeviceId,
+      );
+      return;
+    });
     await _authStorageInst.setActiveSeller(false);
     await reloadAuthSession();
     await loadPharmacyDevices();
@@ -230,7 +348,9 @@ class AdminProvider extends ChangeNotifier {
   /// Call before completing a sale: verifies with server when online.
   Future<void> assertCanCheckoutSale() async {
     final s = _authSession;
-    if (s == null || !s.hasValidToken) return;
+    if (s == null || !s.hasValidToken) {
+      throw SessionExpiredException();
+    }
 
     final results = await Connectivity().checkConnectivity();
     final hasRealNetwork = results.any(
@@ -248,11 +368,13 @@ class AdminProvider extends ChangeNotifier {
       return;
     }
 
-    final uid = await _authStorageInst.getOrCreateHardwareUid();
-    final ok = await _authApi.verifyActiveSeller(
-      token: s.licenseToken,
-      hardwareUid: uid,
-    );
+    final ok = await _runWithSessionRecovery((session) async {
+      final uid = await _authStorageInst.getOrCreateHardwareUid();
+      return _authApi.verifyActiveSeller(
+        token: session.licenseToken,
+        hardwareUid: uid,
+      );
+    });
     await _authStorageInst.setActiveSeller(ok);
     await reloadAuthSession();
     if (!ok) {
@@ -580,20 +702,24 @@ class AdminProvider extends ChangeNotifier {
   /// Schedules a backup to Google Drive.
   /// If [immediate] is true, it syncs right away.
   /// Otherwise, it debounces the request by 5 minutes, resetting the timer on subsequent calls.
-  Future<void> scheduleSync({bool immediate = false}) async {
+  Future<String?> scheduleSync({
+    bool immediate = false,
+    String? exportDirectoryPath,
+  }) async {
     if (immediate) {
       _syncDebounce?.cancel();
-      await _performDriveSync();
+      return await _performDriveSync(exportDirectoryPath: exportDirectoryPath);
     } else {
       _syncDebounce?.cancel();
       _syncDebounce = Timer(const Duration(minutes: 5), () {
         _performDriveSync();
       });
+      return null;
     }
   }
 
-  Future<void> _performDriveSync() async {
-    if (_isSyncing) return; // Prevent concurrent syncs
+  Future<String?> _performDriveSync({String? exportDirectoryPath}) async {
+    if (_isSyncing) return null; // Prevent concurrent syncs
 
     // Refresh Drive file id (and related settings) from DB. Sync may run on a
     // fresh AdminProvider instance (e.g. POSProvider), which never called loadData().
@@ -608,12 +734,15 @@ class AdminProvider extends ChangeNotifier {
       if (dbPath == null) {
         _syncError = "Could not find database path";
         notifyListeners();
-        return;
+        return null;
       }
 
       // Always persist a local backup first so users still have recoverable data
       // even if Drive auth/network is unavailable.
-      await _performLocalExport(dbPath);
+      final localExportPath = await _performLocalExport(
+        dbPath,
+        exportDirectoryPath: exportDirectoryPath,
+      );
 
       // Determine a valid Google access token, refreshing silently if possible.
       final authSession = await const AuthStorage().loadAuth();
@@ -624,7 +753,7 @@ class AdminProvider extends ChangeNotifier {
         );
         _lastSyncTime = DateTime.now();
         await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
-        return;
+        return localExportPath;
       }
 
       // Attempt a silent token refresh.
@@ -634,7 +763,7 @@ class AdminProvider extends ChangeNotifier {
             "Google Drive session expired. Local backup saved. Please reconnect.";
         _lastSyncTime = DateTime.now();
         await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
-        return;
+        return localExportPath;
       }
 
       final driveService = DriveService();
@@ -657,6 +786,7 @@ class AdminProvider extends ChangeNotifier {
 
       _lastSyncTime = DateTime.now();
       await saveSetting('googleDriveLastSync', _lastSyncTime!.toIso8601String());
+      return localExportPath;
     } catch (e, stack) {
       developer.log("Drive Sync Exception", error: e, stackTrace: stack);
       final errMsg = e.toString().toLowerCase();
@@ -672,29 +802,64 @@ class AdminProvider extends ChangeNotifier {
       _isSyncing = false;
       notifyListeners();
     }
+    return null;
   }
 
-  Future<void> _performLocalExport(String dbPath) async {
+  Future<String?> _performLocalExport(
+    String dbPath, {
+    String? exportDirectoryPath,
+  }) async {
     try {
       final File dbFile = File(dbPath);
       if (!await dbFile.exists()) {
-        return;
+        return null;
       }
 
       final Uint8List bytes = await dbFile.readAsBytes();
+      if (exportDirectoryPath != null && exportDirectoryPath.trim().isNotEmpty) {
+        try {
+          final selectedDir = Directory(exportDirectoryPath);
+          if (!await selectedDir.exists()) {
+            await selectedDir.create(recursive: true);
+          }
+
+          final backupDir = Directory(
+            p.join(selectedDir.path, 'PharmacyPOSBackups'),
+          );
+          if (!await backupDir.exists()) {
+            await backupDir.create(recursive: true);
+          }
+
+          final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+          final customPath = p.join(
+            backupDir.path,
+            'pharmacy_backup_$timestamp.db',
+          );
+          await File(customPath).writeAsBytes(bytes, flush: true);
+          return customPath;
+        } catch (e, stack) {
+          developer.log(
+            "Custom export path failed; falling back to FileSaver",
+            error: e,
+            stackTrace: stack,
+          );
+        }
+      }
+
       final String fileName = "pharmacy_backup";
 
       // Save using FileSaver to the public Downloads folder on Android
-      await FileSaver.instance.saveFile(
+      final savedPath = await FileSaver.instance.saveFile(
         name: fileName,
         bytes: bytes,
         fileExtension: 'db',
         mimeType: MimeType.other,
       );
 
-      // Saved to $savedPath
+      return savedPath;
     } catch (e, stack) {
       developer.log("Local export failed", error: e, stackTrace: stack);
+      return null;
     }
   }
 
@@ -1227,11 +1392,11 @@ class AdminProvider extends ChangeNotifier {
   /// Updates the user's display name on the backend, then persists and
   /// refreshes the in-memory auth session so all UI rebuilds immediately.
   Future<void> updateProfileName(String newName) async {
-    if (_authSession == null) throw Exception('Not authenticated.');
-
-    final updated = await const AuthService().updateProfile(
-      token: _authSession!.licenseToken,
-      fullName: newName,
+    final updated = await _runWithSessionRecovery(
+      (session) => _authApi.updateProfile(
+        token: session.licenseToken,
+        fullName: newName,
+      ),
     );
 
     final resolvedName = updated['name'] ?? newName;
@@ -1250,11 +1415,11 @@ class AdminProvider extends ChangeNotifier {
 
   /// Updates only the phone number through the profile endpoint and refreshes session.
   Future<void> updateProfilePhone(String phoneNumber) async {
-    if (_authSession == null) throw Exception('Not authenticated.');
-
-    final updated = await const AuthService().updateProfile(
-      token: _authSession!.licenseToken,
-      phoneNumber: phoneNumber,
+    final updated = await _runWithSessionRecovery(
+      (session) => _authApi.updateProfile(
+        token: session.licenseToken,
+        phoneNumber: phoneNumber,
+      ),
     );
 
     final resolvedName = updated['name'] ?? _authSession!.userName;
@@ -1349,7 +1514,7 @@ class AdminProvider extends ChangeNotifier {
 
     try {
       final validUntil = DateTime.parse(session.subscriptionValidUntil);
-      final now = DateTime.now();
+      final now = await TimeService().getReliableNow();
 
       // Calculate remaining days
       final remainingDays = validUntil.difference(now).inDays;
@@ -1361,7 +1526,7 @@ class AdminProvider extends ChangeNotifier {
       final thresholds = [7, 5, 1];
       if (thresholds.contains(remainingDays)) {
         final lastWarning = await TimeService().getLastWarningDate();
-        final todayStr = DateFormat('yyyy-MM-dd').format(now);
+        final todayStr = DateFormat('yyyy-MM-dd').format(now); // `now` is already reliableNow
 
         if (lastWarning != todayStr) {
           _pendingSubWarningDays = remainingDays;
@@ -1509,6 +1674,8 @@ class AdminProvider extends ChangeNotifier {
     await cancelAllModernAlarms();
     if (!_stockReminderMasterEnabled || !_isAlarmSupported) return;
     final strings = await _loadNotificationStrings();
+    int scheduledCount = 0;
+    int failedCount = 0;
 
     for (final slot in _alarmSlots) {
       if (!slot.isEnabled) continue;
@@ -1547,6 +1714,7 @@ class AdminProvider extends ChangeNotifier {
             stopButton: strings.alarmDismiss,
           ),
           volumeSettings: VolumeSettings.fade(
+            volume: 1.0,
             fadeDuration: const Duration(seconds: 3),
             volumeEnforced: false,
           ),
@@ -1554,9 +1722,21 @@ class AdminProvider extends ChangeNotifier {
           androidStopAlarmOnTermination: false,
         );
 
-        await Alarm.set(alarmSettings: alarmSettings);
+        final ok = await Alarm.set(alarmSettings: alarmSettings);
+        if (ok) {
+          scheduledCount++;
+        } else {
+          failedCount++;
+          developer.log(
+            'Failed to schedule stock reminder alarm id=${alarmSettings.id}',
+          );
+        }
       }
     }
+    final totalSaved = (await Alarm.getAlarms()).length;
+    developer.log(
+      'Stock alarms schedule complete: ok=$scheduledCount failed=$failedCount saved=$totalSaved',
+    );
   }
 
   Future<void> cancelAllModernAlarms() async {
@@ -1575,6 +1755,8 @@ class AdminProvider extends ChangeNotifier {
       return;
     }
     final strings = await _loadNotificationStrings();
+    int scheduledCount = 0;
+    int failedCount = 0;
 
     for (final day in _reminderDays) {
       final now = DateTime.now();
@@ -1620,9 +1802,19 @@ class AdminProvider extends ChangeNotifier {
         androidStopAlarmOnTermination: false,
       );
 
-      await Alarm.set(alarmSettings: alarmSettings);
-      developer.log("Scheduled alarm for day $day at $scheduledDate");
+      final ok = await Alarm.set(alarmSettings: alarmSettings);
+      if (ok) {
+        scheduledCount++;
+        developer.log("Scheduled alarm for day $day at $scheduledDate");
+      } else {
+        failedCount++;
+        developer.log("Failed scheduling alarm for day $day at $scheduledDate");
+      }
     }
+    final totalSaved = (await Alarm.getAlarms()).length;
+    developer.log(
+      'Extra reminders schedule complete: ok=$scheduledCount failed=$failedCount saved=$totalSaved',
+    );
   }
 
   Future<AppStrings> _loadNotificationStrings() async {
@@ -1636,6 +1828,19 @@ class AdminProvider extends ChangeNotifier {
     for (int i = 1; i <= 7; i++) {
       await Alarm.stop(i);
     }
+  }
+
+  Future<void> rescheduleAllReminderAlarms() async {
+    if (!_isAlarmSupported) return;
+    await scheduleAllModernAlarms();
+    await scheduleAllAlarms();
+    notifyListeners();
+  }
+
+  Future<int> getScheduledAlarmCount() async {
+    if (!_isAlarmSupported) return 0;
+    final alarms = await Alarm.getAlarms();
+    return alarms.length;
   }
 
   /// Triggers an interactive Google Sign-In to refresh the session token.

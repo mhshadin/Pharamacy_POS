@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -238,6 +240,44 @@ class AuthStorage {
   }) async {
     final key = _buildPinKey(userId: userId, userEmail: userEmail);
     await _secureStorage.delete(key: key);
+  }
+
+  /// Decodes the stored JWT payload (without verifying the signature) and
+  /// returns true if the embedded [sub_expires_at] claim is before [reliableNow].
+  ///
+  /// This is a secondary tamper-resistance check: even if SharedPreferences is
+  /// edited on a rooted device to fake [isActive] or [subscriptionValidUntil],
+  /// the signed JWT payload cannot be forged without the server secret.
+  bool isJwtSubscriptionExpired(String licenseToken, DateTime reliableNow) {
+    try {
+      final parts = licenseToken.split('.');
+      if (parts.length != 3) return false;
+      final padding = base64Url.normalize(parts[1]);
+      final payload = utf8.decode(base64Url.decode(padding));
+      final claims = jsonDecode(payload) as Map<String, dynamic>;
+      final subExpiresAt = claims['sub_expires_at'];
+      if (subExpiresAt == null) return false;
+      final expiry = DateTime.fromMillisecondsSinceEpoch(
+        (subExpiresAt as num).toInt() * 1000,
+      );
+      return expiry.isBefore(reliableNow);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Patches only the subscription lock fields without touching the full session.
+  /// Used by the server-side access sync to push [is_active] / [valid_until]
+  /// updates received from [check_access.php] into local storage.
+  Future<void> updateSubscriptionStatus({
+    required bool isActive,
+    required String validUntil,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyUserIsActive, isActive);
+    if (validUntil.isNotEmpty) {
+      await prefs.setString(_keySubValidUntil, validUntil);
+    }
   }
 
   Future<void> migrateLegacyAdminPinIfNeeded({

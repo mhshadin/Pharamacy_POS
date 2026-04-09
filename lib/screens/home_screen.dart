@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +17,8 @@ import '../models/product.dart';
 import '../services/ocr_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
+import '../services/time_service.dart';
+import '../config/api_config.dart';
 import '../widgets/home/out_of_stock_dialog.dart';
 import '../widgets/home/pos_scanner_section.dart';
 import '../widgets/home/pos_cart_list.dart';
@@ -172,8 +176,17 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted || session == null) return;
 
     final expiresAt = DateTime.tryParse(session.subscriptionValidUntil.trim());
-    final isExpired = expiresAt != null && expiresAt.isBefore(DateTime.now());
-    if (!isExpired || session.isActive) return;
+    final reliableNow = await TimeService().getReliableNow();
+    final isExpired = expiresAt != null && expiresAt.isBefore(reliableNow);
+    if (!isExpired) return;
+
+    // Block if SharedPreferences says inactive OR if JWT claim says expired
+    // (guards against SharedPreferences tampering on rooted devices).
+    final jwtExpired = _authStorage.isJwtSubscriptionExpired(
+      session.licenseToken,
+      reliableNow,
+    );
+    if (session.isActive && !jwtExpired) return;
 
     await showDialog<void>(
       context: context,
@@ -214,6 +227,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncSubscriptionFromServer();
+    }
+
     if (Platform.isWindows || !_isCameraActive || !_isScannerExpanded) return;
 
     if (state == AppLifecycleState.inactive ||
@@ -221,6 +238,45 @@ class _HomeScreenState extends State<HomeScreen>
       _cameraController.stop();
     } else if (state == AppLifecycleState.resumed) {
       _cameraController.start();
+    }
+  }
+
+  /// Calls [check_access.php] when the app returns to foreground.
+  /// If the server reports the subscription as locked (is_active = 0) but the
+  /// local cache still says active, the cache is updated and the block dialog
+  /// is shown. Failures (offline / timeout) are silently ignored so the app
+  /// continues to work offline.
+  Future<void> _syncSubscriptionFromServer() async {
+    final session = await _authStorage.loadAuth();
+    if (!mounted || session == null || session.licenseToken.isEmpty) return;
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$apiBaseUrl/check_access.php'),
+            headers: {'Authorization': 'Bearer ${session.licenseToken}'},
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final serverIsActive = (data['is_active'] as int?) == 1;
+        final serverValidUntil = (data['valid_until'] as String?) ?? '';
+
+        if (!serverIsActive && session.isActive) {
+          await _authStorage.updateSubscriptionStatus(
+            isActive: false,
+            validUntil: serverValidUntil.isNotEmpty
+                ? serverValidUntil
+                : session.subscriptionValidUntil,
+          );
+          if (mounted) _enforceSubscriptionBlockIfNeeded();
+        }
+      }
+    } catch (_) {
+      // Offline or server unreachable — cached state is authoritative.
     }
   }
 
