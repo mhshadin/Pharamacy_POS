@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'utils/colors.dart';
+import 'utils/text_scale_config.dart';
 import 'screens/splash_screen.dart';
 import 'providers/pos_provider.dart';
 import 'providers/admin_provider.dart';
@@ -174,14 +175,12 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
               ),
             ),
             builder: (context, child) {
+              // Ignore system font-size / accessibility text scale so layout matches
+              // across devices. Clamp alone only helps when OS scale > 1.0; at 1.0
+              // it looks unchanged. Use [kAppVisualTextScale] to tweak density app-wide.
               final mq = MediaQuery.of(context);
               return MediaQuery(
-                data: mq.copyWith(
-                  textScaler: mq.textScaler.clamp(
-                    minScaleFactor: 0.95,
-                    maxScaleFactor: 1.0,
-                  ),
-                ),
+                data: mq.copyWith(textScaler: appRootTextScaler()),
                 child: TimeLockBarrier(child: child!),
               );
             },
