@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:clarity_flutter/clarity_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -59,7 +60,15 @@ void main() async {
   await initializeDateFormatting('en_US', null);
   await initializeDateFormatting('bn', null);
 
-  runApp(const PharmacyPOSApp());
+  final clarityConfig = ClarityConfig(
+    projectId: "w8wdu2sjar",
+    logLevel: LogLevel.None,
+  );
+
+  runApp(ClarityWidget(
+    clarityConfig: clarityConfig,
+    app: const PharmacyPOSApp(),
+  ));
 }
 
 class PharmacyPOSApp extends StatefulWidget {
@@ -71,6 +80,8 @@ class PharmacyPOSApp extends StatefulWidget {
 
 class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
   StreamSubscription? _ringingSubscription;
+  bool _isPresentingAlarmScreen = false;
+  int? _lastPresentedAlarmId;
 
   @override
   void initState() {
@@ -78,15 +89,23 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
     _ringingSubscription = Alarm.ringing.listen((alarmSet) {
       if (alarmSet.alarms.isEmpty) return;
       final alarm = alarmSet.alarms.first;
+      if (_isPresentingAlarmScreen && _lastPresentedAlarmId == alarm.id) {
+        return;
+      }
       final args = AlarmAlertArgs.fromPayload(alarm.payload)
           .copyWith(alarmId: alarm.id);
       final navigator = NotificationService.navigatorKey.currentState;
       if (navigator == null) return;
-      navigator.pushNamedAndRemoveUntil(
-        '/alarm_alert',
-        (route) => route.settings.name == '/alarm_alert',
-        arguments: args,
-      );
+      _isPresentingAlarmScreen = true;
+      _lastPresentedAlarmId = alarm.id;
+      navigator
+          .pushNamed(
+            '/alarm_alert',
+            arguments: args,
+          )
+          .whenComplete(() {
+            _isPresentingAlarmScreen = false;
+          });
     });
   }
 
