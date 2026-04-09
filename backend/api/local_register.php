@@ -53,6 +53,16 @@ try {
 
     $pdo->beginTransaction();
 
+    // Do not allow a single device to register multiple pharmacies/accounts.
+    $existingDeviceStmt = $pdo->prepare('SELECT id FROM devices WHERE hardware_uid = ? LIMIT 1');
+    $existingDeviceStmt->execute([$hardwareUid]);
+    if ($existingDeviceStmt->fetch()) {
+        $pdo->rollBack();
+        http_response_code(403);
+        echo json_encode(['error' => 'DEVICE_ALREADY_REGISTERED']);
+        exit;
+    }
+
     $pharmacyId = generate_uuid_v4();
     $userId = generate_uuid_v4();
     $subscriberId = generate_uuid_v4();

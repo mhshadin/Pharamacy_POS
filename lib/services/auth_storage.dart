@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'auth_service.dart';
+import 'device_info_service.dart';
 
 class AuthSession {
   AuthSession({
@@ -204,16 +205,14 @@ class AuthStorage {
   Future<String> getOrCreateHardwareUid() async {
     final prefs = await SharedPreferences.getInstance();
     final existing = prefs.getString(_keyHardwareUid);
-    if (existing != null && existing.isNotEmpty) {
+    if (existing != null && existing.isNotEmpty && !existing.startsWith('device_')) {
       return existing;
     }
 
-    // Simple random-like UID based on DateTime + random number.
-    // You can replace this with a more robust device identifier if needed.
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final generated = 'device_$now';
-    await prefs.setString(_keyHardwareUid, generated);
-    return generated;
+    // One-time migration: legacy timestamp IDs ("device_*") -> OS-stable ID.
+    final stableUid = await DeviceInfoService.resolveStableHardwareUid();
+    await prefs.setString(_keyHardwareUid, stableUid);
+    return stableUid;
   }
 
   Future<void> setLocalAdminPin({

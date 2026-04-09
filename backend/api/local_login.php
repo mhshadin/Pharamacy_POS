@@ -69,8 +69,8 @@ try {
     }
 
     $pdo->beginTransaction();
-    $stmtDevice = $pdo->prepare('SELECT id FROM devices WHERE hardware_uid = ? AND pharmacy_id = ?');
-    $stmtDevice->execute([$hardwareUid, $user['pharmacy_id']]);
+    $stmtDevice = $pdo->prepare('SELECT id, pharmacy_id FROM devices WHERE hardware_uid = ? LIMIT 1');
+    $stmtDevice->execute([$hardwareUid]);
     $existingDevice = $stmtDevice->fetch();
     if (!$existingDevice) {
         $countStmt = $pdo->prepare('SELECT COUNT(*) AS total_devices FROM devices WHERE pharmacy_id = ?');
@@ -90,6 +90,12 @@ try {
                 $isActiveSeller === 1 ? date('Y-m-d H:i:s') : null
             ]);
     } else {
+        if ($existingDevice['pharmacy_id'] !== $user['pharmacy_id']) {
+            $pdo->rollBack();
+            http_response_code(403);
+            echo json_encode(['error' => 'DEVICE_ALREADY_REGISTERED']);
+            exit;
+        }
         $pdo->prepare('UPDATE devices SET last_login_at = NOW(), device_model = ?, device_display_name = ? WHERE hardware_uid = ? AND pharmacy_id = ?')
             ->execute([
                 $deviceModel !== '' ? $deviceModel : null,
