@@ -1605,61 +1605,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final model = (d.deviceModel ?? '').trim();
     final subtitle = model.isNotEmpty ? model : d.hardwareUid;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+    final canTransfer = admin.isCurrentDeviceActiveSeller &&
+        !d.isActiveSeller &&
+        !d.isCurrentDevice;
+
+    Future<void> onTransfer() =>
+        _confirmTransferSelling(context, admin, d, l10n);
+
+    return Material(
+      color: AppColors.surfaceLight,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: canTransfer ? () => onTransfer() : null,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: d.isCurrentDevice
-              ? AppColors.primaryDark.withValues(alpha: 0.45)
-              : AppColors.divider,
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        title: Text(
-          d.isCurrentDevice
-              ? '${d.deviceDisplayName} (${l10n.thisDeviceLabel})'
-              : d.deviceDisplayName,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: AppColors.primaryDark,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: d.isCurrentDevice
+                  ? AppColors.primaryDark.withValues(alpha: 0.45)
+                  : AppColors.divider,
+            ),
           ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(fontSize: 11, color: AppColors.secondaryAccent),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (d.isActiveSeller)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  l10n.activeSellerBadge,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.isCurrentDevice
+                              ? '${d.deviceDisplayName} (${l10n.thisDeviceLabel})'
+                              : d.deviceDisplayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.secondaryAccent,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (d.isActiveSeller)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        l10n.activeSellerBadge,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (canTransfer) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => onTransfer(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: Text(l10n.useAsActiveSeller),
                   ),
                 ),
-              ),
-            if (admin.isCurrentDeviceActiveSeller &&
-                !d.isActiveSeller &&
-                !d.isCurrentDevice)
-              TextButton(
-                onPressed: () => _confirmTransferSelling(context, admin, d, l10n),
-                child: Text(l10n.useAsActiveSeller),
-              ),
-          ],
+              ],
+            ],
+          ),
         ),
       ),
     );
