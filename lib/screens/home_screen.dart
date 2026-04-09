@@ -25,6 +25,7 @@ import 'admin/low_stock_screen.dart';
 import 'admin/sales_report_screen.dart';
 import 'manual_add_screen.dart';
 import 'ocr_scan_result_screen.dart';
+import 'login_screen.dart';
 import '../widgets/drawer/pos_drawer.dart';
 import '../services/continuous_voice_session_service.dart';
 import '../utils/product_matcher.dart';
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Scanner expand/collapse — collapsed by default so cart is always visible
   bool _isScannerExpanded = false;
+  bool _isTopSectionCollapsed = false;
 
   // Voice search state
   bool _isVoiceSearchActive = false;
@@ -137,9 +139,32 @@ class _HomeScreenState extends State<HomeScreen>
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await context.read<AdminProvider>().refreshActiveSellerFromServer();
+      try {
+        await context.read<AdminProvider>().refreshActiveSellerFromServer();
+      } on SessionExpiredException {
+        if (!mounted) return;
+        _redirectToLogin();
+        return;
+      }
       if (mounted) setState(() {});
     });
+  }
+
+  void _redirectToLogin() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Session expired. Please log in again.',
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   Future<void> _enforceSubscriptionBlockIfNeeded() async {
@@ -518,7 +543,13 @@ class _HomeScreenState extends State<HomeScreen>
     } on InactiveSellingDeviceException catch (_) {
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
-      await admin.refreshActiveSellerFromServer();
+      try {
+        await admin.refreshActiveSellerFromServer();
+      } on SessionExpiredException {
+        if (!mounted) return;
+        _redirectToLogin();
+        return;
+      }
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -530,6 +561,10 @@ class _HomeScreenState extends State<HomeScreen>
           behavior: SnackBarBehavior.floating,
         ),
       );
+      return;
+    } on SessionExpiredException {
+      if (!mounted) return;
+      _redirectToLogin();
       return;
     } catch (e, st) {
       debugPrint('Checkout failed: $e\n$st');
@@ -776,21 +811,6 @@ class _HomeScreenState extends State<HomeScreen>
       onClose: _toggleSearch,
     );
 
-    Widget quickActions = PosQuickActions(
-      isScannerExpanded: _isScannerExpanded,
-      onToggleScanner: () =>
-          setState(() => _isScannerExpanded = !_isScannerExpanded),
-      onManualAdd: _handleManualAdd,
-      onOcrScan: _handleOcrScan,
-      onVoiceTap: () {
-        if (_isVoiceSearchActive) {
-          _stopHomeVoiceSearch();
-        } else {
-          _startHomeVoiceSearch();
-        }
-      },
-      isVoiceActive: _isVoiceSearchActive,
-    );
     Widget quickActionsPanel = PosQuickActions(
       isScannerExpanded: _isScannerExpanded,
       onToggleScanner: () =>
@@ -875,89 +895,59 @@ class _HomeScreenState extends State<HomeScreen>
       appBar: _buildGradientAppBar(),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isLarge = constraints.maxWidth > 900;
+          // Right panel: fixed 84px wide — just enough for icon+label buttons
+          const double rightPanelWidth = 84;
 
-          if (isLarge) {
-            return Column(
-              children: [
-                expandableSearch,
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                  child: SizedBox(
-                    height: 300,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: PosScannerSection(
-                            cameraController: _cameraController,
-                            scanAnimation: _scanAnimation,
-                            isTablet: true,
-                            isCameraActive: _isCameraActive,
-                            isProcessingScan: _isProcessingScan,
-                            onBarcodeScanned: (code) =>
-                                _handleBarcodeScan(code, posProvider),
-                            onToggleCamera: () {
-                              if (Platform.isWindows) return;
-                              setState(() {
-                                _isCameraActive = !_isCameraActive;
-                                if (_isCameraActive) {
-                                  _cameraController.start();
-                                } else {
-                                  _cameraController.stop();
-                                }
-                              });
-                            },
-                            isExpanded: _isScannerExpanded,
-                            onToggleExpanded: () => setState(
-                                () => _isScannerExpanded = !_isScannerExpanded),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.topRight,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 420),
-                              child: quickActionsPanel,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                voiceSearchBar,
-                const Divider(height: 1, color: AppColors.divider),
-                Expanded(
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            cartList,
-                            checkoutFooter,
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }
-
-          // Phone: single column
           return Column(
             children: [
               expandableSearch,
-              quickActions,
-              scannerSection,
+              // ── Top row: scanner left + action buttons right ──────────────
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                child: _isTopSectionCollapsed
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Scanner — fills remaining width
+                            Expanded(child: scannerSection),
+                            const SizedBox(width: 8),
+                            // Action buttons — fixed width vertical column
+                            SizedBox(
+                              width: rightPanelWidth,
+                              child: quickActionsPanel,
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
               voiceSearchBar,
-              cartList,
+              // ── Subtle collapse handle ─────────────────────────────────────
+              GestureDetector(
+                onTap: () =>
+                    setState(() => _isTopSectionCollapsed = !_isTopSectionCollapsed),
+                child: Container(
+                  width: double.infinity,
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Center(
+                    child: Container(
+                      width: 48,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // ── Cart list (always visible) ─────────────────────────────────
+              Expanded(child: cartList),
+              // ── Checkout footer (always visible) ──────────────────────────
               checkoutFooter,
             ],
           );

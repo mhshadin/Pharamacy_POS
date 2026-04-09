@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
-
+import '../../providers/language_provider.dart';
+import '../../l10n/app_strings.dart';
 class PosScannerSection extends StatelessWidget {
   final MobileScannerController cameraController;
   final Animation<double> scanAnimation;
@@ -30,15 +32,16 @@ class PosScannerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
     if (!isExpanded) {
-      return _buildCollapsedCard();
+      return _buildCollapsedCard(l10n);
     }
-    return _buildExpandedCard(context);
+    return _buildExpandedCard(context, l10n);
   }
 
   // ── Collapsed: 48 px white card ──────────────────────────────────────────
 
-  Widget _buildCollapsedCard() {
+  Widget _buildCollapsedCard(AppStrings l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: GestureDetector(
@@ -74,8 +77,8 @@ class PosScannerSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   isCameraActive
-                      ? 'Scanner active — tap to expand'
-                      : 'Scanner paused — tap to expand',
+                      ? l10n.scannerActiveExpand
+                      : l10n.scannerPausedExpand,
                   style: TextStyle(
                     color: isCameraActive
                         ? AppColors.primaryDark
@@ -99,21 +102,20 @@ class PosScannerSection extends StatelessWidget {
 
   // ── Expanded: white card with camera + bottom info row ───────────────────
 
-  Widget _buildExpandedCard(BuildContext context) {
+  Widget _buildExpandedCard(BuildContext context, AppStrings l10n) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isNarrow = screenWidth < 380;
+    // Camera fills more height when in side-by-side layout
     final cameraHeight =
-        isTablet ? 280.0 : (screenWidth * 0.38).clamp(100.0, 160.0);
+        isTablet ? 280.0 : (screenWidth * 0.52).clamp(130.0, 220.0);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: const Color(0xFF111827),
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
-              color: Colors.black12,
+              color: Colors.black26,
               blurRadius: 8,
               offset: Offset(0, 3),
             ),
@@ -156,17 +158,17 @@ class PosScannerSection extends StatelessWidget {
                                 size: isNarrow ? 26.0 : 32.0,
                               ),
                               const SizedBox(height: 6),
-                              const Text(
-                                'Camera Paused',
-                                style: TextStyle(
+                              Text(
+                                l10n.cameraPaused,
+                                style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const Text(
-                                'Tap to resume',
-                                style: TextStyle(
+                              Text(
+                                l10n.tapToResume,
+                                style: const TextStyle(
                                   color: Colors.white38,
                                   fontSize: 11,
                                 ),
@@ -246,53 +248,31 @@ class PosScannerSection extends StatelessWidget {
               ),
             ),
 
-            // ── Bottom info row ──────────────────────────────────────────
+            // ── Compact status bar ───────────────────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   Icon(
                     isCameraActive ? LucideIcons.scan : LucideIcons.cameraOff,
-                    size: 14,
+                    size: 13,
                     color: isCameraActive
-                        ? AppColors.primaryDark
-                        : AppColors.secondaryAccent.withValues(alpha: 0.6),
+                        ? Colors.white70
+                        : Colors.white38,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       isCameraActive
-                          ? 'Tap scanner to pause/resume'
-                          : 'Scanner paused — tap to resume',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.secondaryAccent
-                            .withValues(alpha: 0.9),
+                          ? l10n.tapScannerToPauseResume
+                          : l10n.scannerPausedTapToResume,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white54,
                         fontWeight: FontWeight.w500,
                       ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: onToggleExpanded,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Collapse',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.secondaryAccent,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        Icon(
-                          LucideIcons.chevronUp,
-                          size: 14,
-                          color: AppColors.secondaryAccent,
-                        ),
-                      ],
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -300,7 +280,6 @@ class PosScannerSection extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

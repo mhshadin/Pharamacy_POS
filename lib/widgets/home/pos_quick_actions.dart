@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import '../../utils/colors.dart';
+import '../../providers/language_provider.dart';
 
 class PosQuickActions extends StatelessWidget {
   final bool isScannerExpanded;
   final VoidCallback onToggleScanner;
   final VoidCallback onManualAdd;
   final VoidCallback onOcrScan;
-  final VoidCallback onVoiceSearch;
+  final VoidCallback onVoiceTap;
   final bool isVoiceActive;
+  final bool isPanelMode;
 
   const PosQuickActions({
     super.key,
@@ -16,56 +19,138 @@ class PosQuickActions extends StatelessWidget {
     required this.onToggleScanner,
     required this.onManualAdd,
     required this.onOcrScan,
-    required this.onVoiceSearch,
+    required this.onVoiceTap,
     this.isVoiceActive = false,
+    this.isPanelMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
+
+    final actions = [
+      _ActionData(
+        label: isScannerExpanded ? l10n.hide : l10n.scan,
+        icon: isScannerExpanded ? LucideIcons.chevronUp : LucideIcons.scan,
+        isActive: isScannerExpanded,
+        onPressed: onToggleScanner,
+      ),
+      _ActionData(
+        label: l10n.manual,
+        icon: LucideIcons.plusSquare,
+        onPressed: onManualAdd,
+      ),
+      _ActionData(
+        label: l10n.ocr,
+        icon: LucideIcons.scanLine,
+        onPressed: onOcrScan,
+      ),
+      _ActionData(
+        label: isVoiceActive ? l10n.cancelBtn : l10n.voice,
+        icon: isVoiceActive ? LucideIcons.micOff : LucideIcons.mic,
+        isActive: isVoiceActive,
+        activeColor: AppColors.highlightActive,
+        onPressed: onVoiceTap,
+      ),
+    ];
+
+    if (isPanelMode) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: actions
+            .map(
+              (a) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _VerticalActionButton(
+                  label: a.label,
+                  icon: a.icon,
+                  isActive: a.isActive,
+                  activeColor: a.activeColor,
+                  onPressed: a.onPressed,
+                ),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    // Horizontal row for legacy / non-panel usage
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
-        children: [
-          _QuickActionButton(
-            label: isScannerExpanded ? 'Hide' : 'Scan',
-            icon: isScannerExpanded ? LucideIcons.chevronUp : LucideIcons.scan,
-            isActive: isScannerExpanded,
-            onPressed: onToggleScanner,
-          ),
-          const SizedBox(width: 8),
-          _QuickActionButton(
-            label: 'Manual',
-            icon: LucideIcons.plusSquare,
-            onPressed: onManualAdd,
-          ),
-          const SizedBox(width: 8),
-          _QuickActionButton(
-            label: 'OCR',
-            icon: LucideIcons.scanLine,
-            onPressed: onOcrScan,
-          ),
-          const SizedBox(width: 8),
-          _QuickActionButton(
-            label: isVoiceActive ? 'Stop' : 'Voice',
-            icon: isVoiceActive ? LucideIcons.micOff : LucideIcons.mic,
-            isActive: isVoiceActive,
-            activeColor: AppColors.highlightActive,
-            onPressed: onVoiceSearch,
-          ),
-        ],
+        children: actions.asMap().entries.map((e) {
+          final isLast = e.key == actions.length - 1;
+          final a = e.value;
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: isLast ? 0 : 8),
+              child: SizedBox(
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: a.onPressed,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: a.isActive
+                        ? (a.activeColor ?? AppColors.primaryDark)
+                        : AppColors.posButtonIdle,
+                    foregroundColor:
+                        a.isActive ? AppColors.white : AppColors.primaryDark,
+                    shadowColor: Colors.transparent,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(a.icon, size: 18),
+                      const SizedBox(height: 2),
+                      Text(
+                        a.label,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 }
 
-class _QuickActionButton extends StatelessWidget {
+class _ActionData {
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
   final bool isActive;
   final Color? activeColor;
 
-  const _QuickActionButton({
+  const _ActionData({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.isActive = false,
+    this.activeColor,
+  });
+}
+
+class _VerticalActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool isActive;
+  final Color? activeColor;
+
+  const _VerticalActionButton({
     required this.label,
     required this.icon,
     required this.onPressed,
@@ -75,42 +160,43 @@ class _QuickActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fillColor = isActive
+    final bg = isActive
         ? (activeColor ?? AppColors.primaryDark)
         : AppColors.posButtonIdle;
-    final fgColor = isActive ? AppColors.white : AppColors.primaryDark;
+    final fg = isActive ? AppColors.white : AppColors.primaryDark;
 
-    return Expanded(
-      child: SizedBox(
-        height: 44,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: fillColor,
-            foregroundColor: fgColor,
-            shadowColor: Colors.transparent,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bg,
+          foregroundColor: fg,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.3,
-                ),
-                overflow: TextOverflow.ellipsis,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.2,
               ),
-            ],
-          ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
