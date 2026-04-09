@@ -1165,9 +1165,19 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
                                     minWidth: 36,
                                     minHeight: 36,
                                   ),
-                                  onPressed: hasSupplierPhone
-                                      ? () => tryDialPhone(context, supplierPhone)
-                                      : null,
+                                  onPressed: () {
+                                    if (hasSupplierPhone) {
+                                      tryDialPhone(context, supplierPhone);
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(l10n.noSupplierContactFound),
+                                          behavior: SnackBarBehavior.floating,
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
                                   icon: Icon(
                                     LucideIcons.phoneCall,
                                     color: hasSupplierPhone

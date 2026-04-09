@@ -1397,6 +1397,8 @@ class AppStringsEn implements AppStrings {
 
   @override
   String get callSupplier => 'Call supplier';
+  @override
+  String get noSupplierContactFound => 'No contact found';
 
   @override
   String remainingUnits(int n, String unit) => '$n $unit remaining';

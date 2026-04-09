@@ -1409,6 +1409,8 @@ class AppStringsBn implements AppStrings {
 
   @override
   String get callSupplier => 'সরবরাহকারীকে কল করুন';
+  @override
+  String get noSupplierContactFound => 'কোনো যোগাযোগের নম্বর নেই';
 
   @override
   String remainingUnits(int n, String unit) => '$n $unit বাকি আছে';

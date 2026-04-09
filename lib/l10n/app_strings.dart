@@ -665,6 +665,7 @@ abstract class AppStrings {
   String get confirmOrderQuantities;
   String deficitUnits(int n, String unit);
   String get callSupplier;
+  String get noSupplierContactFound;
   String remainingUnits(int n, String unit);
   String extraUnits(int n, String unit);
   String stockLevelPercent(int n);

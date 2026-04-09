@@ -451,7 +451,11 @@ class _LowStockScreenState extends State<LowStockScreen> {
     });
   }
 
-  Widget _buildSortActionTile(AppStrings l10n, {required bool expand}) {
+  Widget _buildSortActionTile(
+    AppStrings l10n, {
+    required bool expand,
+    int flex = 1,
+  }) {
     final tile = PopupMenuButton<String>(
       tooltip: l10n.sortBtn,
       icon: SizedBox(
@@ -515,7 +519,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
           .toList(),
     );
 
-    if (expand) return Expanded(child: tile);
+    if (expand) return Expanded(flex: flex, child: tile);
     return SizedBox(width: 74, child: tile);
   }
 
@@ -914,7 +918,11 @@ class _LowStockScreenState extends State<LowStockScreen> {
                     final gap = constraints.maxWidth < 380 ? 6.0 : 8.0;
                     return Row(
                       children: [
-                        _buildSortActionTile(l10n, expand: true),
+                        _buildSortActionTile(
+                          l10n,
+                          expand: true,
+                          flex: 5,
+                        ),
                         SizedBox(width: gap),
                         adminActionTileButton(
                           icon: LucideIcons.listFilter,
@@ -922,6 +930,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                           tooltip: l10n.filterByStockStatus,
                           activeCount: _filter == 'All' ? 0 : 1,
                           expand: true,
+                          flex: 5,
                           onPressed: () => _showStockStatusFilterPanel(l10n),
                         ),
                         if (hasCompanies) ...[
@@ -932,6 +941,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             tooltip: l10n.filterByCompany,
                             activeCount: _selectedCompanies.length,
                             expand: true,
+                            flex: 6,
                             onPressed: () =>
                                 _showCompanySheet(allCompanies, l10n),
                           ),
@@ -944,6 +954,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             tooltip: l10n.exportOrderList,
                             activeCount: 0,
                             expand: true,
+                            flex: 5,
                             onPressed: () => _showOrderQtyModal(filtered),
                           ),
                         ],
@@ -954,21 +965,25 @@ class _LowStockScreenState extends State<LowStockScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Text(
-                      l10n.productsCount(filtered.length),
-                      style: const TextStyle(
-                        color: AppColors.secondaryAccent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                    Expanded(
+                      child: Text(
+                        l10n.productsCount(filtered.length),
+                        style: const TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: AppColors.divider),
               ],
             ),
           ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
 
           // List results
           Expanded(
@@ -1044,7 +1059,6 @@ class _LowStockScreenState extends State<LowStockScreen> {
 
                           final medTypeBadge = product.medType != null
                               ? Container(
-                                  margin: const EdgeInsets.only(top: 4),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 7,
                                     vertical: 3,
@@ -1104,15 +1118,34 @@ class _LowStockScreenState extends State<LowStockScreen> {
                             )
                           : const SizedBox.shrink();
 
-                          final phoneBtn = hasSupplierPhone
-                              ? IconButton(
-                                  tooltip: l10n.callSupplier,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                  onPressed: () => tryDialPhone(context, supplierPhone),
-                                  icon: const Icon(LucideIcons.phoneCall, color: AppColors.primaryDark, size: 20),
-                                )
-                              : null;
+                          final phoneBtn = IconButton(
+                            tooltip: l10n.callSupplier,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                            onPressed: () {
+                              if (hasSupplierPhone) {
+                                tryDialPhone(context, supplierPhone);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(l10n.noSupplierContactFound),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: Icon(
+                              LucideIcons.phoneCall,
+                              color: hasSupplierPhone
+                                  ? AppColors.success
+                                  : Colors.grey,
+                              size: 20,
+                            ),
+                          );
 
                           final statRow = Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1171,6 +1204,7 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       iconBox,
                                       const SizedBox(width: 12),
@@ -1179,12 +1213,20 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             nameColumn,
-                                            medTypeBadge,
                                             powerBadge,
                                           ],
                                         ),
                                       ),
-                                      phoneBtn ?? const SizedBox.shrink(),
+                                      Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          medTypeBadge,
+                                          const SizedBox(height: 6),
+                                          phoneBtn,
+                                        ],
+                                      ),
                                     ],
                                   ),
                                   const Padding(
