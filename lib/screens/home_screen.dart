@@ -896,9 +896,9 @@ class _HomeScreenState extends State<HomeScreen>
       body: LayoutBuilder(
         builder: (context, constraints) {
           const double rightPanelWidth = 80;
-          // Cap the scanner+buttons content to 35% of body height
+          // Cap the scanner+buttons content to 30% of body height
           final double topContentHeight =
-              (constraints.maxHeight * 0.35).clamp(160.0, 260.0);
+              (constraints.maxHeight * 0.30).clamp(140.0, 230.0);
 
           return Column(
             children: [

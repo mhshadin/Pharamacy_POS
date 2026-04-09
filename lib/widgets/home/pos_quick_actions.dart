@@ -30,12 +30,6 @@ class PosQuickActions extends StatelessWidget {
 
     final actions = [
       _ActionData(
-        label: isScannerExpanded ? l10n.hide : l10n.scan,
-        icon: isScannerExpanded ? LucideIcons.chevronUp : LucideIcons.scan,
-        isActive: isScannerExpanded,
-        onPressed: onToggleScanner,
-      ),
-      _ActionData(
         label: l10n.manual,
         icon: LucideIcons.plusSquare,
         onPressed: onManualAdd,
