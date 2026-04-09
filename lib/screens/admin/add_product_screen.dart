@@ -8,7 +8,6 @@ import '../../providers/language_provider.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
-import '../../utils/med_type_units.dart';
 import '../../utils/med_type_icons.dart';
 import '../../l10n/app_strings.dart';
 import '../scanner_screen.dart';
@@ -44,13 +43,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _supplierPhoneCtrl = TextEditingController();
   DateTime? _expiryDate;
   String? _selectedMedType = 'Tablet';
-  bool? _showOptionalFields;
   bool? _useStepperOverride;
-
-  Map<String, String?> get _unitLabels => MedTypeUnits.getLabels(
-    _selectedMedType,
-    context.read<LanguageProvider>().strings,
-  );
 
   @override
   void initState() {
@@ -60,7 +53,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final admin = context.read<AdminProvider>();
         setState(() {
           _lowStockWarningCtrl.text = admin.lowStockThreshold.toString();
-          _showOptionalFields = admin.expandOptionalFields;
         });
       }
     });
@@ -89,6 +81,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   void _loadProductInfo(Product selection) {
+    final pps = selection.pcsPerStrip > 0 ? selection.pcsPerStrip : 10;
+    final spb = selection.stripsPerBox > 0 ? selection.stripsPerBox : 1;
+    final stripCost = selection.costPricePerPc * pps;
+    final boxCost = stripCost * spb;
+
     setState(() {
       _nameCtrl?.text = selection.name;
       _genericCtrl?.text = selection.generic;
@@ -96,6 +93,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _barcodeCtrl.text = selection.barcode ?? '';
       _priceBoxCtrl.text = selection.priceBox.toStringAsFixed(2);
       _priceStripCtrl.text = selection.priceStrip.toStringAsFixed(2);
+      _buyingPriceBoxCtrl.text = boxCost.toStringAsFixed(2);
+      _buyingPriceStripCtrl.text = stripCost.toStringAsFixed(2);
       _stripsPerBoxCtrl.text = selection.stripsPerBox.toString();
       _pcsPerStripCtrl.text = selection.pcsPerStrip.toString();
       _lowStockWarningCtrl.text =
@@ -799,11 +798,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final useStepperMode =
         _useStepperOverride ?? admin.addProductUseStepperDefault;
     final pad = ResponsiveHelper.screenPadding(context);
-    return Material(
-      color: AppColors.background,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Column(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Material(
+        color: AppColors.background,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
@@ -905,7 +907,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                 final lowerQuery =
                                                     textEditingValue.text
                                                         .toLowerCase();
-                                                return context
+                                                final seenNames = <String>{};
+                                                final uniqueMatches = context
                                                     .read<AdminProvider>()
                                                     .allProducts
                                                     .where((p) {
@@ -919,11 +922,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                               .contains(
                                                                 lowerQuery,
                                                               );
-                                                    });
+                                                    })
+                                                    .where((p) {
+                                                      final name = p.name.trim();
+                                                      if (name.isEmpty) return false;
+                                                      final key =
+                                                          name.toLowerCase();
+                                                      if (seenNames.contains(
+                                                        key,
+                                                      )) {
+                                                        return false;
+                                                      }
+                                                      seenNames.add(key);
+                                                      return true;
+                                                    })
+                                                    .toList();
+                                                return uniqueMatches;
                                               },
                                           displayStringForOption:
                                               (Product option) => option.name,
-                                          onSelected: _loadProductInfo,
+                                          onSelected: (Product selection) {
+                                            _loadProductInfo(selection);
+                                            FocusScope.of(context).unfocus();
+                                          },
                                           fieldViewBuilder:
                                               (
                                                 context,
@@ -1107,52 +1128,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                       },
                                     ),
                                     const SizedBox(height: 16),
-                                    InkWell(
-                                      onTap: () {
-                                        final newVal =
-                                            !(_showOptionalFields ?? false);
-                                        setState(
-                                          () => _showOptionalFields = newVal,
-                                        );
-                                        context
-                                            .read<AdminProvider>()
-                                            .updateExpandOptionalFields(newVal);
-                                      },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 8.0,
-                                          horizontal: 4.0,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Text(
-                                              l10n.optionalDetails,
-                                              style: const TextStyle(
-                                                color: AppColors.primaryDark,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            Icon(
-                                              (_showOptionalFields ?? false)
-                                                  ? LucideIcons.chevronUp
-                                                  : LucideIcons.chevronDown,
-                                              size: 18,
-                                              color: AppColors.secondaryAccent,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
                                     AnimatedSize(
                                       duration: const Duration(
                                         milliseconds: 300,
                                       ),
                                       curve: Curves.easeInOut,
-                                      child: (_showOptionalFields ?? false)
-                                          ? Column(
+                                      child: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
@@ -1664,8 +1645,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                 ],
                                                 const SizedBox(height: 8),
                                               ],
-                                            )
-                                          : const SizedBox.shrink(),
+                                            ),
                                     ),
                                   ],
                                 ),
@@ -1688,71 +1668,52 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 child: LayoutBuilder(
                                   builder: (context, constraints) => Row(
                                     children: [
-                                      if (MedTypeUnits.hasUnit1(
-                                        _selectedMedType,
-                                      ))
-                                        Expanded(
-                                          child: _buildField(
-                                            controller: _stripsPerBoxCtrl,
-                                            label: l10n.stripsPerBox,
-                                            icon: LucideIcons.package,
-                                            keyboardType: TextInputType.number,
-                                            validator: (v) =>
-                                                v == null || v.isEmpty
-                                                ? l10n.requiredField
-                                                : null,
-                                            onChanged: (val) {
-                                              if (val.isEmpty) return;
-                                              final spb =
-                                                  int.tryParse(val) ?? 1;
-                                              if (spb > 0) {
-                                                final boxP = double.tryParse(
-                                                  _priceBoxCtrl.text,
-                                                );
-                                                if (boxP != null) {
-                                                  _priceStripCtrl.text =
-                                                      (boxP / spb)
-                                                          .toStringAsFixed(2);
-                                                }
-                                                final boxes = int.tryParse(
-                                                  _stockBoxesCtrl.text,
-                                                );
-                                                if (boxes != null) {
-                                                  _stockStripsCtrl.text =
-                                                      (boxes * spb).toString();
-                                                }
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _stripsPerBoxCtrl,
+                                          label: l10n.stripsPerBox,
+                                          icon: LucideIcons.package,
+                                          keyboardType: TextInputType.number,
+                                          validator: (v) =>
+                                              v == null || v.isEmpty
+                                              ? l10n.requiredField
+                                              : null,
+                                          onChanged: (val) {
+                                            if (val.isEmpty) return;
+                                            final spb = int.tryParse(val) ?? 1;
+                                            if (spb > 0) {
+                                              final boxP = double.tryParse(
+                                                _priceBoxCtrl.text,
+                                              );
+                                              if (boxP != null) {
+                                                _priceStripCtrl.text =
+                                                    (boxP / spb)
+                                                        .toStringAsFixed(2);
                                               }
-                                            },
-                                          ),
+                                              final boxes = int.tryParse(
+                                                _stockBoxesCtrl.text,
+                                              );
+                                              if (boxes != null) {
+                                                _stockStripsCtrl.text =
+                                                    (boxes * spb).toString();
+                                              }
+                                            }
+                                          },
                                         ),
-                                      if (MedTypeUnits.hasUnit1(
-                                            _selectedMedType,
-                                          ) &&
-                                          MedTypeUnits.hasUnit3(
-                                            _selectedMedType,
-                                          ))
-                                        const SizedBox(width: 12),
-                                      if (MedTypeUnits.hasUnit3(
-                                        _selectedMedType,
-                                      ))
-                                        Expanded(
-                                          child: _buildField(
-                                            controller: _pcsPerStripCtrl,
-                                            label: l10n.pcsPerStrip,
-                                            icon: LucideIcons.boxes,
-                                            keyboardType: TextInputType.number,
-                                            hintText:
-                                                _selectedMedType
-                                                        ?.toLowerCase() ==
-                                                    'syrup'
-                                                ? l10n.syrupHint
-                                                : null,
-                                            validator: (v) =>
-                                                v == null || v.isEmpty
-                                                ? l10n.requiredField
-                                                : null,
-                                          ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildField(
+                                          controller: _pcsPerStripCtrl,
+                                          label: l10n.pcsPerStrip,
+                                          icon: LucideIcons.boxes,
+                                          keyboardType: TextInputType.number,
+                                          validator: (v) =>
+                                              v == null || v.isEmpty
+                                              ? l10n.requiredField
+                                              : null,
                                         ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1766,42 +1727,37 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        if (MedTypeUnits.hasUnit1(
-                                          _selectedMedType,
-                                        )) ...[
-                                          Expanded(
-                                            child: _buildField(
-                                              controller: _priceBoxCtrl,
-                                              label:
-                                                  '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit1'] ?? l10n.boxes}',
-                                              icon: LucideIcons.shoppingCart,
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              onChanged: (val) {
-                                                if (val.isEmpty) return;
-                                                final boxPrice =
-                                                    double.tryParse(val);
-                                                final spb =
-                                                    int.tryParse(
-                                                      _stripsPerBoxCtrl.text,
-                                                    ) ??
-                                                    1;
-                                                if (boxPrice != null &&
-                                                    spb > 0) {
-                                                  _priceStripCtrl.text =
-                                                      (boxPrice / spb)
-                                                          .toStringAsFixed(2);
-                                                }
-                                              },
-                                            ),
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _priceBoxCtrl,
+                                            label:
+                                                '${l10n.pricePerPc.split(' ').first} / ${l10n.boxes}',
+                                            icon: LucideIcons.shoppingCart,
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (val) {
+                                              if (val.isEmpty) return;
+                                              final boxPrice =
+                                                  double.tryParse(val);
+                                              final spb =
+                                                  int.tryParse(
+                                                    _stripsPerBoxCtrl.text,
+                                                  ) ??
+                                                  1;
+                                              if (boxPrice != null &&
+                                                  spb > 0) {
+                                                _priceStripCtrl.text =
+                                                    (boxPrice / spb)
+                                                        .toStringAsFixed(2);
+                                              }
+                                            },
                                           ),
-                                          const SizedBox(width: 12),
-                                        ],
+                                        ),
+                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: _buildField(
                                             controller: _priceStripCtrl,
                                             label:
-                                                '${l10n.pricePerPc.split(' ').first} / ${_unitLabels['unit2'] ?? l10n.strips}',
+                                                '${l10n.pricePerPc.split(' ').first} / ${l10n.strips}',
                                             icon: LucideIcons.dollarSign,
                                             keyboardType: TextInputType.number,
                                             validator: (v) =>
@@ -1831,43 +1787,36 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                     const SizedBox(height: 12),
                                     Row(
                                       children: [
-                                        if (MedTypeUnits.hasUnit1(
-                                          _selectedMedType,
-                                        )) ...[
-                                          Expanded(
-                                            child: _buildField(
-                                              controller: _buyingPriceBoxCtrl,
-                                              label:
-                                                  'Cost / ${_unitLabels['unit1'] ?? l10n.boxes}',
-                                              icon: LucideIcons.tag,
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              onChanged: (val) {
-                                                if (val.isEmpty) return;
-                                                final boxCost = double.tryParse(
-                                                  val,
-                                                );
-                                                final spb =
-                                                    int.tryParse(
-                                                      _stripsPerBoxCtrl.text,
-                                                    ) ??
-                                                    1;
-                                                if (boxCost != null &&
-                                                    spb > 0) {
-                                                  _buyingPriceStripCtrl.text =
-                                                      (boxCost / spb)
-                                                          .toStringAsFixed(2);
-                                                }
-                                              },
-                                            ),
+                                        Expanded(
+                                          child: _buildField(
+                                            controller: _buyingPriceBoxCtrl,
+                                            label: 'Cost / ${l10n.boxes}',
+                                            icon: LucideIcons.tag,
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (val) {
+                                              if (val.isEmpty) return;
+                                              final boxCost = double.tryParse(
+                                                val,
+                                              );
+                                              final spb =
+                                                  int.tryParse(
+                                                    _stripsPerBoxCtrl.text,
+                                                  ) ??
+                                                  1;
+                                              if (boxCost != null &&
+                                                  spb > 0) {
+                                                _buyingPriceStripCtrl.text =
+                                                    (boxCost / spb)
+                                                        .toStringAsFixed(2);
+                                              }
+                                            },
                                           ),
-                                          const SizedBox(width: 12),
-                                        ],
+                                        ),
+                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: _buildField(
                                             controller: _buyingPriceStripCtrl,
-                                            label:
-                                                'Cost / ${_unitLabels['unit2'] ?? l10n.strips}',
+                                            label: 'Cost / ${l10n.strips}',
                                             icon: LucideIcons.tag,
                                             keyboardType: TextInputType.number,
                                             onChanged: (val) {
@@ -1994,36 +1943,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                 icon: LucideIcons.clipboardList,
                                 child: Column(
                                   children: [
-                                    if (MedTypeUnits.hasUnit1(_selectedMedType))
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 12,
-                                        ),
-                                        child: _buildField(
-                                          controller: _stockBoxesCtrl,
-                                          label:
-                                              '${l10n.inventory} (${_unitLabels['unit1'] ?? l10n.boxes})',
-                                          icon: LucideIcons.box,
-                                          keyboardType: TextInputType.number,
-                                          onChanged: (val) {
-                                            if (val.isEmpty) return;
-                                            final boxes = int.tryParse(val);
-                                            final spb =
-                                                int.tryParse(
-                                                  _stripsPerBoxCtrl.text,
-                                                ) ??
-                                                1;
-                                            if (boxes != null && spb > 0) {
-                                              _stockStripsCtrl.text =
-                                                  (boxes * spb).toString();
-                                            }
-                                          },
-                                        ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
                                       ),
+                                      child: _buildField(
+                                        controller: _stockBoxesCtrl,
+                                        label:
+                                            '${l10n.inventory} (${l10n.boxes})',
+                                        icon: LucideIcons.box,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (val) {
+                                          if (val.isEmpty) return;
+                                          final boxes = int.tryParse(val);
+                                          final spb =
+                                              int.tryParse(
+                                                _stripsPerBoxCtrl.text,
+                                              ) ??
+                                              1;
+                                          if (boxes != null && spb > 0) {
+                                            _stockStripsCtrl.text =
+                                                (boxes * spb).toString();
+                                          }
+                                        },
+                                      ),
+                                    ),
                                     _buildField(
                                       controller: _stockStripsCtrl,
                                       label:
-                                          '${l10n.inventory} (${_unitLabels['unit2'] ?? l10n.strips})',
+                                          '${l10n.inventory} (${l10n.strips})',
                                       icon: LucideIcons.layers,
                                       keyboardType: TextInputType.number,
                                       onChanged: (val) {
@@ -2044,7 +1992,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                     _buildField(
                                       controller: _lowStockWarningCtrl,
                                       label:
-                                          '${l10n.minStockLevel} (${_unitLabels['unit1'] ?? _unitLabels['unit2'] ?? l10n.boxes})',
+                                          '${l10n.minStockLevel} (${l10n.boxes})',
                                       icon: LucideIcons.alertTriangle,
                                       keyboardType: TextInputType.number,
                                     ),
@@ -2136,8 +2084,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ),
               ),
             ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -2262,7 +2211,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Widget _buildMedTypeDropdown() {
     final l10n = context.read<LanguageProvider>().strings;
     return InkWell(
-      onTap: _showMedTypePicker,
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _showMedTypePicker();
+      },
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
