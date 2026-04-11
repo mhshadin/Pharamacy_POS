@@ -147,15 +147,18 @@ class _LowStockScreenState extends State<LowStockScreen> {
   List<Product> _applyFilters(List<Product> source) {
     var list = List<Product>.from(source);
 
-    // Search
+    // Search (exact match on name, generic, company, or barcode)
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((p) {
-        final barcode = p.barcode?.toLowerCase() ?? '';
-        return p.name.toLowerCase().contains(q) ||
-            p.generic.toLowerCase().contains(q) ||
-            (p.companyName?.toLowerCase().contains(q) ?? false) ||
-            barcode.contains(q);
+        final name = p.name.trim().toLowerCase();
+        final generic = p.generic.trim().toLowerCase();
+        final company = p.companyName?.trim().toLowerCase() ?? '';
+        final barcode = p.barcode?.trim().toLowerCase() ?? '';
+        return name == q ||
+            generic == q ||
+            company == q ||
+            barcode == q;
       }).toList();
     }
 

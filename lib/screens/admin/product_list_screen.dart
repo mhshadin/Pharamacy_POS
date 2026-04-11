@@ -162,19 +162,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }) {
     var list = List<Product>.from(source);
 
-    // Search
-    final searchText = _searchController.text;
-    if (searchText.isNotEmpty) {
-      final q = searchText.toLowerCase();
+    // Search (exact match on name, generic, company, or barcode)
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
       list = list.where((p) {
-        final name = p.name.toLowerCase();
-        final generic = p.generic.toLowerCase();
-        final company = p.companyName?.toLowerCase() ?? '';
-        final barcode = p.barcode?.toLowerCase() ?? '';
-        return name.contains(q) ||
-            generic.contains(q) ||
-            company.contains(q) ||
-            barcode.contains(q);
+        final name = p.name.trim().toLowerCase();
+        final generic = p.generic.trim().toLowerCase();
+        final company = p.companyName?.trim().toLowerCase() ?? '';
+        final barcode = p.barcode?.trim().toLowerCase() ?? '';
+        return name == q ||
+            generic == q ||
+            company == q ||
+            barcode == q;
       }).toList();
     }
 
