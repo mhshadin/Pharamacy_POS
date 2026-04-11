@@ -1022,12 +1022,17 @@ class _HomeScreenState extends State<HomeScreen>
       canPop: replacementInv == null || _replacementCheckoutCommitted,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+        final nav = Navigator.of(context);
         final pos = context.read<POSProvider>();
         final repl = _replacementInvoiceForFlow(pos);
         if (repl != null && !_replacementCheckoutCommitted) {
           pos.clearCart();
         }
-        if (mounted) Navigator.of(context).pop();
+        // Replacement flow used to pop a second Home; now Home is often root.
+        // Only pop if something is above us; otherwise stay on POS after cancel.
+        if (mounted && nav.canPop()) {
+          nav.pop();
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,
