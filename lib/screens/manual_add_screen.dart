@@ -12,6 +12,9 @@ import '../providers/language_provider.dart';
 import '../utils/med_type_units.dart';
 import '../widgets/taka_symbol.dart';
 
+/// Same threshold as [PosCartList] horizontal swipes on the home cart.
+const double _kManualAddSwipeBackMinVelocity = 450.0;
+
 class ManualAddScreen extends StatefulWidget {
   final String? initialGenericFilter;
 
@@ -20,12 +23,15 @@ class ManualAddScreen extends StatefulWidget {
   @override
   State<ManualAddScreen> createState() => _ManualAddScreenState();
 }
-class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderStateMixin {
+
+class _ManualAddScreenState extends State<ManualAddScreen>
+    with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late final ContinuousVoiceSessionService _voiceSession;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _isListening = false;
+
   /// Cached in [didChangeDependencies] so [dispose] can clear search without using [context].
   POSProvider? _posProvider;
   // Track selected variant ID per product name
@@ -58,7 +64,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchControllerChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncInitialSearchFilter());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncInitialSearchFilter(),
+    );
 
     _pulseController = AnimationController(
       vsync: this,
@@ -116,7 +124,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
   void dispose() {
     // Reset POS cart filter when leaving Manual Add so Home cart is unfiltered.
     _searchController.removeListener(_onSearchControllerChanged);
-    _posProvider?.setSearchQuery('');
+    _posProvider?.setSearchQuery('', notify: false);
     _voiceSession.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
@@ -152,7 +160,11 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            l10n.addedToCartDetail(best.product.name, 1, (unitLabels['unit3'] ?? 'pc').toLowerCase()),
+            l10n.addedToCartDetail(
+              best.product.name,
+              1,
+              (unitLabels['unit3'] ?? 'pc').toLowerCase(),
+            ),
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green.shade700,
@@ -226,10 +238,12 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
               onPressed: () {
                 final int newQ = int.tryParse(qController.text) ?? 0;
                 final provider = context.read<POSProvider>();
-                
+
                 int strips = 0;
                 int pcs = 0;
-                final idx = provider.cart.indexWhere((c) => c.product.id == product.id);
+                final idx = provider.cart.indexWhere(
+                  (c) => c.product.id == product.id,
+                );
                 if (idx >= 0) {
                   strips = provider.cart[idx].stripQuantity;
                   pcs = provider.cart[idx].pcQuantity;
@@ -318,8 +332,9 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
                       ),
                     ),
                     selected: isSelected,
-                    selectedTileColor:
-                        MedTypeIcons.getColor(t).withValues(alpha: 0.1),
+                    selectedTileColor: MedTypeIcons.getColor(
+                      t,
+                    ).withValues(alpha: 0.1),
                     onTap: () {
                       setState(() {
                         _selectedVariantIds[groupProduct.name] = variant.id;
@@ -416,410 +431,443 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
         foregroundColor: AppColors.white,
         child: const Icon(LucideIcons.check),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.primaryDark,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.white.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.secondaryAccent, width: 2),
-              ),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
-                  fontWeight: FontWeight.w500,
-                ),
-                decoration: InputDecoration(
-                  hintText: _isListening ? l10n.listening : l10n.searchHint,
-                  hintStyle: TextStyle(
-                    color: _isListening 
-                      ? AppColors.highlightActive 
-                      : AppColors.secondaryAccent.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.bold,
-                  ),
-                  prefixIcon: _isListening 
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.highlightActive),
-                          ),
-                        ),
-                      )
-                    : const Icon(
-                        LucideIcons.search,
-                        color: AppColors.primaryDark,
-                      ),
-                  suffixIcon: _buildSuffixIcon(posProvider),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ),
-
-          // Med Type Choice Chips
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            decoration: const BoxDecoration(
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0;
+          if (v <= -_kManualAddSwipeBackMinVelocity) {
+            _closeManualAdd();
+          }
+        },
+        child: Column(
+          children: [
+            Container(
               color: AppColors.primaryDark,
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ChoiceChip(
-                    label: Text(l10n.filterAll),
-                    selected: posProvider.selectedMedType == null,
-                    onSelected: (selected) {
-                      if (selected) posProvider.setSelectedMedType(null);
-                    },
-                    selectedColor: AppColors.highlightActive,
-                    backgroundColor: Colors.white,
-                    side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
-                    labelStyle: TextStyle(
-                      color: posProvider.selectedMedType == null
-                          ? AppColors.white
-                          : AppColors.primaryDark,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppColors.secondaryAccent,
+                    width: 2,
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: _isListening ? l10n.listening : l10n.searchHint,
+                    hintStyle: TextStyle(
+                      color: _isListening
+                          ? AppColors.highlightActive
+                          : AppColors.secondaryAccent.withValues(alpha: 0.7),
                       fontWeight: FontWeight.bold,
                     ),
+                    prefixIcon: _isListening
+                        ? const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.highlightActive,
+                                ),
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            LucideIcons.search,
+                            color: AppColors.primaryDark,
+                          ),
+                    suffixIcon: _buildSuffixIcon(posProvider),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  const SizedBox(width: 8),
-                  ...adminProvider.medicineTypes.map((type) {
-                    final isSelected = posProvider.selectedMedType == type;
-                    final chipColor = MedTypeIcons.getColor(type);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(type),
-                        avatar: Icon(
-                          MedTypeIcons.getIcon(type),
-                          size: 10,
-                          color: isSelected 
-                            ? MedTypeIcons.getContrastColor(chipColor) 
-                            : AppColors.primaryDark,
-                        ),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          posProvider.setSelectedMedType(selected ? type : null);
-                        },
-                        selectedColor: chipColor,
-                        backgroundColor: Colors.white,
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? MedTypeIcons.getContrastColor(chipColor)
-                              : AppColors.primaryDark,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
+                ),
               ),
             ),
-          ),
 
-          Expanded(
-            child: products.isEmpty
-                ? Center(
-                    child: Text(
-                      l10n.noMatchesFound,
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+            // Med Type Choice Chips
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              decoration: const BoxDecoration(color: AppColors.primaryDark),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: Text(l10n.filterAll),
+                      selected: posProvider.selectedMedType == null,
+                      onSelected: (selected) {
+                        if (selected) posProvider.setSelectedMedType(null);
+                      },
+                      selectedColor: AppColors.highlightActive,
+                      backgroundColor: Colors.white,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                      labelStyle: TextStyle(
+                        color: posProvider.selectedMedType == null
+                            ? AppColors.white
+                            : AppColors.primaryDark,
                         fontWeight: FontWeight.bold,
-                        fontSize: 10,
                       ),
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: products.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (ctx, idx) {
-                      final product = products[idx];
-                      final screenWidth = MediaQuery.sizeOf(ctx).width;
-                      final isNarrow = screenWidth < 380;
-                      final nameFontSize = isNarrow ? 14.0 : 17.0;
-                      final chipFontSize =
-                          (nameFontSize - 10).clamp(10.0, 16.0);
-                      final unitPriceFontSize = isNarrow ? 15.0 : 18.0;
-
-                      // Get currently active variant of this product name
-                      final activeVariantId = _selectedVariantIds[product.name];
-                      final activeProduct = activeVariantId == null
-                          ? product
-                          : posProvider.products.firstWhere(
-                              (p) => p.id == activeVariantId,
-                              orElse: () => product,
-                            );
-
-                      final l10n = context.read<LanguageProvider>().strings;
-                      final unitLabels = MedTypeUnits.getLabels(activeProduct.medType, l10n);
-
-                      final availableVariants =
-                          posProvider.getAvailableVariants(product.name);
-
-                      final cartItemIdx = posProvider.cart.indexWhere(
-                        (c) => c.product.id == activeProduct.id,
-                      );
-                      final int stripQty = cartItemIdx >= 0
-                          ? posProvider.cart[cartItemIdx].stripQuantity
-                          : 0;
-                      final int pcQty = cartItemIdx >= 0
-                          ? posProvider.cart[cartItemIdx].pcQuantity
-                          : 0;
-                      final bool inCart = stripQty > 0 || pcQty > 0;
-
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          border: Border.all(
-                            color: inCart
-                                ? AppColors.highlightActive
-                                : AppColors.secondaryAccent,
-                            width: 2,
+                    const SizedBox(width: 8),
+                    ...adminProvider.medicineTypes.map((type) {
+                      final isSelected = posProvider.selectedMedType == type;
+                      final chipColor = MedTypeIcons.getColor(type);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(type),
+                          avatar: Icon(
+                            MedTypeIcons.getIcon(type),
+                            size: 10,
+                            color: isSelected
+                                ? MedTypeIcons.getContrastColor(chipColor)
+                                : AppColors.primaryDark,
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            posProvider.setSelectedMedType(
+                              selected ? type : null,
+                            );
+                          },
+                          selectedColor: chipColor,
+                          backgroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? MedTypeIcons.getContrastColor(chipColor)
+                                : AppColors.primaryDark,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        child: Column(
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.background,
-                                    border: Border.all(
-                                      color: AppColors.highlightActive,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    MedTypeIcons.getIcon(
-                                      activeProduct.medType ?? 'Tablet',
-                                    ),
-                                    size: isNarrow ? 14 : 16,
-                                    color: MedTypeIcons.getColor(
-                                      activeProduct.medType ?? 'Tablet',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              product.name,
-                                              style: TextStyle(
-                                                fontSize: nameFontSize,
-                                                color: AppColors.primaryDark,
-                                                fontWeight: FontWeight.bold,
-                                                height: 1.1,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (product.generic
-                                              .trim()
-                                              .isNotEmpty) ...[
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: GestureDetector(
-                                                onTap: () => _filterByGeneric(
-                                                  product.generic.trim(),
-                                                ),
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                    horizontal: 9,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.background,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            999),
-                                                    border: Border.all(
-                                                      color: AppColors
-                                                          .secondaryAccent
-                                                          .withValues(
-                                                              alpha: 0.5),
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    product.generic.trim(),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    maxLines: 1,
-                                                    style: TextStyle(
-                                                      fontSize: chipFontSize,
-                                                      color: AppColors
-                                                          .secondaryAccent,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      height: 1.1,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: products.isEmpty
+                  ? Center(
+                      child: Text(
+                        l10n.noMatchesFound,
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, idx) {
+                        final product = products[idx];
+                        final screenWidth = MediaQuery.sizeOf(ctx).width;
+                        final isNarrow = screenWidth < 380;
+                        final nameFontSize = isNarrow ? 14.0 : 17.0;
+                        final chipFontSize = (nameFontSize - 10).clamp(
+                          10.0,
+                          16.0,
+                        );
+                        final unitPriceFontSize = isNarrow ? 15.0 : 18.0;
+
+                        // Get currently active variant of this product name
+                        final activeVariantId =
+                            _selectedVariantIds[product.name];
+                        final activeProduct = activeVariantId == null
+                            ? product
+                            : posProvider.products.firstWhere(
+                                (p) => p.id == activeVariantId,
+                                orElse: () => product,
+                              );
+
+                        final l10n = context.read<LanguageProvider>().strings;
+                        final unitLabels = MedTypeUnits.getLabels(
+                          activeProduct.medType,
+                          l10n,
+                        );
+
+                        final availableVariants = posProvider
+                            .getAvailableVariants(product.name);
+
+                        final cartItemIdx = posProvider.cart.indexWhere(
+                          (c) => c.product.id == activeProduct.id,
+                        );
+                        final int stripQty = cartItemIdx >= 0
+                            ? posProvider.cart[cartItemIdx].stripQuantity
+                            : 0;
+                        final int pcQty = cartItemIdx >= 0
+                            ? posProvider.cart[cartItemIdx].pcQuantity
+                            : 0;
+                        final bool inCart = stripQty > 0 || pcQty > 0;
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            border: Border.all(
+                              color: inCart
+                                  ? AppColors.highlightActive
+                                  : AppColors.secondaryAccent,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      border: Border.all(
+                                        color: AppColors.highlightActive,
                                       ),
-                                      if (product.companyName != null &&
-                                          product
-                                              .companyName!.trim().isNotEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          product.companyName!.trim(),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.secondaryAccent,
-                                            fontWeight: FontWeight.w600,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      MedTypeIcons.getIcon(
+                                        activeProduct.medType ?? 'Tablet',
+                                      ),
+                                      size: isNarrow ? 14 : 16,
+                                      color: MedTypeIcons.getColor(
+                                        activeProduct.medType ?? 'Tablet',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                product.name,
+                                                style: TextStyle(
+                                                  fontSize: nameFontSize,
+                                                  color: AppColors.primaryDark,
+                                                  fontWeight: FontWeight.bold,
+                                                  height: 1.1,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (product.generic
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: GestureDetector(
+                                                  onTap: () => _filterByGeneric(
+                                                    product.generic.trim(),
+                                                  ),
+                                                  child: Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 9,
+                                                          vertical: 2,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          AppColors.background,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: AppColors
+                                                            .secondaryAccent
+                                                            .withValues(
+                                                              alpha: 0.5,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      product.generic.trim(),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                      style: TextStyle(
+                                                        fontSize: chipFontSize,
+                                                        color: AppColors
+                                                            .secondaryAccent,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        height: 1.1,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        if (product.companyName != null &&
+                                            product.companyName!
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            product.companyName!.trim(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.secondaryAccent,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
+                                        ],
+                                        const SizedBox(height: 7),
+                                        _buildManualMedTypeBadge(
+                                          context: context,
+                                          posProvider: posProvider,
+                                          groupProduct: product,
+                                          activeProduct: activeProduct,
+                                          variants: availableVariants,
+                                          chipFontSize: chipFontSize,
                                         ),
                                       ],
-                                      const SizedBox(height: 7),
-                                      _buildManualMedTypeBadge(
-                                        context: context,
-                                        posProvider: posProvider,
-                                        groupProduct: product,
-                                        activeProduct: activeProduct,
-                                        variants: availableVariants,
-                                        chipFontSize: chipFontSize,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TakaSymbol(
+                                            size: isNarrow ? 13.0 : 15.0,
+                                            color: AppColors.primaryDark,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            activeProduct.priceStrip
+                                                .toStringAsFixed(2),
+                                            style: TextStyle(
+                                              fontSize: unitPriceFontSize,
+                                              color: AppColors.primaryDark,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        l10n.unitPrice(
+                                          (unitLabels['unit2'] ?? 'STRIP')
+                                              .toUpperCase(),
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          color: AppColors.secondaryAccent,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TakaSymbol(
-                                          size: isNarrow ? 13.0 : 15.0,
-                                          color: AppColors.primaryDark,
-                                        ),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          activeProduct.priceStrip
-                                              .toStringAsFixed(2),
-                                          style: TextStyle(
-                                            fontSize: unitPriceFontSize,
-                                            color: AppColors.primaryDark,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    Text(
-                                      l10n.unitPrice(
-                                        (unitLabels['unit2'] ?? 'STRIP')
-                                            .toUpperCase(),
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 9,
-                                        color: AppColors.secondaryAccent,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.only(top: 9),
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: AppColors.background,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  if (unitLabels['unit2'] != null)
-                                    _ManualQuantityBox(
-                                      label: unitLabels['unit2']!.toUpperCase(),
-                                      quantity: stripQty,
-                                      onDecrement: () => posProvider
-                                          .updateStripQuantity(
-                                              activeProduct, -1),
-                                      onIncrement: () => posProvider
-                                          .updateStripQuantity(
-                                              activeProduct, 1),
-                                      onTap: () => _editQuantity(
-                                        context,
-                                        activeProduct,
-                                        unitLabels['unit2']!.toUpperCase(),
-                                        stripQty,
-                                      ),
-                                    ),
-                                  if (unitLabels['unit3'] != null)
-                                    _ManualQuantityBox(
-                                      label: unitLabels['unit3']!.toUpperCase(),
-                                      quantity: pcQty,
-                                      onDecrement: () => posProvider
-                                          .updatePcQuantity(activeProduct, -1),
-                                      onIncrement: () => posProvider
-                                          .updatePcQuantity(activeProduct, 1),
-                                      onTap: () => _editQuantity(
-                                        context,
-                                        activeProduct,
-                                        unitLabels['unit3']!.toUpperCase(),
-                                        pcQty,
-                                      ),
-                                    ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                              const SizedBox(height: 14),
+                              Container(
+                                padding: const EdgeInsets.only(top: 9),
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: AppColors.background,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    if (unitLabels['unit2'] != null)
+                                      _ManualQuantityBox(
+                                        label: unitLabels['unit2']!
+                                            .toUpperCase(),
+                                        quantity: stripQty,
+                                        onDecrement: () =>
+                                            posProvider.updateStripQuantity(
+                                              activeProduct,
+                                              -1,
+                                            ),
+                                        onIncrement: () =>
+                                            posProvider.updateStripQuantity(
+                                              activeProduct,
+                                              1,
+                                            ),
+                                        onTap: () => _editQuantity(
+                                          context,
+                                          activeProduct,
+                                          unitLabels['unit2']!.toUpperCase(),
+                                          stripQty,
+                                        ),
+                                      ),
+                                    if (unitLabels['unit3'] != null)
+                                      _ManualQuantityBox(
+                                        label: unitLabels['unit3']!
+                                            .toUpperCase(),
+                                        quantity: pcQty,
+                                        onDecrement: () =>
+                                            posProvider.updatePcQuantity(
+                                              activeProduct,
+                                              -1,
+                                            ),
+                                        onIncrement: () => posProvider
+                                            .updatePcQuantity(activeProduct, 1),
+                                        onTap: () => _editQuantity(
+                                          context,
+                                          activeProduct,
+                                          unitLabels['unit3']!.toUpperCase(),
+                                          pcQty,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -830,10 +878,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
         animation: _pulseController,
         builder: (context, child) {
           final double scale = 1.0 + (_pulseController.value * 0.2);
-          return Transform.scale(
-            scale: scale,
-            child: child,
-          );
+          return Transform.scale(scale: scale, child: child);
         },
         child: IconButton(
           icon: const Icon(
@@ -874,11 +919,7 @@ class _ManualAddScreenState extends State<ManualAddScreen> with TickerProviderSt
     }
 
     return IconButton(
-      icon: const Icon(
-        LucideIcons.mic,
-        color: AppColors.primaryDark,
-        size: 18,
-      ),
+      icon: const Icon(LucideIcons.mic, color: AppColors.primaryDark, size: 18),
       onPressed: _startListening,
     );
   }
@@ -923,10 +964,7 @@ class _ManualQuantityBox extends StatelessWidget {
         Container(
           height: boxH,
           decoration: BoxDecoration(
-            border: Border.all(
-              color: AppColors.secondaryAccent,
-              width: 2,
-            ),
+            border: Border.all(color: AppColors.secondaryAccent, width: 2),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -937,11 +975,15 @@ class _ManualQuantityBox extends StatelessWidget {
                 child: Container(
                   width: btnW,
                   alignment: Alignment.center,
-                  color: quantity > 0 ? AppColors.background : Colors.grey.shade200,
+                  color: quantity > 0
+                      ? AppColors.background
+                      : Colors.grey.shade200,
                   child: Icon(
                     LucideIcons.minus,
                     size: 14,
-                    color: quantity > 0 ? AppColors.primaryDark : Colors.grey.shade400,
+                    color: quantity > 0
+                        ? AppColors.primaryDark
+                        : Colors.grey.shade400,
                   ),
                 ),
               ),
@@ -963,7 +1005,9 @@ class _ManualQuantityBox extends StatelessWidget {
                     '$quantity',
                     style: TextStyle(
                       fontSize: isNarrow ? 12.0 : 14.0,
-                      color: quantity > 0 ? AppColors.primaryDark : Colors.grey.shade400,
+                      color: quantity > 0
+                          ? AppColors.primaryDark
+                          : Colors.grey.shade400,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -975,7 +1019,11 @@ class _ManualQuantityBox extends StatelessWidget {
                   width: btnW,
                   alignment: Alignment.center,
                   color: AppColors.background,
-                  child: const Icon(LucideIcons.plus, size: 14, color: AppColors.primaryDark),
+                  child: const Icon(
+                    LucideIcons.plus,
+                    size: 14,
+                    color: AppColors.primaryDark,
+                  ),
                 ),
               ),
             ],

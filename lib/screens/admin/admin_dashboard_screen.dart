@@ -20,6 +20,9 @@ import 'top_products_screen.dart';
 import 'profit_report_screen.dart';
 import '../../widgets/taka_symbol.dart';
 
+/// Same threshold as [PosCartList] / manual add for horizontal swipes.
+const double _kAdminSwipeOpenDrawerMinVelocity = 450.0;
+
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -28,6 +31,8 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   // Navigation stack: [0] is always dashboard at the bottom
   final List<int> _navStack = [0];
   bool _salesReportInitialToday = false;
@@ -178,9 +183,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       },
       child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: AppColors.background,
         // Keep swipe-open for mobile drawer; wide layout uses fixed sidebar.
         drawerEnableOpenDragGesture: !isWide,
+        drawerEdgeDragWidth: isWide ? null : 40,
         appBar: AppBar(
           backgroundColor: AppColors.primaryDark,
           automaticallyImplyLeading: false,
@@ -226,7 +233,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isWide) _buildSidebar(l10n),
-            Expanded(child: _getPage(_currentIndex)),
+            Expanded(
+              child: isWide
+                  ? _getPage(_currentIndex)
+                  : GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragEnd: (details) {
+                        final v = details.primaryVelocity ?? 0;
+                        if (v >= _kAdminSwipeOpenDrawerMinVelocity) {
+                          _scaffoldKey.currentState?.openDrawer();
+                        }
+                      },
+                      child: _getPage(_currentIndex),
+                    ),
+            ),
           ],
         ),
       ),
@@ -409,14 +429,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
     final isTablet = screenWidth > 600;
-    const overviewCardRunSpacing = 12.0;
+    final widthScale = (screenWidth / 390).clamp(0.82, 1.12).toDouble();
+    final overviewHeadingFontSize = (20 * widthScale).clamp(17.0, 22.0);
+    final sectionHeadingFontSize = (16 * widthScale).clamp(14.0, 18.0);
+    final cardLabelFontSize = (11 * widthScale).clamp(10.0, 12.5);
+    final cardValueFontSize = (22 * widthScale).clamp(18.0, 24.0);
+    final cardPadding = (14 * widthScale).clamp(10.0, 16.0);
+    final cardIconSize = (16 * widthScale).clamp(14.0, 18.0);
+    final cardIconPadding = (6 * widthScale).clamp(4.0, 7.0);
+    final cardSpacing = (12 * widthScale).clamp(8.0, 14.0);
+    final overviewCardRunSpacing = cardSpacing;
+    final overviewTopGap = (16 * widthScale).clamp(12.0, 20.0);
+    final sectionGap = (20 * widthScale).clamp(14.0, 24.0);
+    final infoTitleFontSize = (15 * widthScale).clamp(13.0, 17.0);
+    final infoBodyFontSize = (12 * widthScale).clamp(11.0, 14.0);
     const overviewRows = 3.0; // 6 cards, 2 columns on phone
-    final phoneOverviewHeightBudget = screenHeight * 0.5;
+    final phoneOverviewHeightBudget = screenHeight * 0.4;
+    final phoneMinCardHeight = (96 * widthScale).clamp(88.0, 112.0);
+    final phoneMaxCardHeight = (140 * widthScale).clamp(120.0, 156.0);
     final phoneCardHeight =
         ((phoneOverviewHeightBudget - (overviewCardRunSpacing * (overviewRows - 1))) /
                 overviewRows)
-            .clamp(96.0, 140.0);
-    final overviewCardHeight = isTablet ? 110.0 : phoneCardHeight;
+            .clamp(phoneMinCardHeight, phoneMaxCardHeight);
+    final overviewCardHeight =
+        isTablet ? (110 * widthScale).clamp(98.0, 124.0) : phoneCardHeight;
 
     return SingleChildScrollView(
       padding: ResponsiveHelper.screenPadding(context),
@@ -431,8 +467,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   Text(
                     l10n.overview,
-                    style: const TextStyle(
-                      fontSize: 20,
+                    style: TextStyle(
+                      fontSize: overviewHeadingFontSize,
                       fontWeight: FontWeight.w900,
                       color: AppColors.primaryDark,
                     ),
@@ -473,16 +509,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   // ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: overviewTopGap),
               // STAT CARDS — use Wrap for phone to avoid overflow
               LayoutBuilder(
                 builder: (context, constraints) {
                   final cardWidth = isTablet
-                      ? (constraints.maxWidth - 36) / 4
-                      : (constraints.maxWidth - 12) / 2;
+                      ? (constraints.maxWidth - (cardSpacing * 3)) / 4
+                      : (constraints.maxWidth - cardSpacing) / 2;
 
                   return Wrap(
-                    spacing: 12,
+                    spacing: cardSpacing,
                     runSpacing: overviewCardRunSpacing,
                     children: [
                       SizedBox(
@@ -495,6 +531,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: LucideIcons.dollarSign,
                           iconColor: AppColors.success,
                           iconBg: AppColors.success.withValues(alpha: 0.1),
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(
                             6,
                             openSalesReportWithTodayFilter: true,
@@ -512,6 +553,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           iconBg: AppColors.secondaryAccent.withValues(
                             alpha: 0.1,
                           ),
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(
                             6,
                             openSalesReportWithTodayFilter: true,
@@ -527,6 +573,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           icon: LucideIcons.alertTriangle,
                           iconColor: AppColors.error,
                           iconBg: AppColors.error.withValues(alpha: 0.1),
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(3),
                         ),
                       ),
@@ -541,6 +592,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           iconBg: AppColors.warningOrange.withValues(
                             alpha: 0.1,
                           ),
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(4),
                         ),
                       ),
@@ -556,6 +612,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           iconBg: AppColors.primaryDark.withValues(
                             alpha: 0.1,
                           ),
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(7),
                         ),
                       ),
@@ -565,6 +626,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         child: _SubscriptionRenewalCard(
                           l10n: l10n,
                           session: admin.authSession,
+                          cardPadding: cardPadding,
+                          iconSize: cardIconSize,
+                          iconPadding: cardIconPadding,
+                          labelFontSize: cardLabelFontSize,
+                          valueFontSize: cardValueFontSize,
                           onTap: () => _navigateTo(10),
                         ),
                       ),
@@ -572,11 +638,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: sectionGap),
 
               // CRITICAL INVENTORY (shown first)
               _SectionCard(
                 title: l10n.criticalInventory,
+                titleFontSize: sectionHeadingFontSize,
                 child:
                     (admin.lowStockProducts.isEmpty &&
                         admin.expiringSoonProducts.isEmpty)
@@ -602,9 +669,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               Text(
                                 l10n.allStockGood,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.primaryDark,
-                                  fontSize: 15,
+                                  fontSize: infoTitleFontSize,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -612,9 +679,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               Text(
                                 l10n.noLowStockExpiring,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.secondaryAccent,
-                                  fontSize: 12,
+                                  fontSize: infoBodyFontSize,
                                 ),
                               ),
                             ],
@@ -656,7 +723,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w500,
-                                  fontSize: 12,
+                                  fontSize: infoBodyFontSize,
                                 ),
                               ),
                               trailing: Container(
@@ -676,7 +743,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   style: TextStyle(
                                     color: accent,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                    fontSize: (11 * widthScale).clamp(10.0, 13.0),
                                   ),
                                 ),
                               ),
@@ -719,7 +786,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 style: TextStyle(
                                   color: accent,
                                   fontWeight: FontWeight.w500,
-                                  fontSize: 12,
+                                  fontSize: infoBodyFontSize,
                                 ),
                               ),
                               trailing: Container(
@@ -739,7 +806,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   style: TextStyle(
                                     color: accent,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                    fontSize: (11 * widthScale).clamp(10.0, 13.0),
                                   ),
                                 ),
                               ),
@@ -749,11 +816,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
               ),
 
-              const SizedBox(height: 20),
+              SizedBox(height: sectionGap),
 
               // RECENT SALES
               _SectionCard(
                 title: l10n.recentTransactions,
+                titleFontSize: sectionHeadingFontSize,
                 child: Column(
                   children: admin.allSales.take(5).map((sale) {
                     return Padding(
@@ -846,11 +914,21 @@ class _SubscriptionRenewalCard extends StatelessWidget {
   final AppStrings l10n;
   final AuthSession? session;
   final VoidCallback onTap;
+  final double cardPadding;
+  final double iconSize;
+  final double iconPadding;
+  final double labelFontSize;
+  final double valueFontSize;
 
   const _SubscriptionRenewalCard({
     required this.l10n,
     required this.session,
     required this.onTap,
+    required this.cardPadding,
+    required this.iconSize,
+    required this.iconPadding,
+    required this.labelFontSize,
+    required this.valueFontSize,
   });
 
   @override
@@ -886,7 +964,7 @@ class _SubscriptionRenewalCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
@@ -909,8 +987,8 @@ class _SubscriptionRenewalCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     l10n.subscriptionTitle,
-                    style: const TextStyle(
-                      fontSize: 11,
+                    style: TextStyle(
+                      fontSize: labelFontSize,
                       fontWeight: FontWeight.bold,
                       color: AppColors.secondaryAccent,
                       letterSpacing: 0.5,
@@ -919,14 +997,14 @@ class _SubscriptionRenewalCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     LucideIcons.calendarClock,
-                    size: 16,
+                    size: iconSize,
                     color: accent,
                   ),
                 ),
@@ -935,8 +1013,8 @@ class _SubscriptionRenewalCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               headline,
-              style: const TextStyle(
-                fontSize: 22,
+              style: TextStyle(
+                fontSize: valueFontSize,
                 fontWeight: FontWeight.w900,
                 color: AppColors.primaryDark,
               ),
@@ -997,6 +1075,11 @@ class _StatCard extends StatelessWidget {
   final Color iconBg;
   final VoidCallback? onTap;
   final bool isTaka;
+  final double cardPadding;
+  final double iconSize;
+  final double iconPadding;
+  final double labelFontSize;
+  final double valueFontSize;
 
   const _StatCard({
     required this.title,
@@ -1006,6 +1089,11 @@ class _StatCard extends StatelessWidget {
     required this.iconBg,
     this.onTap,
     this.isTaka = false,
+    required this.cardPadding,
+    required this.iconSize,
+    required this.iconPadding,
+    required this.labelFontSize,
+    required this.valueFontSize,
   });
 
   @override
@@ -1013,7 +1101,7 @@ class _StatCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(cardPadding),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1036,8 +1124,8 @@ class _StatCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 11,
+                    style: TextStyle(
+                      fontSize: labelFontSize,
                       fontWeight: FontWeight.bold,
                       color: AppColors.secondaryAccent,
                       letterSpacing: 0.5,
@@ -1046,12 +1134,12 @@ class _StatCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: iconBg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(icon, size: 16, color: iconColor),
+                  child: Icon(icon, size: iconSize, color: iconColor),
                 ),
               ],
             ),
@@ -1059,14 +1147,14 @@ class _StatCard extends StatelessWidget {
             Row(
               children: [
                 if (isTaka)
-                  const TakaSymbol(
-                    size: 22,
+                  TakaSymbol(
+                    size: valueFontSize,
                     color: AppColors.primaryDark,
                   ),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 22,
+                  style: TextStyle(
+                    fontSize: valueFontSize,
                     fontWeight: FontWeight.w900,
                     color: AppColors.primaryDark,
                   ),
@@ -1083,8 +1171,13 @@ class _StatCard extends StatelessWidget {
 class _SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
+  final double titleFontSize;
 
-  const _SectionCard({required this.title, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.child,
+    required this.titleFontSize,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1101,8 +1194,8 @@ class _SectionCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
+              style: TextStyle(
+                fontSize: titleFontSize,
                 fontWeight: FontWeight.w900,
                 color: AppColors.primaryDark,
               ),
