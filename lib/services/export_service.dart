@@ -1,3 +1,4 @@
+import 'dart:convert' show utf8;
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
@@ -13,6 +14,10 @@ import '../l10n/app_strings.dart';
 import '../utils/med_type_units.dart';
 
 class ExportService {
+  /// Exact bytes for asset [ByteData] — avoids reading past the file in a pooled buffer.
+  static Uint8List _assetBytes(ByteData data) =>
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+
   static Future<String?> exportToCsv(
     List<SaleRecord> sales,
     String title,
@@ -78,7 +83,7 @@ class ExportService {
     String csvData = rows
         .map((row) => row.map((v) => '"$v"').join(','))
         .join('\n');
-    return Uint8List.fromList(csvData.codeUnits);
+    return Uint8List.fromList(utf8.encode(csvData));
   }
 
   static Future<String?> exportToPdf({
@@ -96,8 +101,8 @@ class ExportService {
       'sales': sales,
       'title': title,
       'currencySymbol': currencySymbol,
-      'regularFont': regularFontData.buffer.asUint8List(),
-      'boldFont': boldFontData.buffer.asUint8List(),
+      'regularFont': _assetBytes(regularFontData),
+      'boldFont': _assetBytes(boldFontData),
     };
 
     // Offload PDF generation to a background thread
@@ -127,8 +132,8 @@ class ExportService {
     final Uint8List boldFontBytes = args['boldFont'];
 
     final pdf = pw.Document();
-    final fontRegular = pw.Font.ttf(regularFontBytes.buffer.asByteData());
-    final fontBold = pw.Font.ttf(boldFontBytes.buffer.asByteData());
+    final fontRegular = pw.Font.ttf(ByteData.sublistView(regularFontBytes));
+    final fontBold = pw.Font.ttf(ByteData.sublistView(boldFontBytes));
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     pdf.addPage(
@@ -278,7 +283,7 @@ class ExportService {
     String csvData = rows
         .map((row) => row.map((v) => '"$v"').join(','))
         .join('\n');
-    return Uint8List.fromList(csvData.codeUnits);
+    return Uint8List.fromList(utf8.encode(csvData));
   }
 
   static Future<String?> exportProductsToPdf({
@@ -295,8 +300,8 @@ class ExportService {
       'products': products,
       'title': title,
       'l10n': l10n,
-      'regularFont': regularFontData.buffer.asUint8List(),
-      'boldFont': boldFontData.buffer.asUint8List(),
+      'regularFont': _assetBytes(regularFontData),
+      'boldFont': _assetBytes(boldFontData),
     };
 
     final bytes = await compute(_generateProductPdfBytes, args);
@@ -323,8 +328,8 @@ class ExportService {
     final Uint8List boldFontBytes = args['boldFont'];
 
     final pdf = pw.Document();
-    final fontRegular = pw.Font.ttf(regularFontBytes.buffer.asByteData());
-    final fontBold = pw.Font.ttf(boldFontBytes.buffer.asByteData());
+    final fontRegular = pw.Font.ttf(ByteData.sublistView(regularFontBytes));
+    final fontBold = pw.Font.ttf(ByteData.sublistView(boldFontBytes));
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     pdf.addPage(
@@ -453,7 +458,7 @@ class ExportService {
       ]);
     }
     final csvData = rows.map((row) => row.map((v) => '"$v"').join(',')).join('\n');
-    return Uint8List.fromList(csvData.codeUnits);
+    return Uint8List.fromList(utf8.encode(csvData));
   }
 
   static Future<String?> exportOrderListToPdf({
@@ -472,8 +477,8 @@ class ExportService {
       'orderQtys': orderQtys,
       'title': title,
       'l10n': l10n,
-      'regularFont': regularFontData.buffer.asUint8List(),
-      'boldFont': boldFontData.buffer.asUint8List(),
+      'regularFont': _assetBytes(regularFontData),
+      'boldFont': _assetBytes(boldFontData),
     };
 
     final bytes = await compute(_generateOrderListPdfBytes, args);
@@ -502,8 +507,8 @@ class ExportService {
     final Uint8List boldFontBytes = args['boldFont'];
 
     final pdf = pw.Document();
-    final fontRegular = pw.Font.ttf(regularFontBytes.buffer.asByteData());
-    final fontBold = pw.Font.ttf(boldFontBytes.buffer.asByteData());
+    final fontRegular = pw.Font.ttf(ByteData.sublistView(regularFontBytes));
+    final fontBold = pw.Font.ttf(ByteData.sublistView(boldFontBytes));
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     pdf.addPage(
@@ -595,7 +600,7 @@ class ExportService {
           )
           .join('\n');
 
-      final bytes = Uint8List.fromList(csvData.codeUnits);
+      final bytes = Uint8List.fromList(utf8.encode(csvData));
 
       final path = await FileSaver.instance.saveFile(
         name: title.replaceAll(' ', '_'),
