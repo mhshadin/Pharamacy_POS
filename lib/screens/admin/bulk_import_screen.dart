@@ -25,6 +25,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   static const List<String> _expectedHeaders = [
     'Name',
     'Generic',
+    'CompanyName',
     'Barcode',
     'PriceBox',
     'BuyingPriceBox',
@@ -43,6 +44,7 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
   static const List<String> _sampleRow = [
     'Paracetamol 500mg',
     'Paracetamol',
+    'ACME Pharma',
     '1234567890123',
     '20',
     '15',
@@ -244,6 +246,9 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
           id: "${DateTime.now().millisecondsSinceEpoch}_$i",
           name: name,
           generic: getString('Generic'),
+          companyName: getString('CompanyName').isEmpty
+              ? null
+              : getString('CompanyName'),
           barcode:
               getString('Barcode').isEmpty ? null : getString('Barcode'),
           priceBox: priceBox,
@@ -693,6 +698,12 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
                             _buildMiniStat(context.read<LanguageProvider>().strings.category, product.medType!),
                           if (product.power != null && product.power!.trim().isNotEmpty)
                             _buildMiniStat(context.read<LanguageProvider>().strings.powerLabel, product.power!),
+                          if (product.companyName != null &&
+                              product.companyName!.trim().isNotEmpty)
+                            _buildMiniStat(
+                              context.read<LanguageProvider>().strings.companyName,
+                              product.companyName!,
+                            ),
                         ],
                       ),
                     ],

@@ -1135,8 +1135,12 @@ class AdminProvider extends ChangeNotifier {
         }
       }
 
-      // 2) Fallback: match by (name + generic) against already loaded products.
+      // 2) Fallback: match by (name + generic + medType + power + company) against already loaded products.
       if (existing == null) {
+        String normPower(String? v) => v?.trim().toLowerCase() ?? '';
+        String normCompany(String? v) => v?.trim().toLowerCase() ?? '';
+        final importedPower = normPower(imported.power);
+        final importedCompany = normCompany(imported.companyName);
         for (final p in _products) {
           final sameName =
               p.name.trim().toLowerCase() == imported.name.trim().toLowerCase();
@@ -1145,7 +1149,9 @@ class AdminProvider extends ChangeNotifier {
               imported.generic.trim().toLowerCase();
           final sameType =
               (p.medType ?? 'Tablet') == (imported.medType ?? 'Tablet');
-          if (sameName && sameGeneric && sameType) {
+          final samePower = normPower(p.power) == importedPower;
+          final sameCompany = normCompany(p.companyName) == importedCompany;
+          if (sameName && sameGeneric && sameType && samePower && sameCompany) {
             existing = p;
             break;
           }

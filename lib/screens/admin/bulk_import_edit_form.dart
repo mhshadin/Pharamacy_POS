@@ -25,6 +25,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
 
   late TextEditingController _nameCtrl;
   late TextEditingController _genericCtrl;
+  late TextEditingController _companyNameCtrl;
   late TextEditingController _barcodeCtrl;
   late TextEditingController _priceBoxCtrl;
   late TextEditingController _stripsPerBoxCtrl;
@@ -52,6 +53,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
 
     _nameCtrl = TextEditingController(text: p.name);
     _genericCtrl = TextEditingController(text: p.generic);
+    _companyNameCtrl = TextEditingController(text: p.companyName ?? '');
     _barcodeCtrl = TextEditingController(text: p.barcode ?? '');
     _priceBoxCtrl = TextEditingController(text: p.priceBox.toStringAsFixed(2));
     _stripsPerBoxCtrl = TextEditingController(text: p.stripsPerBox.toString());
@@ -75,6 +77,7 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
   void dispose() {
     _nameCtrl.dispose();
     _genericCtrl.dispose();
+    _companyNameCtrl.dispose();
     _barcodeCtrl.dispose();
     _priceBoxCtrl.dispose();
     _stripsPerBoxCtrl.dispose();
@@ -153,6 +156,9 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
       id: widget.record.product.id,
       name: _nameCtrl.text.trim(),
       generic: _genericCtrl.text.trim(),
+      companyName: _companyNameCtrl.text.trim().isEmpty
+          ? null
+          : _companyNameCtrl.text.trim(),
       priceStrip: priceStrip,
       pricePc: pricePc,
       priceBox: priceBox,
@@ -278,6 +284,12 @@ class _BulkImportEditFormState extends State<BulkImportEditForm> {
                       icon: LucideIcons.fileText,
                       validator: (v) =>
                           v == null || v.trim().isEmpty ? l10n.requiredLabel : null,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _companyNameCtrl,
+                      label: l10n.companyNameOptional,
+                      icon: LucideIcons.factory,
                     ),
                     const SizedBox(height: 12),
                     _buildField(
