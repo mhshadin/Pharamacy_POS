@@ -519,9 +519,20 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       }
       return;
     }
-    posProvider.setReplacementSourceInvoiceNumber(sourceInvoice);
-    if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (widget.isStandalone) {
+      posProvider.setReplacementSourceInvoiceNumber(sourceInvoice);
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else {
+      // Admin is one route above Home; pop it so a single Home + camera remain.
+      // Back on Home can reopen admin (see [POSProvider.replacementReturnToAdminOnBack]).
+      posProvider.setReplacementSourceInvoiceNumber(
+        sourceInvoice,
+        returnToAdminOnBack: true,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    }
   }
 
   @override

@@ -22,6 +22,10 @@ class POSProvider extends ChangeNotifier {
   String? _replacementSourceInvoiceNumber;
   int _replacementFlowVersion = 0;
 
+  /// Embedded Admin Returns: Home back should reopen admin instead of only
+  /// clearing the replacement cart.
+  bool _replacementReturnToAdminOnBack = false;
+
   List<Product> get products => _products;
   List<CartItem> get cart => _cart;
   String get searchQuery => _searchQuery;
@@ -51,9 +55,15 @@ class POSProvider extends ChangeNotifier {
       _replacementSourceInvoiceNumber;
   int get replacementFlowVersion => _replacementFlowVersion;
 
+  bool get replacementReturnToAdminOnBack => _replacementReturnToAdminOnBack;
+
   /// Starts a return/replacement checkout session (cart must already be filled).
-  void setReplacementSourceInvoiceNumber(String invoice) {
+  void setReplacementSourceInvoiceNumber(
+    String invoice, {
+    bool returnToAdminOnBack = false,
+  }) {
     _replacementSourceInvoiceNumber = invoice;
+    _replacementReturnToAdminOnBack = returnToAdminOnBack;
     _replacementFlowVersion++;
     notifyListeners();
   }
@@ -248,6 +258,7 @@ class POSProvider extends ChangeNotifier {
   void clearCart() {
     _cart.clear();
     _replacementSourceInvoiceNumber = null;
+    _replacementReturnToAdminOnBack = false;
     notifyListeners();
   }
 
@@ -347,6 +358,7 @@ class POSProvider extends ChangeNotifier {
     );
     _cart.clear();
     _replacementSourceInvoiceNumber = null;
+    _replacementReturnToAdminOnBack = false;
     await loadProducts();
     _admin.scheduleSync();
     return invoiceNumber;

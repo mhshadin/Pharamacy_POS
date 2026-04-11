@@ -39,6 +39,7 @@ import '../widgets/subscription_warning_dialog.dart';
 import '../widgets/taka_symbol.dart';
 import 'subscription_screen.dart';
 import 'admin/notification_screen.dart';
+import 'admin/admin_dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? replacementSourceInvoiceNumber;
@@ -1070,6 +1071,17 @@ class _HomeScreenState extends State<HomeScreen>
         final pos = context.read<POSProvider>();
         final repl = _replacementInvoiceForFlow(pos);
         if (repl != null && !_replacementCheckoutCommitted) {
+          if (pos.replacementReturnToAdminOnBack) {
+            pos.clearCart();
+            if (mounted) {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AdminDashboardScreen(),
+                ),
+              );
+            }
+            return;
+          }
           pos.clearCart();
         }
         if (mounted) Navigator.of(context).pop();
