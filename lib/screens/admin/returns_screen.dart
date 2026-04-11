@@ -7,15 +7,22 @@ import '../../services/database_helper.dart';
 import '../../models/sale_record.dart';
 import '../../providers/pos_provider.dart';
 import '../../utils/responsive_helper.dart';
-import '../../providers/admin_provider.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../widgets/drawer/pos_drawer.dart';
 import '../../providers/language_provider.dart';
-import '../home_screen.dart';
+import '../../widgets/shared/empty_state_widget.dart';
 
 class ReturnsScreen extends StatefulWidget {
   final bool isStandalone;
-  const ReturnsScreen({super.key, this.isStandalone = false});
+  final bool? externalSearchVisible;
+  final ValueChanged<bool>? onSearchVisibilityChanged;
+
+  const ReturnsScreen({
+    super.key,
+    this.isStandalone = false,
+    this.externalSearchVisible,
+    this.onSearchVisibilityChanged,
+  });
 
   @override
   State<ReturnsScreen> createState() => _ReturnsScreenState();
@@ -27,10 +34,12 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final DatabaseHelper _db = DatabaseHelper();
   final _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
 
   Map<String, List<SaleRecord>> _groupedSales = {};
   bool _hasSearched = false;
   bool _isLoading = false;
+  bool _isSearchVisible = false;
   ReturnSortOption _currentSort = ReturnSortOption.newest;
   DateTime? _startDate;
   DateTime? _endDate;
@@ -42,13 +51,51 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    if (widget.externalSearchVisible != null) {
+      _isSearchVisible = widget.externalSearchVisible!;
+    }
     _searchInvoice();
+  }
+
+  @override
+  void didUpdateWidget(covariant ReturnsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ext = widget.externalSearchVisible;
+    if (ext != null && ext != _isSearchVisible) {
+      setState(() {
+        _isSearchVisible = ext;
+        if (!_isSearchVisible) {
+          _searchController.clear();
+          _searchFocus.unfocus();
+        }
+      });
+      _searchInvoice();
+    }
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearchVisible = !_isSearchVisible;
+      if (!_isSearchVisible) {
+        _searchController.clear();
+        _searchFocus.unfocus();
+      }
+    });
+    if (_isSearchVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchFocus.requestFocus();
+      });
+    } else {
+      _searchInvoice();
+    }
+    widget.onSearchVisibilityChanged?.call(_isSearchVisible);
   }
 
   Future<void> _searchInvoice() async {
@@ -61,9 +108,10 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
 
     final results = await _db.getSalesByInvoice(query);
 
-    var filtered = results.where((s) => s.quantity > 0).toList();
+    // Keep all sales visible in returns history, including fully returned ones.
+    var filtered = List<SaleRecord>.from(results);
     if (_startDate != null && _endDate != null) {
-      filtered = results.where((s) {
+      filtered = filtered.where((s) {
         final date = s.date;
         var start = DateTime(
           _startDate!.year,
@@ -184,49 +232,45 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final d = await showDatePicker(
-                              context: context,
-                              initialDate: tempStart,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                            );
-                            if (d != null) setState(() => tempStart = d);
-                          },
-                          icon: const Icon(LucideIcons.calendar, size: 16),
-                          label: Text(
-                            DateFormat('dd MMM yyyy').format(tempStart),
-                            style: const TextStyle(fontSize: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                          initialDateRange: DateTimeRange(
+                            start: tempStart,
+                            end: tempEnd,
                           ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(l10n.toLabel),
-                      ),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final d = await showDatePicker(
-                              context: context,
-                              initialDate: tempEnd,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
+                          builder: (ctx, child) {
+                            return Theme(
+                              data: Theme.of(ctx).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: AppColors.primaryDark,
+                                  onPrimary: AppColors.white,
+                                  surface: AppColors.background,
+                                  onSurface: AppColors.primaryDark,
+                                ),
+                              ),
+                              child: child!,
                             );
-                            if (d != null) setState(() => tempEnd = d);
                           },
-                          icon: const Icon(LucideIcons.calendar, size: 16),
-                          label: Text(
-                            DateFormat('dd MMM yyyy').format(tempEnd),
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            tempStart = picked.start;
+                            tempEnd = picked.end;
+                          });
+                        }
+                      },
+                      icon: const Icon(LucideIcons.calendar, size: 16),
+                      label: Text(
+                        '${DateFormat('dd MMM yyyy').format(tempStart)} ${l10n.toLabel} ${DateFormat('dd MMM yyyy').format(tempEnd)}',
+                        style: const TextStyle(fontSize: 12),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -285,7 +329,14 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                               context: context,
                               initialTime: tempStartTime ?? TimeOfDay.now(),
                             );
-                            if (t != null) setState(() => tempStartTime = t);
+                            if (t != null) {
+                              setState(
+                                () => tempStartTime = TimeOfDay(
+                                  hour: t.hour,
+                                  minute: 0,
+                                ),
+                              );
+                            }
                           },
                           icon: const Icon(LucideIcons.clock, size: 16),
                           label: Text(
@@ -305,7 +356,14 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                               context: context,
                               initialTime: tempEndTime ?? TimeOfDay.now(),
                             );
-                            if (t != null) setState(() => tempEndTime = t);
+                            if (t != null) {
+                              setState(
+                                () => tempEndTime = TimeOfDay(
+                                  hour: t.hour,
+                                  minute: 0,
+                                ),
+                              );
+                            }
                           },
                           icon: const Icon(LucideIcons.clock, size: 16),
                           label: Text(
@@ -375,93 +433,16 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
     }
   }
 
-  Widget _buildReturnStepperRow({
-    required String label,
-    required int value,
-    required VoidCallback onMinus,
-    required VoidCallback onPlus,
-    required bool minusEnabled,
-    required bool plusEnabled,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 64,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.secondaryAccent,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                  onPressed: minusEnabled ? onMinus : null,
-                  icon: Icon(
-                    LucideIcons.minusCircle,
-                    color: minusEnabled
-                        ? AppColors.primaryDark
-                        : AppColors.divider,
-                  ),
-                ),
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    '$value',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                  onPressed: plusEnabled ? onPlus : null,
-                  icon: Icon(
-                    LucideIcons.plusCircle,
-                    color: plusEnabled
-                        ? AppColors.primaryDark
-                        : AppColors.divider,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Loads invoice line items into the POS cart and opens the home screen so
-  /// the user can adjust quantities or complete a new sale.
+  /// Loads invoice items into the POS cart so the user can make corrections and
+  /// complete a replacement sale. The original invoice is committed/deleted only
+  /// after successful checkout from HomeScreen.
   Future<void> _loadInvoiceIntoCart(List<SaleRecord> sales) async {
     final l10n = context.read<LanguageProvider>().strings;
-    final qtyByName = <String, int>{};
-    for (final s in sales) {
-      final q = s.effectiveQuantity;
-      if (q <= 0) continue;
-      qtyByName[s.productName] = (qtyByName[s.productName] ?? 0) + q;
-    }
-    if (qtyByName.isEmpty) {
+    final posProvider = context.read<POSProvider>();
+
+    // Only consider items that still have unreturned qty
+    final activeItems = sales.where((s) => s.effectiveQuantity > 0).toList();
+    if (activeItems.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -473,10 +454,18 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       return;
     }
 
-    final pos = context.read<POSProvider>();
-    pos.clearCart();
+    // Build qty-by-name map from active (non-returned) items.
+    final qtyByName = <String, int>{};
+    for (final s in activeItems) {
+      final q = s.effectiveQuantity;
+      if (q <= 0) continue;
+      qtyByName[s.productName] = (qtyByName[s.productName] ?? 0) + q;
+    }
+
+    posProvider.clearCart();
     final missing = <String>[];
     var addedAny = false;
+
     for (final entry in qtyByName.entries) {
       final product = await _db.getProductByName(entry.key);
       if (product == null) {
@@ -488,9 +477,9 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       if (pps > 0) {
         final strips = totalPcs ~/ pps;
         final pcs = totalPcs % pps;
-        pos.setQuantities(product, strips, pcs);
+        posProvider.setQuantities(product, strips, pcs);
       } else {
-        pos.setQuantities(product, 0, totalPcs);
+        posProvider.setQuantities(product, 0, totalPcs);
       }
       addedAny = true;
     }
@@ -516,457 +505,39 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
       );
     }
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-      (route) => false,
-    );
-  }
-
-  Future<void> _processInvoiceReturn(
-    String invoiceNumber,
-    List<SaleRecord> sales,
-  ) async {
-    final l10n = context.read<LanguageProvider>().strings;
-    final returnableSales = sales
-        .where((s) => (s.quantity - s.returnedQuantity) > 0)
-        .toList();
-
-    if (returnableSales.isEmpty) {
+    // Reuse the existing bottom Home route (single MobileScanner). Pushing a
+    // second HomeScreen left two cameras and triggered "already running" errors.
+    final sourceInvoice = activeItems.first.invoiceNumber?.trim();
+    if (sourceInvoice == null || sourceInvoice.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n.allItemsReturned),
+            content: Text(l10n.unknownInvoice),
             backgroundColor: AppColors.error,
           ),
         );
       }
       return;
     }
-
-    final uniqueNames = returnableSales.map((s) => s.productName).toSet();
-    final Map<String, int> pcsPerStripByName = {};
-    for (final name in uniqueNames) {
-      final p = await _db.getProductByName(name);
-      final v = p?.pcsPerStrip ?? 0;
-      pcsPerStripByName[name] = v > 0 ? v : 0;
-    }
-
+    posProvider.setReplacementSourceInvoiceNumber(sourceInvoice);
     if (!mounted) return;
-
-    Map<String, int> returnPcs = {for (var s in returnableSales) s.id: 0};
-    Map<String, int> returnStrips = {for (var s in returnableSales) s.id: 0};
-
-    final confirm = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            int requestedPcsForSale(SaleRecord sale) {
-              final pcs = returnPcs[sale.id] ?? 0;
-              final strips = returnStrips[sale.id] ?? 0;
-              final pps = pcsPerStripByName[sale.productName] ?? 0;
-              return pcs + (pps > 0 ? strips * pps : 0);
-            }
-
-            final hasReturns = returnableSales.any(
-              (s) => requestedPcsForSale(s) > 0,
-            );
-            final viewInsets = MediaQuery.viewInsetsOf(context);
-            final maxH = MediaQuery.sizeOf(context).height * 0.85;
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: viewInsets.bottom),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: Material(
-                    color: AppColors.background,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: maxH),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const SizedBox(height: 10),
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: AppColors.divider,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                            child: Text(
-                              '${l10n.returnItemsFor} $invoiceNumber',
-                              style: const TextStyle(
-                                color: AppColors.primaryDark,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                              itemCount: returnableSales.length,
-                              itemBuilder: (context, index) {
-                                final sale = returnableSales[index];
-                                final maxQty =
-                                    sale.quantity - sale.returnedQuantity;
-                                final currentPcs = returnPcs[sale.id] ?? 0;
-                                final currentStrips =
-                                    returnStrips[sale.id] ?? 0;
-                                final pcsPerStrip =
-                                    pcsPerStripByName[sale.productName] ?? 0;
-                                final totalRequestedPcs = requestedPcsForSale(
-                                  sale,
-                                );
-                                final canUseStrips = pcsPerStrip > 0;
-
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: const BorderSide(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  color: AppColors.white,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(14),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Text(
-                                          sale.productName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: AppColors.primaryDark,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          canUseStrips
-                                              ? '${l10n.maxReturnable}: $maxQty ${l10n.pcs} • 1 ${l10n.strips} = $pcsPerStrip ${l10n.pcs}'
-                                              : '${l10n.maxReturnable}: $maxQty ${l10n.pcs}',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.secondaryAccent,
-                                          ),
-                                        ),
-                                        const Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
-                                          child: Divider(height: 1),
-                                        ),
-                                        if (canUseStrips)
-                                          _buildReturnStepperRow(
-                                            label: l10n.strips,
-                                            value: currentStrips,
-                                            minusEnabled: currentStrips > 0,
-                                            plusEnabled:
-                                                totalRequestedPcs +
-                                                    pcsPerStrip <=
-                                                maxQty,
-                                            onMinus: () {
-                                              if (currentStrips > 0) {
-                                                setState(() {
-                                                  returnStrips[sale.id] =
-                                                      currentStrips - 1;
-                                                });
-                                              }
-                                            },
-                                            onPlus: () {
-                                              if (totalRequestedPcs +
-                                                      pcsPerStrip <=
-                                                  maxQty) {
-                                                setState(() {
-                                                  returnStrips[sale.id] =
-                                                      currentStrips + 1;
-                                                });
-                                              }
-                                            },
-                                          ),
-                                        _buildReturnStepperRow(
-                                          label: l10n.pcs,
-                                          value: currentPcs,
-                                          minusEnabled: currentPcs > 0,
-                                          plusEnabled:
-                                              totalRequestedPcs + 1 <= maxQty,
-                                          onMinus: () {
-                                            if (currentPcs > 0) {
-                                              setState(() {
-                                                returnPcs[sale.id] =
-                                                    currentPcs - 1;
-                                              });
-                                            }
-                                          },
-                                          onPlus: () {
-                                            if (totalRequestedPcs + 1 <=
-                                                maxQty) {
-                                              setState(() {
-                                                returnPcs[sale.id] =
-                                                    currentPcs + 1;
-                                              });
-                                            }
-                                          },
-                                        ),
-                                        if (totalRequestedPcs > 0)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 6,
-                                            ),
-                                            child: Text(
-                                              '${l10n.selected}: $totalRequestedPcs ${l10n.pcs}',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: AppColors.primaryDark,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          ColoredBox(
-                            color: AppColors.white,
-                            child: SafeArea(
-                              top: false,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  16,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    ElevatedButton(
-                                      onPressed: hasReturns
-                                          ? () => Navigator.pop(ctx, true)
-                                          : null,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.error,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        l10n.confirmReturn,
-                                        style: const TextStyle(
-                                          color: AppColors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    OutlinedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        side: const BorderSide(
-                                          color: AppColors.divider,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        l10n.cancelBtn,
-                                        style: const TextStyle(
-                                          color: AppColors.secondaryAccent,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (confirm != true) return;
-
-    for (var sale in returnableSales) {
-      final pcs = returnPcs[sale.id] ?? 0;
-      final strips = returnStrips[sale.id] ?? 0;
-      final pps = pcsPerStripByName[sale.productName] ?? 0;
-      final qty = pcs + (pps > 0 ? strips * pps : 0);
-      if (qty > 0) await _db.returnSale(sale, qty);
-    }
-
-    await _searchInvoice();
-    if (!mounted) return;
-    await context.read<AdminProvider>().loadData();
-    if (!mounted) return;
-    await context.read<POSProvider>().loadProducts();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.returnsProcessed),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.read<LanguageProvider>().strings;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final isPhoneNarrow = screenWidth < 420;
+    final isSearchBarVisible =
+        widget.externalSearchVisible ??
+        (widget.isStandalone ? _isSearchVisible : false);
     final body = Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: isPhoneNarrow
-              ? Column(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.divider, width: 2),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onSubmitted: (_) => _searchInvoice(),
-                        decoration: InputDecoration(
-                          hintText: l10n.searchHint,
-                          prefixIcon: const Icon(
-                            LucideIcons.search,
-                            color: AppColors.primaryDark,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _searchInvoice,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 18,
-                          ),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.searchBtn,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AppColors.divider,
-                            width: 2,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onSubmitted: (_) => _searchInvoice(),
-                          decoration: InputDecoration(
-                            hintText: l10n.searchHint,
-                            prefixIcon: const Icon(
-                              LucideIcons.search,
-                              color: AppColors.primaryDark,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _searchInvoice,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryDark,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 24,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        l10n.searchBtn,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+        _ReturnsExpandableSearchBar(
+          isVisible: isSearchBarVisible,
+          controller: _searchController,
+          focusNode: _searchFocus,
+          onSubmitted: _searchInvoice,
+          onClose: _toggleSearch,
         ),
 
         // Filter & Sort Row
@@ -978,41 +549,35 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
               final controlRadius = BorderRadius.circular(10);
               final showSortLabel = constraints.maxWidth >= 390;
 
-              final filterControl = Align(
-                alignment: Alignment.centerLeft,
-                child: Material(
-                  color: AppColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: controlRadius,
-                    side: const BorderSide(color: AppColors.divider),
-                  ),
-                  child: InkWell(
-                    borderRadius: controlRadius,
-                    onTap: _showFilterDialog,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 11,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            LucideIcons.calendar,
-                            size: 14,
+              final filterControl = Material(
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: controlRadius,
+                  side: const BorderSide(color: AppColors.divider),
+                ),
+                child: InkWell(
+                  borderRadius: controlRadius,
+                  onTap: _showFilterDialog,
+                  child: SizedBox(
+                    height: controlHeight,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          LucideIcons.calendar,
+                          size: 14,
+                          color: AppColors.secondaryAccent,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          l10n.filters,
+                          style: const TextStyle(
                             color: AppColors.secondaryAccent,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            l10n.filters,
-                            style: const TextStyle(
-                              color: AppColors.secondaryAccent,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1115,8 +680,8 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
 
               return Row(
                 children: [
-                  filterControl,
-                  const SizedBox(width: 6),
+                  Expanded(child: filterControl),
+                  const SizedBox(width: 8),
                   Expanded(child: sortControl),
                 ],
               );
@@ -1128,34 +693,31 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : !_hasSearched
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        LucideIcons.receipt,
-                        size: 48,
-                        color: AppColors.divider,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        l10n.searchHelpText,
-                        style: const TextStyle(
-                          color: AppColors.secondaryAccent,
-                        ),
-                      ),
-                    ],
-                  ),
+              ? EmptyStateWidget(
+                  title: l10n.returns,
+                  message: l10n.searchHelpText,
+                  icon: LucideIcons.receipt,
                 )
               : _groupedSales.isEmpty
-              ? Center(
-                  child: Text(
-                    l10n.noResults,
-                    style: const TextStyle(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              ? EmptyStateWidget(
+                  title: l10n.noResults,
+                  message: l10n.noProductsMatchCriteria,
+                  icon: LucideIcons.searchX,
+                  onAction: () {
+                    setState(() {
+                      _searchController.clear();
+                      _isSearchVisible = false;
+                      _searchFocus.unfocus();
+                      _startDate = null;
+                      _endDate = null;
+                      _startTime = null;
+                      _endTime = null;
+                      _minAmount = null;
+                      _maxAmount = null;
+                    });
+                    _searchInvoice();
+                  },
+                  actionLabel: l10n.clearAllFilters,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -1293,125 +855,19 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                 if (!allReturned && isVeryCompact)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 12),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: SizedBox(
-                                            height: 40,
-                                            child: OutlinedButton(
-                                              onPressed: () =>
-                                                  _loadInvoiceIntoCart(
-                                                    salesForInvoice,
-                                                  ),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.primaryDark,
-                                                padding: EdgeInsets.zero,
-                                                side: const BorderSide(
-                                                  color: AppColors.divider,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                              child: Text(
-                                                l10n.changeBtn,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: SizedBox(
-                                            height: 40,
-                                            child: ElevatedButton(
-                                              onPressed: () =>
-                                                  _processInvoiceReturn(
-                                                    invoiceStr,
-                                                    salesForInvoice,
-                                                  ),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    AppColors.error,
-                                                foregroundColor:
-                                                    AppColors.white,
-                                                padding: EdgeInsets.zero,
-                                                elevation: 0,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                              child: Text(
-                                                l10n.returnItems,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          trailing: (allReturned || isVeryCompact)
-                              ? null
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      height: 40,
-                                      child: OutlinedButton(
-                                        onPressed: () => _loadInvoiceIntoCart(
-                                          salesForInvoice,
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor:
-                                              AppColors.primaryDark,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                          ),
-                                          side: const BorderSide(
-                                            color: AppColors.divider,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          l10n.changeBtn,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    SizedBox(
+                                    child: SizedBox(
+                                      width: double.infinity,
                                       height: 40,
                                       child: ElevatedButton(
-                                        onPressed: () => _processInvoiceReturn(
-                                          invoiceStr,
-                                          salesForInvoice,
-                                        ),
+                                        onPressed: () =>
+                                            _loadInvoiceIntoCart(
+                                              salesForInvoice,
+                                            ),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.error,
                                           foregroundColor: AppColors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                          ),
-                                          elevation: 2,
+                                          padding: EdgeInsets.zero,
+                                          elevation: 0,
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
                                               8,
@@ -1422,11 +878,41 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
                                           l10n.returnItems,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                          trailing: (allReturned || isVeryCompact)
+                              ? const SizedBox.shrink()
+                              : SizedBox(
+                                  height: 40,
+                                  child: ElevatedButton(
+                                    onPressed: () => _loadInvoiceIntoCart(
+                                      salesForInvoice,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.error,
+                                      foregroundColor: AppColors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      elevation: 2,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      l10n.returnItems,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                           children: [
                             const Divider(height: 1),
@@ -1555,11 +1041,101 @@ class _ReturnsScreenState extends State<ReturnsScreen> {
               letterSpacing: 1.0,
             ),
           ),
+          actions: [
+            IconButton(
+              icon: Icon(
+                _isSearchVisible ? LucideIcons.x : LucideIcons.search,
+                color: AppColors.white,
+              ),
+              onPressed: _toggleSearch,
+              tooltip: _isSearchVisible
+                  ? l10n.closeSearchTooltip
+                  : l10n.searchTooltip,
+            ),
+          ],
         ),
         body: body,
       );
     }
 
     return body;
+  }
+}
+
+class _ReturnsExpandableSearchBar extends StatelessWidget {
+  final bool isVisible;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onSubmitted;
+  final VoidCallback onClose;
+
+  const _ReturnsExpandableSearchBar({
+    required this.isVisible,
+    required this.controller,
+    required this.focusNode,
+    required this.onSubmitted,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      height: isVisible ? 60.0 : 0.0,
+      color: AppColors.primaryDark,
+      clipBehavior: Clip.hardEdge,
+      child: isVisible
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.highlightActive.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  onSubmitted: (_) => onSubmitted(),
+                  textInputAction: TextInputAction.search,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: l10n.searchHint,
+                    hintStyle: TextStyle(
+                      color: AppColors.secondaryAccent.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: const Icon(
+                      LucideIcons.search,
+                      color: AppColors.secondaryAccent,
+                      size: 18,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        LucideIcons.x,
+                        size: 16,
+                        color: AppColors.secondaryAccent,
+                      ),
+                      onPressed: onClose,
+                      tooltip: l10n.closeSearchTooltip,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
   }
 }

@@ -17,6 +17,11 @@ class POSProvider extends ChangeNotifier {
   final List<CartItem> _cart = [];
   String _searchQuery = '';
 
+  /// When set from Returns, checkout uses [completeReplacementSale] instead of
+  /// [completeSale]. Bumped on each new replacement so Home can reset local UI.
+  String? _replacementSourceInvoiceNumber;
+  int _replacementFlowVersion = 0;
+
   List<Product> get products => _products;
   List<CartItem> get cart => _cart;
   String get searchQuery => _searchQuery;
@@ -40,6 +45,17 @@ class POSProvider extends ChangeNotifier {
       }
     }
     return unique.values.toList();
+  }
+
+  String? get replacementSourceInvoiceNumber =>
+      _replacementSourceInvoiceNumber;
+  int get replacementFlowVersion => _replacementFlowVersion;
+
+  /// Starts a return/replacement checkout session (cart must already be filled).
+  void setReplacementSourceInvoiceNumber(String invoice) {
+    _replacementSourceInvoiceNumber = invoice;
+    _replacementFlowVersion++;
+    notifyListeners();
   }
 
   List<Product> get filteredProducts {
@@ -231,6 +247,7 @@ class POSProvider extends ChangeNotifier {
 
   void clearCart() {
     _cart.clear();
+    _replacementSourceInvoiceNumber = null;
     notifyListeners();
   }
 
@@ -329,6 +346,7 @@ class POSProvider extends ChangeNotifier {
       sourceInvoiceNumber: sourceInvoiceNumber,
     );
     _cart.clear();
+    _replacementSourceInvoiceNumber = null;
     await loadProducts();
     _admin.scheduleSync();
     return invoiceNumber;

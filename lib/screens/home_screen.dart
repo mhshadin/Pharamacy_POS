@@ -85,6 +85,16 @@ class _HomeScreenState extends State<HomeScreen>
   List<Product> _searchSuggestions = [];
   bool _replacementCheckoutCommitted = false;
   bool _resumeScannerAfterExternalOverlay = false;
+  int _homeSeenReplacementFlowVersion = 0;
+
+  /// Provider-driven replacement (Returns flow) or legacy widget argument.
+  String? _replacementInvoiceForFlow(POSProvider pos) {
+    final p = pos.replacementSourceInvoiceNumber?.trim();
+    if (p != null && p.isNotEmpty) return p;
+    final w = widget.replacementSourceInvoiceNumber?.trim();
+    if (w != null && w.isNotEmpty) return w;
+    return null;
+  }
 
   @override
   void initState() {
@@ -165,6 +175,16 @@ class _HomeScreenState extends State<HomeScreen>
       pauseBackgroundScanner: _pauseScannerForOverlay,
       resumeBackgroundScanner: _resumeScannerAfterOverlay,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final v = context.read<POSProvider>().replacementFlowVersion;
+    if (v != _homeSeenReplacementFlowVersion) {
+      _homeSeenReplacementFlowVersion = v;
+      _replacementCheckoutCommitted = false;
+    }
   }
 
   Future<void> _pauseScannerForOverlay() async {
@@ -639,9 +659,9 @@ class _HomeScreenState extends State<HomeScreen>
     final saleTotal = pos.calculateTotal;
 
     try {
-      if (widget.replacementSourceInvoiceNumber != null &&
-          widget.replacementSourceInvoiceNumber!.isNotEmpty) {
-        await pos.completeReplacementSale(widget.replacementSourceInvoiceNumber!);
+      final repl = _replacementInvoiceForFlow(pos);
+      if (repl != null) {
+        await pos.completeReplacementSale(repl);
       } else {
         await pos.completeSale();
       }
@@ -997,14 +1017,15 @@ class _HomeScreenState extends State<HomeScreen>
             },
     );
 
+    final replacementInv = _replacementInvoiceForFlow(posProvider);
     return PopScope(
-      canPop: widget.replacementSourceInvoiceNumber == null ||
-          _replacementCheckoutCommitted,
+      canPop: replacementInv == null || _replacementCheckoutCommitted,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        if (widget.replacementSourceInvoiceNumber != null &&
-            !_replacementCheckoutCommitted) {
-          context.read<POSProvider>().clearCart();
+        final pos = context.read<POSProvider>();
+        final repl = _replacementInvoiceForFlow(pos);
+        if (repl != null && !_replacementCheckoutCommitted) {
+          pos.clearCart();
         }
         if (mounted) Navigator.of(context).pop();
       },
