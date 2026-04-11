@@ -482,6 +482,30 @@ class AppStringsEn implements AppStrings {
   String get expiryOrderError =>
       'Expiry days must be ordered: Critical (red) ≤ Moderate (amber) ≤ Expiring Soon window.';
   @override
+  String get databaseStorageLocation => 'Database storage location';
+  @override
+  String get databaseStorageLocationDesc =>
+      'Choose where pharmacy.db is kept permanently. Your current data is copied when you change this.';
+  @override
+  String get chooseDatabaseFolder => 'Choose folder';
+  @override
+  String get resetDatabaseLocation => 'Use default location';
+  @override
+  String get databaseLocationDefaultDownloads =>
+      'Downloads — Pharmacy POS (default)';
+  @override
+  String get databaseLocationDefaultAppFolder =>
+      'App data folder (default)';
+  @override
+  String get databaseFolderPickerTitle => 'Choose folder for pharmacy.db';
+  @override
+  String get databaseLocationUpdated => 'Database location updated';
+  @override
+  String get databaseLocationUpdateFailed => 'Could not change database location';
+  @override
+  String get alreadyUsingDefaultDbLocation =>
+      'Already using the default storage location.';
+  @override
   String get databaseBackup => 'Database Backup';
   @override
   String get googleDriveIntegration => 'Google Drive Integration';
@@ -517,6 +541,15 @@ class AppStringsEn implements AppStrings {
   @override
   String get exportedSuccess => 'Database exported to phone storage';
   @override
+  String exportedToPath(String path) => 'Database exported to: $path';
+  @override
+  String get exportSelectFolder => 'Select export folder';
+  @override
+  String get exportFolderPickCanceled => 'Export canceled: no folder selected.';
+  @override
+  String get exportFolderPickFailed =>
+      'Could not open folder picker. Please try again.';
+  @override
   String get importDatabase => 'Import Database?';
   @override
   String get importDatabaseWarning =>
@@ -527,6 +560,8 @@ class AppStringsEn implements AppStrings {
   String get importSuccess => 'Import successful!';
   @override
   String get importFailed => 'Import failed';
+  @override
+  String get importInvalidDbFile => 'Please select a valid .db file only.';
   @override
   String get medicineCategories => 'Medicine Categories';
   @override

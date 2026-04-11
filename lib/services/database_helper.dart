@@ -36,23 +36,34 @@ class DatabaseHelper {
     await database;
   }
 
-  /// Copies the runtime DB file back to the user-chosen folder (Android SAF tree).
+  /// Copies the runtime DB file back to the authoritative store (SAF tree or MediaStore).
   Future<void> syncRuntimeToAuthoritative() async {
     if (!Platform.isAndroid) return;
-    final tree = await _dbLocation.getAndroidTreeUri();
-    if (tree == null || tree.isEmpty) return;
     try {
       final path = await _resolveCanonicalDatabasePath();
       if (!await File(path).exists()) return;
-      await _dbStorageChannel.invokeMethod('syncRuntimeToTree', {
-        'treeUri': tree,
-        'runtimePath': path,
-      });
+      final tree = await _dbLocation.getAndroidTreeUri();
+      if (tree != null && tree.isNotEmpty) {
+        await _dbStorageChannel.invokeMethod('syncRuntimeToTree', {
+          'treeUri': tree,
+          'runtimePath': path,
+        });
+      } else {
+        await _dbStorageChannel.invokeMethod('syncRuntimeToPublicDb', {
+          'runtimePath': path,
+        });
+      }
     } on PlatformException {
       // ignore
     } on DatabaseLocationNotConfigured {
-      // No folder chosen yet.
+      // ignore
     }
+  }
+
+  Future<bool> get usesAndroidCustomTree async {
+    if (!Platform.isAndroid) return false;
+    final t = await _dbLocation.getAndroidTreeUri();
+    return t != null && t.isNotEmpty;
   }
 
   /// Android SAF folder picker; returns persisted tree `content://` URI or null if cancelled.
@@ -133,33 +144,46 @@ class DatabaseHelper {
     final dir = await getApplicationDocumentsDirectory();
 
     if (Platform.isAndroid) {
-      final tree = await _dbLocation.getAndroidTreeUri();
-      if (tree == null || tree.isEmpty) {
-        throw DatabaseLocationNotConfigured();
-      }
       final runtimePath = p.join(dir.path, 'pharmacy_runtime.db');
       final legacyPath = p.join(dir.path, 'pharmacy.db');
+      final tree = await _dbLocation.getAndroidTreeUri();
+      if (tree != null && tree.isNotEmpty) {
+        try {
+          await _dbStorageChannel.invokeMethod<Map<Object?, Object?>>(
+            'prepareDbFromTree',
+            {
+              'treeUri': tree,
+              'runtimePath': runtimePath,
+              'legacyPath': legacyPath,
+            },
+          );
+          _resolvedDbPath = runtimePath;
+        } on PlatformException catch (e) {
+          throw Exception('Failed to prepare custom database folder: ${e.message}');
+        }
+        return _resolvedDbPath!;
+      }
       try {
-        await _dbStorageChannel.invokeMethod<Map<Object?, Object?>>(
-          'prepareDbFromTree',
-          {
-            'treeUri': tree,
-            'runtimePath': runtimePath,
-            'legacyPath': legacyPath,
-          },
+        final result = await _dbStorageChannel.invokeMethod<Map<Object?, Object?>>(
+          'prepareDatabasePath',
+          {'runtimePath': runtimePath, 'legacyPath': legacyPath},
         );
-        _resolvedDbPath = runtimePath;
+        final resolved = result?['runtimePath'] as String?;
+        _resolvedDbPath = (resolved != null && resolved.isNotEmpty)
+            ? resolved
+            : runtimePath;
       } on PlatformException catch (e) {
-        throw Exception('Failed to prepare database folder: ${e.message}');
+        throw Exception('Failed to prepare default database (Downloads): ${e.message}');
       }
       return _resolvedDbPath!;
     }
 
     final folder = await _dbLocation.getDesktopFolderPath();
-    if (folder == null || folder.isEmpty) {
-      throw DatabaseLocationNotConfigured();
+    if (folder != null && folder.isNotEmpty) {
+      _resolvedDbPath = p.join(folder, 'pharmacy.db');
+    } else {
+      _resolvedDbPath = p.join(dir.path, 'pharmacy.db');
     }
-    _resolvedDbPath = p.join(folder, 'pharmacy.db');
     return _resolvedDbPath!;
   }
 
@@ -172,6 +196,16 @@ class DatabaseHelper {
             'readTreeDbBytes',
             {'treeUri': tree},
           );
+          if (bytes != null && bytes.isNotEmpty) {
+            return bytes;
+          }
+        } on PlatformException {
+          // Fall through to runtime file.
+        }
+      } else {
+        try {
+          final bytes = await _dbStorageChannel
+              .invokeMethod<Uint8List>('readPublicDbBytes');
           if (bytes != null && bytes.isNotEmpty) {
             return bytes;
           }
@@ -208,6 +242,14 @@ class DatabaseHelper {
         } on PlatformException {
           // Runtime file is authoritative for this session.
         }
+      } else {
+        try {
+          await _dbStorageChannel.invokeMethod('writePublicDbBytes', {
+            'bytes': bytes,
+          });
+        } on PlatformException {
+          // Runtime file updated.
+        }
       }
     }
   }
@@ -220,6 +262,47 @@ class DatabaseHelper {
       _database = null;
     }
     _resolvedDbPath = null;
+  }
+
+  /// Migrates [bytes] to a new storage location, updates [DbLocationService] prefs,
+  /// then reopens SQLite. Call after [syncRuntimeToAuthoritative] and reading the
+  /// current runtime file into [bytes]. On Android, [androidTreeUri] null means
+  /// MediaStore Downloads default; on desktop, [desktopFolderPath] null means app
+  /// documents (not a custom folder).
+  Future<void> applyNewDatabaseLocation({
+    required Uint8List bytes,
+    String? androidTreeUri,
+    String? desktopFolderPath,
+  }) async {
+    await resetConnection();
+    if (Platform.isAndroid) {
+      if (androidTreeUri != null && androidTreeUri.isNotEmpty) {
+        await _dbStorageChannel.invokeMethod('writeTreeDbBytes', {
+          'treeUri': androidTreeUri,
+          'bytes': bytes,
+        });
+        await _dbLocation.setAndroidTreeUri(androidTreeUri);
+      } else {
+        await _dbStorageChannel.invokeMethod('writePublicDbBytes', {
+          'bytes': bytes,
+        });
+        await _dbLocation.clearAndroidTreeUri();
+      }
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      if (desktopFolderPath != null && desktopFolderPath.isNotEmpty) {
+        final file = File(p.join(desktopFolderPath, 'pharmacy.db'));
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(bytes, flush: true);
+        await _dbLocation.setDesktopFolderPath(desktopFolderPath);
+      } else {
+        final file = File(p.join(dir.path, 'pharmacy.db'));
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(bytes, flush: true);
+        await _dbLocation.clearDesktopFolderPath();
+      }
+    }
+    await database;
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {

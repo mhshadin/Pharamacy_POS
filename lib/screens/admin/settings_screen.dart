@@ -7,11 +7,15 @@ import 'package:intl/intl.dart';
 import '../../utils/colors.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/language_provider.dart';
+import '../../providers/pos_provider.dart';
 import '../../models/alarm_slot.dart';
 import '../../models/pharmacy_device.dart';
 import '../../services/biometric_auth_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import '../login_screen.dart';
+import '../../services/database_helper.dart';
+import '../../services/db_location_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -32,17 +36,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _defaultOrderBoxesCtrl = TextEditingController();
 
   bool _isLoading = false;
+  bool _dbPathBusy = false;
+  bool _usingCustomDbLocation = false;
+  String? _dbLocationSummaryLine;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _refreshDbLocationSummary();
+      if (!mounted) return;
       final admin = context.read<AdminProvider>();
-      await admin.refreshActiveSellerFromServer();
-      await admin.loadPharmacyDevices();
+      try {
+        await admin.refreshActiveSellerFromServer();
+        await admin.loadPharmacyDevices();
+      } on SessionExpiredException {
+        if (!mounted) return;
+        _redirectToLogin();
+        return;
+      }
       if (mounted) setState(() {});
     });
+  }
+
+  void _redirectToLogin() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Session expired. Please log in again.'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   void _loadCurrentSettings() {
@@ -296,11 +324,245 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _refreshDbLocationSummary() async {
+    if (!mounted) return;
+    final l10n = context.read<LanguageProvider>().strings;
+    if (Platform.isAndroid) {
+      final tree = await DbLocationService().getAndroidTreeUri();
+      _usingCustomDbLocation = tree != null && tree.isNotEmpty;
+      _dbLocationSummaryLine = _usingCustomDbLocation
+          ? tree!
+          : l10n.databaseLocationDefaultDownloads;
+    } else {
+      final folder = await DbLocationService().getDesktopFolderPath();
+      _usingCustomDbLocation = folder != null && folder.isNotEmpty;
+      _dbLocationSummaryLine = _usingCustomDbLocation
+          ? folder!
+          : l10n.databaseLocationDefaultAppFolder;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _onChoosePermanentDatabaseFolder() async {
+    if (_dbPathBusy) return;
+    final l10n = context.read<LanguageProvider>().strings;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _dbPathBusy = true);
+    try {
+      await DatabaseHelper().syncRuntimeToAuthoritative();
+      final path = await DatabaseHelper().getDatabasePath();
+      if (path == null || path.isEmpty) {
+        throw Exception('No database path');
+      }
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception('Database file is empty');
+      }
+
+      if (Platform.isAndroid) {
+        final uri = await DatabaseHelper().pickAndroidDocumentTree();
+        if (uri == null || uri.isEmpty) return;
+        await DatabaseHelper().applyNewDatabaseLocation(
+          bytes: bytes,
+          androidTreeUri: uri,
+        );
+      } else {
+        final folder = await FilePicker.platform.getDirectoryPath(
+          dialogTitle: l10n.databaseFolderPickerTitle,
+        );
+        if (folder == null || folder.isEmpty) return;
+        await DatabaseHelper().applyNewDatabaseLocation(
+          bytes: bytes,
+          desktopFolderPath: folder,
+        );
+      }
+
+      if (!mounted) return;
+      final admin = context.read<AdminProvider>();
+      final pos = context.read<POSProvider>();
+      await admin.loadData();
+      await pos.loadProducts();
+      if (!mounted) return;
+      await _refreshDbLocationSummary();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.databaseLocationUpdated),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('${l10n.databaseLocationUpdateFailed}: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _dbPathBusy = false);
+    }
+  }
+
+  Future<void> _onResetDatabaseLocationToDefault() async {
+    if (_dbPathBusy) return;
+    if (!_usingCustomDbLocation) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<LanguageProvider>().strings.alreadyUsingDefaultDbLocation,
+            ),
+            backgroundColor: AppColors.secondaryAccent,
+          ),
+        );
+      }
+      return;
+    }
+    final l10n = context.read<LanguageProvider>().strings;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _dbPathBusy = true);
+    try {
+      await DatabaseHelper().syncRuntimeToAuthoritative();
+      final path = await DatabaseHelper().getDatabasePath();
+      if (path == null || path.isEmpty) {
+        throw Exception('No database path');
+      }
+      final bytes = await File(path).readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception('Database file is empty');
+      }
+
+      if (Platform.isAndroid) {
+        await DatabaseHelper().applyNewDatabaseLocation(
+          bytes: bytes,
+          androidTreeUri: null,
+        );
+      } else {
+        await DatabaseHelper().applyNewDatabaseLocation(
+          bytes: bytes,
+          desktopFolderPath: null,
+        );
+      }
+
+      if (!mounted) return;
+      final admin = context.read<AdminProvider>();
+      final pos = context.read<POSProvider>();
+      await admin.loadData();
+      await pos.loadProducts();
+      if (!mounted) return;
+      await _refreshDbLocationSummary();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.databaseLocationUpdated),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('${l10n.databaseLocationUpdateFailed}: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _dbPathBusy = false);
+    }
+  }
+
+  Widget _buildDatabaseLocationSection(BuildContext context) {
+    final l10n = context.watch<LanguageProvider>().strings;
+    final summary = _dbLocationSummaryLine ?? '…';
+
+    return _buildSectionCard(
+      title: l10n.databaseStorageLocation,
+      icon: LucideIcons.database,
+      children: [
+        Text(
+          l10n.databaseStorageLocationDesc,
+          style: const TextStyle(
+            color: AppColors.secondaryAccent,
+            fontSize: 12,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Text(
+            summary,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _dbPathBusy ? null : _onChoosePermanentDatabaseFolder,
+                icon: _dbPathBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(LucideIcons.folderOpen),
+                label: Text(l10n.chooseDatabaseFolder),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  side: const BorderSide(color: AppColors.primaryDark),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+            if (_usingCustomDbLocation) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _dbPathBusy ? null : _onResetDatabaseLocationToDefault,
+                  icon: const Icon(LucideIcons.rotateCcw),
+                  label: Text(l10n.resetDatabaseLocation),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: const BorderSide(color: AppColors.divider),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildDataSecurityTab() {
     return SingleChildScrollView(
       padding: _tabScrollPadding,
       child: Column(
         children: [
+          _buildDatabaseLocationSection(context),
+          const SizedBox(height: 24),
           _buildSellingDevicesSection(context),
           const SizedBox(height: 24),
           _buildSecuritySection(context),
@@ -320,7 +582,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         color: AppColors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -562,6 +824,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : null,
               activeThumbColor: AppColors.primaryDark,
               contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Alarm Reliability',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  FutureBuilder<int>(
+                    future: admin.getScheduledAlarmCount(),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return Text(
+                        'Currently scheduled alarms: $count',
+                        style: const TextStyle(
+                          color: AppColors.secondaryAccent,
+                          fontSize: 12,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'If alarms fail on locked screen/background, allow exact alarms, disable battery optimization for this app, and enable auto-start on some phones.',
+                    style: TextStyle(
+                      color: AppColors.secondaryAccent,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await admin.rescheduleAllReminderAlarms();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Alarms re-scheduled successfully.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                        setState(() {});
+                      },
+                      icon: const Icon(LucideIcons.refreshCw, size: 16),
+                      label: const Text('Re-schedule now'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryDark,
+                        side: const BorderSide(color: AppColors.primaryDark),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             if (isEnabled) ...[
               const Divider(height: 32, color: AppColors.divider),
@@ -940,13 +1270,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: OutlinedButton.icon(
                 onPressed: () async {
                   setState(() => _isLoading = true);
-                  await admin.scheduleSync(immediate: true);
+                  String? selectedDirectory;
+                  try {
+                    selectedDirectory = await FilePicker.platform.getDirectoryPath(
+                      dialogTitle: l10n.exportSelectFolder,
+                    );
+                  } catch (_) {
+                    if (!context.mounted) return;
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(l10n.exportFolderPickFailed),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (!context.mounted) return;
+                  if (selectedDirectory == null ||
+                      selectedDirectory.trim().isEmpty) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(l10n.exportFolderPickCanceled),
+                        backgroundColor: AppColors.secondaryAccent,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final exportPath = await admin.scheduleSync(
+                    immediate: true,
+                    exportDirectoryPath: selectedDirectory,
+                  );
                   if (!context.mounted) return;
                   setState(() => _isLoading = false);
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(l10n.exportedSuccess),
+                      content: Text(
+                        (exportPath != null && exportPath.trim().isNotEmpty)
+                            ? l10n.exportedToPath(exportPath)
+                            : l10n.exportedSuccess,
+                      ),
                       backgroundColor: AppColors.success,
                     ),
                   );
@@ -1056,19 +1423,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () async {
                         Navigator.pop(ctx);
                         final result = await FilePicker.platform.pickFiles(
-                          type: FileType.any,
+                          type: FileType.custom,
+                          allowedExtensions: const ['db'],
                         );
 
                         if (result != null &&
                             result.files.single.path != null) {
+                          final selectedPath = result.files.single.path!;
+                          final selectedExt = p.extension(selectedPath).toLowerCase();
+                          if (selectedExt != '.db') {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.importInvalidDbFile),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+
                           setState(() => _isLoading = true);
                           try {
                             if (!context.mounted) return;
-                            await context
-                                .read<AdminProvider>()
-                                .importDatabaseLocally(
-                                  result.files.single.path!,
-                                );
+                            final adminProv = context.read<AdminProvider>();
+                            final posProv = context.read<POSProvider>();
+                            await adminProv.importDatabaseLocally(
+                              selectedPath,
+                            );
+                            await posProv.loadProducts();
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -1094,12 +1476,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         foregroundColor: AppColors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
+                        alignment: Alignment.center,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: Text(
                         l10n.importReplace,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1567,8 +1951,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           alignment: Alignment.centerRight,
           child: TextButton.icon(
             onPressed: () async {
-              await admin.refreshActiveSellerFromServer();
-              await admin.loadPharmacyDevices();
+              try {
+                await admin.refreshActiveSellerFromServer();
+                await admin.loadPharmacyDevices();
+              } on SessionExpiredException {
+                if (!context.mounted) return;
+                _redirectToLogin();
+                return;
+              }
               if (context.mounted) setState(() {});
             },
             icon: const Icon(LucideIcons.refreshCw, size: 16),
@@ -1756,6 +2146,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       if (!context.mounted) return;
+      if (e is SessionExpiredException) {
+        _redirectToLogin();
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

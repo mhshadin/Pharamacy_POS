@@ -489,6 +489,31 @@ class AppStringsBn implements AppStrings {
   String get expiryOrderError =>
       'মিয়াদের দিনগুলো ক্রমানুসারে হতে হবে: জরুরি (লাল) ≤ মাঝারি (হলুদ) ≤ মিয়াদোত্তীর্ণ উইন্ডো।';
   @override
+  String get databaseStorageLocation => 'ডাটাবেস সংরক্ষণের অবস্থান';
+  @override
+  String get databaseStorageLocationDesc =>
+      'pharmacy.db কোথায় স্থায়ীভাবে থাকবে তা বেছে নিন। পরিবর্তন করলে বর্তমান ডাটা কপি হয়ে যাবে।';
+  @override
+  String get chooseDatabaseFolder => 'ফোল্ডার বেছে নিন';
+  @override
+  String get resetDatabaseLocation => 'ডিফল্ট অবস্থান ব্যবহার করুন';
+  @override
+  String get databaseLocationDefaultDownloads =>
+      'ডাউনলোডস — Pharmacy POS (ডিফল্ট)';
+  @override
+  String get databaseLocationDefaultAppFolder =>
+      'অ্যাপ ডাটা ফোল্ডার (ডিফল্ট)';
+  @override
+  String get databaseFolderPickerTitle => 'pharmacy.db এর জন্য ফোল্ডার বেছে নিন';
+  @override
+  String get databaseLocationUpdated => 'ডাটাবেসের অবস্থান আপডেট হয়েছে';
+  @override
+  String get databaseLocationUpdateFailed =>
+      'ডাটাবেসের অবস্থান পরিবর্তন করা যায়নি';
+  @override
+  String get alreadyUsingDefaultDbLocation =>
+      'ইতিমধ্যে ডিফল্ট সংরক্ষণ অবস্থান ব্যবহার করা হচ্ছে।';
+  @override
   String get databaseBackup => 'ডাটাবেস ব্যাকআপ';
   @override
   String get googleDriveIntegration => 'গুগল ড্রাইভ ইন্টিগ্রেশন';
@@ -525,6 +550,16 @@ class AppStringsBn implements AppStrings {
   @override
   String get exportedSuccess => 'ডাটাবেসটি ফোনের মেমোরিতে এক্সপোর্ট করা হয়েছে';
   @override
+  String exportedToPath(String path) => 'ডাটাবেস এক্সপোর্ট হয়েছে: $path';
+  @override
+  String get exportSelectFolder => 'এক্সপোর্ট ফোল্ডার নির্বাচন করুন';
+  @override
+  String get exportFolderPickCanceled =>
+      'এক্সপোর্ট বাতিল হয়েছে: কোনো ফোল্ডার নির্বাচন করা হয়নি।';
+  @override
+  String get exportFolderPickFailed =>
+      'ফোল্ডার পিকার খোলা যায়নি। আবার চেষ্টা করুন।';
+  @override
   String get importDatabase => 'ডাটাবেস ইম্পোর্ট করবেন?';
   @override
   String get importDatabaseWarning =>
@@ -535,6 +570,9 @@ class AppStringsBn implements AppStrings {
   String get importSuccess => 'ইম্পোর্ট সফল হয়েছে!';
   @override
   String get importFailed => 'ইম্পোর্ট ব্যর্থ হয়েছে';
+  @override
+  String get importInvalidDbFile =>
+      'শুধু বৈধ .db ফাইল নির্বাচন করুন।';
   @override
   String get medicineCategories => 'ওষুধের ধরণ';
   @override
