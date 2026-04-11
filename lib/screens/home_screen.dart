@@ -18,6 +18,7 @@ import '../services/ocr_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/time_service.dart';
+import '../navigation/app_route_observer.dart';
 import '../services/mobile_scanner_bridge.dart';
 import '../config/api_config.dart';
 import '../widgets/home/out_of_stock_dialog.dart';
@@ -52,7 +53,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with
+        SingleTickerProviderStateMixin,
+        WidgetsBindingObserver,
+        RouteAware {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scanScrollController = ScrollController();
   late AnimationController _scanAnimationController;
@@ -84,8 +88,11 @@ class _HomeScreenState extends State<HomeScreen>
   OverlayEntry? _searchOverlay;
   List<Product> _searchSuggestions = [];
   bool _replacementCheckoutCommitted = false;
-  bool _resumeScannerAfterExternalOverlay = false;
   int _homeSeenReplacementFlowVersion = 0;
+
+  /// False while another [PageRoute] sits above Home (drawer pushes, dialogs
+  /// as routes, etc.); keeps the barcode camera released when not visible.
+  bool _homeRouteOnTop = true;
 
   /// Provider-driven replacement (Returns flow) or legacy widget argument.
   String? _replacementInvoiceForFlow(POSProvider pos) {
@@ -94,6 +101,29 @@ class _HomeScreenState extends State<HomeScreen>
     final w = widget.replacementSourceInvoiceNumber?.trim();
     if (w != null && w.isNotEmpty) return w;
     return null;
+  }
+
+  /// Starts or stops the POS barcode camera from a single set of rules: route
+  /// visibility, app lifecycle, user toggle, and scanner expanded state.
+  void _syncHomeScannerVisibility() {
+    if (!mounted || Platform.isWindows) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final inForeground = lifecycle == null ||
+        lifecycle == AppLifecycleState.resumed;
+    final wantRunning = _isCameraActive &&
+        _isScannerExpanded &&
+        _homeRouteOnTop &&
+        inForeground;
+
+    if (!wantRunning) {
+      if (_cameraController.value.isRunning) {
+        unawaited(_cameraController.stop());
+      }
+      return;
+    }
+    if (!_cameraController.value.isRunning) {
+      unawaited(_cameraController.start());
+    }
   }
 
   @override
@@ -180,6 +210,10 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      appRouteObserver.subscribe(this, route);
+    }
     final v = context.read<POSProvider>().replacementFlowVersion;
     if (v != _homeSeenReplacementFlowVersion) {
       _homeSeenReplacementFlowVersion = v;
@@ -187,24 +221,39 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  @override
+  void didPush() {
+    _homeRouteOnTop = true;
+    _syncHomeScannerVisibility();
+  }
+
+  @override
+  void didPopNext() {
+    _homeRouteOnTop = true;
+    _syncHomeScannerVisibility();
+  }
+
+  @override
+  void didPushNext() {
+    _homeRouteOnTop = false;
+    _syncHomeScannerVisibility();
+  }
+
+  @override
+  void didPop() {
+    _homeRouteOnTop = false;
+    _syncHomeScannerVisibility();
+  }
+
   Future<void> _pauseScannerForOverlay() async {
     if (Platform.isWindows) return;
     if (_cameraController.value.isRunning) {
-      _resumeScannerAfterExternalOverlay = true;
       await _cameraController.stop();
-    } else {
-      _resumeScannerAfterExternalOverlay = false;
     }
   }
 
   void _resumeScannerAfterOverlay() {
-    if (Platform.isWindows) return;
-    final shouldResume = _resumeScannerAfterExternalOverlay;
-    _resumeScannerAfterExternalOverlay = false;
-    if (!shouldResume || !mounted) return;
-    if (_isCameraActive && _isScannerExpanded) {
-      unawaited(_cameraController.start());
-    }
+    _syncHomeScannerVisibility();
   }
 
   Future<void> _toggleScannerExpanded() async {
@@ -215,6 +264,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
     if (!mounted) return;
     setState(() => _isScannerExpanded = !_isScannerExpanded);
+    _syncHomeScannerVisibility();
   }
 
   void _redirectToLogin() {
@@ -295,15 +345,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (state == AppLifecycleState.resumed) {
       _syncSubscriptionFromServer();
     }
-
-    if (Platform.isWindows || !_isCameraActive || !_isScannerExpanded) return;
-
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
-      _cameraController.stop();
-    } else if (state == AppLifecycleState.resumed) {
-      _cameraController.start();
-    }
+    _syncHomeScannerVisibility();
   }
 
   /// Calls [check_access.php] when the app returns to foreground.
@@ -347,6 +389,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     MobileScannerBridge.unregister();
     WidgetsBinding.instance.removeObserver(this);
     _scanAnimationController.dispose();
@@ -774,22 +817,18 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _navigateFromDrawer(Future<void> Function() navigate) async {
     if (!context.mounted) return;
     Navigator.pop(context);
-    final bool canStop = _isCameraActive && _isScannerExpanded;
-    if (canStop && !Platform.isWindows) _cameraController.stop();
     await navigate();
-    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+    if (mounted) _syncHomeScannerVisibility();
   }
 
   Future<void> _handleManualAdd({String? genericFilter}) async {
-    final bool canStop = _isCameraActive && _isScannerExpanded;
-    if (canStop && !Platform.isWindows) _cameraController.stop();
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ManualAddScreen(initialGenericFilter: genericFilter),
       ),
     );
-    if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+    if (mounted) _syncHomeScannerVisibility();
   }
 
   Future<void> _handleOcrScan() async {
@@ -808,7 +847,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       if (file == null) {
-        if (canStop && mounted) _cameraController.start();
+        if (mounted) _syncHomeScannerVisibility();
         return;
       }
 
@@ -857,7 +896,7 @@ class _HomeScreenState extends State<HomeScreen>
             backgroundColor: AppColors.warningOrange,
           ),
         );
-        if (canStop && mounted) _cameraController.start();
+        if (mounted) _syncHomeScannerVisibility();
         return;
       }
 
@@ -885,7 +924,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
-      if (canStop && mounted && !Platform.isWindows) _cameraController.start();
+      if (mounted) _syncHomeScannerVisibility();
     }
   }
 
@@ -968,12 +1007,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (Platform.isWindows) return;
         setState(() {
           _isCameraActive = !_isCameraActive;
-          if (_isCameraActive && _isScannerExpanded) {
-            _cameraController.start();
-          } else if (!_isCameraActive && _isScannerExpanded) {
-            _cameraController.stop();
-          }
         });
+        _syncHomeScannerVisibility();
       },
       isExpanded: _isScannerExpanded,
       onToggleExpanded: () {
@@ -1022,17 +1057,12 @@ class _HomeScreenState extends State<HomeScreen>
       canPop: replacementInv == null || _replacementCheckoutCommitted,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        final nav = Navigator.of(context);
         final pos = context.read<POSProvider>();
         final repl = _replacementInvoiceForFlow(pos);
         if (repl != null && !_replacementCheckoutCommitted) {
           pos.clearCart();
         }
-        // Replacement flow used to pop a second Home; now Home is often root.
-        // Only pop if something is above us; otherwise stay on POS after cancel.
-        if (mounted && nav.canPop()) {
-          nav.pop();
-        }
+        if (mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
         key: _scaffoldKey,

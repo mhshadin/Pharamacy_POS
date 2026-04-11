@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'navigation/app_route_observer.dart';
 import 'utils/colors.dart';
 import 'utils/text_scale_config.dart';
 import 'screens/splash_screen.dart';
@@ -140,6 +141,7 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp>
           
           return MaterialApp(
             navigatorKey: NotificationService.navigatorKey,
+            navigatorObservers: [appRouteObserver],
             title: isBn ? langProvider.strings.appName : 'Pharmacy POS',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
