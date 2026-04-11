@@ -11,6 +11,7 @@ import '../../models/product.dart';
 import '../../utils/med_type_icons.dart';
 import '../../l10n/app_strings.dart';
 import '../scanner_screen.dart';
+import '../../services/mobile_scanner_bridge.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -1040,20 +1041,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                         Widget scanButton() {
                                           final btn = ElevatedButton.icon(
                                             onPressed: () async {
-                                              final scannedCode =
-                                                  await Navigator.push<String>(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) =>
-                                                          const ScannerScreen(),
-                                                    ),
-                                                  );
+                                              await MobileScannerBridge
+                                                  .beforePushOverlayScanner();
+                                              String? scannedCode;
+                                              try {
+                                                scannedCode =
+                                                    await Navigator.push<String>(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const ScannerScreen(),
+                                                  ),
+                                                );
+                                              } finally {
+                                                MobileScannerBridge
+                                                    .afterPopOverlayScanner();
+                                              }
                                               if (!context.mounted) return;
                                               if (scannedCode != null &&
                                                   scannedCode.isNotEmpty) {
+                                                final code = scannedCode;
                                                 setState(() {
-                                                  _barcodeCtrl.text =
-                                                      scannedCode;
+                                                  _barcodeCtrl.text = code;
                                                 });
                                                 // Auto-load if product exists
                                                 final admin = context
@@ -1062,8 +1071,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                     .allProducts
                                                     .where(
                                                       (p) =>
-                                                          p.barcode ==
-                                                          scannedCode,
+                                                          p.barcode == code,
                                                     )
                                                     .firstOrNull;
                                                 if (existing != null) {

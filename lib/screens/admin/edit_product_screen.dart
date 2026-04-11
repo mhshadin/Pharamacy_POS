@@ -11,6 +11,7 @@ import '../../models/product.dart';
 import '../../models/stock_batch.dart';
 import '../../utils/med_type_units.dart';
 import '../scanner_screen.dart';
+import '../../services/mobile_scanner_bridge.dart';
 
 class EditProductScreen extends StatefulWidget {
   final Product product;
@@ -321,16 +322,25 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           height: 58,
                           child: ElevatedButton.icon(
                             onPressed: () async {
-                              final scannedCode = await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ScannerScreen(),
-                                ),
-                              );
+                              await MobileScannerBridge.beforePushOverlayScanner();
+                              String? scannedCode;
+                              try {
+                                scannedCode = await Navigator.push<String>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ScannerScreen(),
+                                  ),
+                                );
+                              } finally {
+                                MobileScannerBridge.afterPopOverlayScanner();
+                              }
                               if (!mounted) return;
-                              if (scannedCode != null && scannedCode.isNotEmpty) {
+                              if (scannedCode != null &&
+                                  scannedCode.isNotEmpty) {
+                                final code = scannedCode;
                                 setState(() {
-                                  _barcodeCtrl.text = scannedCode;
+                                  _barcodeCtrl.text = code;
                                 });
                               }
                             },
@@ -515,7 +525,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                     // Live profit preview: Now listening to both Buying Price and Selling Price
                     AnimatedBuilder(
                       animation: Listenable.merge([_buyingPriceStripCtrl, _priceStripCtrl]),
-                      builder: (_, __) {
+                      builder: (context, child) {
                         final cost = double.tryParse(_buyingPriceStripCtrl.text) ?? 0.0;
                         final sell = double.tryParse(_priceStripCtrl.text) ?? 0.0;
                         if (cost <= 0 || sell <= 0) return const SizedBox.shrink();

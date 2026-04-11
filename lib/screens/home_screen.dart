@@ -18,6 +18,7 @@ import '../services/ocr_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/time_service.dart';
+import '../services/mobile_scanner_bridge.dart';
 import '../config/api_config.dart';
 import '../widgets/home/out_of_stock_dialog.dart';
 import '../widgets/home/pos_scanner_section.dart';
@@ -39,7 +40,12 @@ import 'subscription_screen.dart';
 import 'admin/notification_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String? replacementSourceInvoiceNumber;
+
+  const HomeScreen({
+    super.key,
+    this.replacementSourceInvoiceNumber,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -57,8 +63,8 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isProcessingScan = false;
   late bool _isCameraActive;
 
-  // Scanner expand/collapse — collapsed by default so cart is always visible
-  bool _isScannerExpanded = false;
+  // Scanner starts expanded so users immediately see camera/paused state.
+  bool _isScannerExpanded = true;
   bool _isTopSectionCollapsed = false;
 
   // Voice search state
@@ -77,6 +83,8 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _searchFieldKey = GlobalKey();
   OverlayEntry? _searchOverlay;
   List<Product> _searchSuggestions = [];
+  bool _replacementCheckoutCommitted = false;
+  bool _resumeScannerAfterExternalOverlay = false;
 
   @override
   void initState() {
@@ -152,6 +160,41 @@ class _HomeScreenState extends State<HomeScreen>
       }
       if (mounted) setState(() {});
     });
+
+    MobileScannerBridge.register(
+      pauseBackgroundScanner: _pauseScannerForOverlay,
+      resumeBackgroundScanner: _resumeScannerAfterOverlay,
+    );
+  }
+
+  Future<void> _pauseScannerForOverlay() async {
+    if (Platform.isWindows) return;
+    if (_cameraController.value.isRunning) {
+      _resumeScannerAfterExternalOverlay = true;
+      await _cameraController.stop();
+    } else {
+      _resumeScannerAfterExternalOverlay = false;
+    }
+  }
+
+  void _resumeScannerAfterOverlay() {
+    if (Platform.isWindows) return;
+    final shouldResume = _resumeScannerAfterExternalOverlay;
+    _resumeScannerAfterExternalOverlay = false;
+    if (!shouldResume || !mounted) return;
+    if (_isCameraActive && _isScannerExpanded) {
+      unawaited(_cameraController.start());
+    }
+  }
+
+  Future<void> _toggleScannerExpanded() async {
+    if (_isScannerExpanded) {
+      if (!Platform.isWindows) {
+        await _cameraController.stop();
+      }
+    }
+    if (!mounted) return;
+    setState(() => _isScannerExpanded = !_isScannerExpanded);
   }
 
   void _redirectToLogin() {
@@ -174,9 +217,11 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _enforceSubscriptionBlockIfNeeded() async {
     final session = await _authStorage.loadAuth();
     if (!mounted || session == null) return;
+    final rootNavigator = Navigator.of(context);
 
     final expiresAt = DateTime.tryParse(session.subscriptionValidUntil.trim());
     final reliableNow = await TimeService().getReliableNow();
+    if (!mounted) return;
     final isExpired = expiresAt != null && expiresAt.isBefore(reliableNow);
     if (!isExpired) return;
 
@@ -207,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen>
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  Navigator.of(context).pushReplacement(
+                  rootNavigator.pushReplacement(
                     MaterialPageRoute(
                       builder: (_) => SubscriptionScreen(
                         pharmacyId: session.pharmacyId,
@@ -282,6 +327,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    MobileScannerBridge.unregister();
     WidgetsBinding.instance.removeObserver(this);
     _scanAnimationController.dispose();
     _scanScrollController.dispose();
@@ -593,9 +639,15 @@ class _HomeScreenState extends State<HomeScreen>
     final saleTotal = pos.calculateTotal;
 
     try {
-      await pos.completeSale();
+      if (widget.replacementSourceInvoiceNumber != null &&
+          widget.replacementSourceInvoiceNumber!.isNotEmpty) {
+        await pos.completeReplacementSale(widget.replacementSourceInvoiceNumber!);
+      } else {
+        await pos.completeSale();
+      }
       await admin.refreshSales();
       await admin.loadData();
+      _replacementCheckoutCommitted = true;
     } on InactiveSellingDeviceException catch (_) {
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
@@ -869,8 +921,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     Widget quickActionsPanel = PosQuickActions(
       isScannerExpanded: _isScannerExpanded,
-      onToggleScanner: () =>
-          setState(() => _isScannerExpanded = !_isScannerExpanded),
+      onToggleScanner: () {
+        unawaited(_toggleScannerExpanded());
+      },
       onManualAdd: _handleManualAdd,
       onOcrScan: _handleOcrScan,
       onVoiceTap: () {
@@ -903,8 +956,9 @@ class _HomeScreenState extends State<HomeScreen>
         });
       },
       isExpanded: _isScannerExpanded,
-      onToggleExpanded: () =>
-          setState(() => _isScannerExpanded = !_isScannerExpanded),
+      onToggleExpanded: () {
+        unawaited(_toggleScannerExpanded());
+      },
     );
 
     Widget voiceSearchBar = _VoiceSearchBar(
@@ -943,14 +997,25 @@ class _HomeScreenState extends State<HomeScreen>
             },
     );
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: AppColors.posBackground,
-      resizeToAvoidBottomInset: false,
-      drawer: PosDrawer(onNavigate: _navigateFromDrawer),
-      appBar: _buildGradientAppBar(),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
+    return PopScope(
+      canPop: widget.replacementSourceInvoiceNumber == null ||
+          _replacementCheckoutCommitted,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (widget.replacementSourceInvoiceNumber != null &&
+            !_replacementCheckoutCommitted) {
+          context.read<POSProvider>().clearCart();
+        }
+        if (mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: AppColors.posBackground,
+        resizeToAvoidBottomInset: false,
+        drawer: PosDrawer(onNavigate: _navigateFromDrawer),
+        appBar: _buildGradientAppBar(),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
           const double rightPanelWidth = 80;
           // Cap the scanner+buttons content to 30% of body height
           final double topContentHeight =
@@ -1059,7 +1124,8 @@ class _HomeScreenState extends State<HomeScreen>
               checkoutFooter,
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }

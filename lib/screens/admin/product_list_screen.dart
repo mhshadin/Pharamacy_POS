@@ -169,7 +169,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
         final name = p.name.toLowerCase();
         final generic = p.generic.toLowerCase();
         final company = p.companyName?.toLowerCase() ?? '';
-        return name.contains(q) || generic.contains(q) || company.contains(q);
+        final barcode = p.barcode?.toLowerCase() ?? '';
+        return name.contains(q) ||
+            generic.contains(q) ||
+            company.contains(q) ||
+            barcode.contains(q);
       }).toList();
     }
 
