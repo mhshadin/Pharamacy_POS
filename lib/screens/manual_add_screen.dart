@@ -12,7 +12,7 @@ import '../providers/language_provider.dart';
 import '../utils/med_type_units.dart';
 import '../widgets/taka_symbol.dart';
 
-/// Same threshold as [PosCartList] horizontal swipes on the home cart.
+/// Same magnitude as [PosCartList]; back uses **rightward** swipe (positive velocity).
 const double _kManualAddSwipeBackMinVelocity = 450.0;
 
 class ManualAddScreen extends StatefulWidget {
@@ -435,7 +435,7 @@ class _ManualAddScreenState extends State<ManualAddScreen>
         behavior: HitTestBehavior.opaque,
         onHorizontalDragEnd: (details) {
           final v = details.primaryVelocity ?? 0;
-          if (v <= -_kManualAddSwipeBackMinVelocity) {
+          if (v >= _kManualAddSwipeBackMinVelocity) {
             _closeManualAdd();
           }
         },
