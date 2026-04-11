@@ -17,6 +17,7 @@ import '../../utils/med_type_units.dart';
 import '../../widgets/shared/empty_state_widget.dart';
 import '../../widgets/shared/right_filter_panel.dart';
 import '../../l10n/app_strings.dart';
+import '../../utils/barcode_scanner_flow.dart';
 
 class LowStockScreen extends StatefulWidget {
   const LowStockScreen({
@@ -150,9 +151,11 @@ class _LowStockScreenState extends State<LowStockScreen> {
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((p) {
+        final barcode = p.barcode?.toLowerCase() ?? '';
         return p.name.toLowerCase().contains(q) ||
             p.generic.toLowerCase().contains(q) ||
-            (p.companyName?.toLowerCase().contains(q) ?? false);
+            (p.companyName?.toLowerCase().contains(q) ?? false) ||
+            barcode.contains(q);
       }).toList();
     }
 
@@ -891,7 +894,18 @@ class _LowStockScreenState extends State<LowStockScreen> {
             controller: _searchCtrl,
             focusNode: _searchFocus,
             onChanged: (v) => setState(() => _searchQuery = v.trim()),
-            onClose: _toggleSearch,
+            scanTooltip: l10n.scan,
+            onScan: () {
+              BarcodeScannerFlow.scanIntoController(
+                context: context,
+                controller: _searchCtrl,
+                onApplied: () {
+                  if (mounted) {
+                    setState(() => _searchQuery = _searchCtrl.text.trim());
+                  }
+                },
+              );
+            },
           ),
           // ── Filter controls ──────────────────────────────────
           Padding(
@@ -1292,14 +1306,16 @@ class _LowStockExpandableSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
+  final String scanTooltip;
+  final VoidCallback onScan;
 
   const _LowStockExpandableSearchBar({
     required this.isVisible,
     required this.controller,
     required this.focusNode,
     required this.onChanged,
-    required this.onClose,
+    required this.scanTooltip,
+    required this.onScan,
   });
 
   @override
@@ -1345,12 +1361,12 @@ class _LowStockExpandableSearchBar extends StatelessWidget {
                     ),
                     suffixIcon: IconButton(
                       icon: const Icon(
-                        LucideIcons.x,
-                        size: 16,
+                        LucideIcons.scan,
+                        size: 18,
                         color: AppColors.secondaryAccent,
                       ),
-                      onPressed: onClose,
-                      tooltip: l10n.closeSearchTooltip,
+                      onPressed: onScan,
+                      tooltip: scanTooltip,
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),

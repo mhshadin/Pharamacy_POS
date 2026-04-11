@@ -16,6 +16,7 @@ import '../../services/export_service.dart';
 import '../../widgets/shared/empty_state_widget.dart';
 import '../../widgets/shared/right_filter_panel.dart';
 import '../../l10n/app_strings.dart';
+import '../../utils/barcode_scanner_flow.dart';
 import 'restock_screen.dart';
 
 class ExpiringSoonScreen extends StatefulWidget {
@@ -106,9 +107,11 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((p) {
+        final barcode = p.barcode?.toLowerCase() ?? '';
         return p.name.toLowerCase().contains(q) ||
             p.generic.toLowerCase().contains(q) ||
-            (p.companyName?.toLowerCase().contains(q) ?? false);
+            (p.companyName?.toLowerCase().contains(q) ?? false) ||
+            barcode.contains(q);
       }).toList();
     }
 
@@ -843,7 +846,18 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
             controller: _searchCtrl,
             focusNode: _searchFocus,
             onChanged: (v) => setState(() => _searchQuery = v.trim()),
-            onClose: _toggleSearch,
+            scanTooltip: l10n.scan,
+            onScan: () {
+              BarcodeScannerFlow.scanIntoController(
+                context: context,
+                controller: _searchCtrl,
+                onApplied: () {
+                  if (mounted) {
+                    setState(() => _searchQuery = _searchCtrl.text.trim());
+                  }
+                },
+              );
+            },
           ),
           // ── Filter controls ──────────────────────────────────
           Padding(
@@ -1206,14 +1220,16 @@ class _ExpiringSoonExpandableSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
+  final String scanTooltip;
+  final VoidCallback onScan;
 
   const _ExpiringSoonExpandableSearchBar({
     required this.isVisible,
     required this.controller,
     required this.focusNode,
     required this.onChanged,
-    required this.onClose,
+    required this.scanTooltip,
+    required this.onScan,
   });
 
   @override
@@ -1259,12 +1275,12 @@ class _ExpiringSoonExpandableSearchBar extends StatelessWidget {
                     ),
                     suffixIcon: IconButton(
                       icon: const Icon(
-                        LucideIcons.x,
-                        size: 16,
+                        LucideIcons.scan,
+                        size: 18,
                         color: AppColors.secondaryAccent,
                       ),
-                      onPressed: onClose,
-                      tooltip: l10n.closeSearchTooltip,
+                      onPressed: onScan,
+                      tooltip: scanTooltip,
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),

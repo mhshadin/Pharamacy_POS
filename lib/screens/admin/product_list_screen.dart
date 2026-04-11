@@ -16,6 +16,7 @@ import '../../widgets/taka_symbol.dart';
 import '../../widgets/shared/empty_state_widget.dart';
 import '../../widgets/shared/right_filter_panel.dart';
 import '../../utils/med_type_icons.dart';
+import '../../utils/barcode_scanner_flow.dart';
 
 class ProductListScreen extends StatefulWidget {
   final bool isAdmin;
@@ -866,9 +867,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
           controller: _searchController,
           focusNode: _searchFocus,
           hintText: l10n.searchProducts,
-          closeTooltip: l10n.closeSearchTooltip,
+          scanTooltip: l10n.scan,
           onChanged: (_) => setState(() {}),
-          onClose: _toggleProductListSearch,
+          onScan: () {
+            BarcodeScannerFlow.scanIntoController(
+              context: context,
+              controller: _searchController,
+              onApplied: () {
+                if (mounted) setState(() {});
+              },
+            );
+          },
         ),
 
         // Unified Filter Bar
@@ -1407,18 +1416,18 @@ class _ProductListExpandableSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final String hintText;
-  final String closeTooltip;
+  final String scanTooltip;
   final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
+  final VoidCallback onScan;
 
   const _ProductListExpandableSearchBar({
     required this.isVisible,
     required this.controller,
     required this.focusNode,
     required this.hintText,
-    required this.closeTooltip,
+    required this.scanTooltip,
     required this.onChanged,
-    required this.onClose,
+    required this.onScan,
   });
 
   @override
@@ -1458,17 +1467,12 @@ class _ProductListExpandableSearchBar extends StatelessWidget {
               ),
               suffixIcon: IconButton(
                 icon: Icon(
-                  LucideIcons.x,
-                  size: 16,
+                  LucideIcons.scan,
+                  size: 18,
                   color: Colors.grey.shade400,
                 ),
-                onPressed: controller.text.isEmpty
-                    ? null
-                    : () {
-                        controller.clear();
-                        onChanged('');
-                      },
-                tooltip: closeTooltip,
+                onPressed: onScan,
+                tooltip: scanTooltip,
               ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
