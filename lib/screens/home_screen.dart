@@ -1076,7 +1076,9 @@ class _HomeScreenState extends State<HomeScreen>
             if (mounted) {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const AdminDashboardScreen(),
+                  builder: (_) => const AdminDashboardScreen(
+                    initialNavIndex: AdminDashboardScreen.returnsNavIndex,
+                  ),
                 ),
               );
             }

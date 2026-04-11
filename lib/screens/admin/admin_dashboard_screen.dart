@@ -24,7 +24,17 @@ import '../../widgets/taka_symbol.dart';
 const double _kAdminSwipeOpenDrawerMinVelocity = 450.0;
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  /// Embedded Returns tab index (must match [_navItemsData] order).
+  static const int returnsNavIndex = 5;
+
+  const AdminDashboardScreen({
+    super.key,
+    /// Section index when opening admin (e.g. [returnsNavIndex] for Returns). Default `0` is dashboard-only.
+    this.initialNavIndex = 0,
+  });
+
+  /// Must match [_NavItemData] indices in [_AdminDashboardScreenState].
+  final int initialNavIndex;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -34,9 +44,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Navigation stack: [0] is always dashboard at the bottom
-  final List<int> _navStack = [0];
+  late List<int> _navStack;
   bool _salesReportInitialToday = false;
   bool _embeddedSearchVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final start = widget.initialNavIndex;
+    if (start >= 1 && start <= 10) {
+      _navStack = [0, start];
+    } else {
+      _navStack = [0];
+    }
+  }
 
   int get _currentIndex => _navStack.last;
   bool get _isEmbeddedSearchPage =>
