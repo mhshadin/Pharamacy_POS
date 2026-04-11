@@ -9,7 +9,7 @@ import 'dart:developer' as developer;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'utils/colors.dart';
 import 'utils/text_scale_config.dart';
-import 'screens/splash_screen.dart';
+import 'screens/db_location_gate_screen.dart';
 import 'providers/pos_provider.dart';
 import 'providers/admin_provider.dart';
 import 'services/database_helper.dart';
@@ -45,8 +45,7 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  // Initialize the database (creates tables + seeds on first launch)
-  await DatabaseHelper().database;
+  // Database opens after user picks a folder ([DbLocationGateScreen]).
 
   // Warm up speech engine / request mic access at startup.
   // - On Android/iOS this will show the OS permission dialog once.
@@ -78,7 +77,8 @@ class PharmacyPOSApp extends StatefulWidget {
   State<PharmacyPOSApp> createState() => _PharmacyPOSAppState();
 }
 
-class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
+class _PharmacyPOSAppState extends State<PharmacyPOSApp>
+    with WidgetsBindingObserver {
   StreamSubscription? _ringingSubscription;
   bool _isPresentingAlarmScreen = false;
   int? _lastPresentedAlarmId;
@@ -86,6 +86,7 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ringingSubscription = Alarm.ringing.listen((alarmSet) {
       if (alarmSet.alarms.isEmpty) return;
       final alarm = alarmSet.alarms.first;
@@ -111,8 +112,16 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ringingSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      DatabaseHelper().syncRuntimeToAuthoritative();
+    }
   }
 
   @override
@@ -120,10 +129,9 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
-        ChangeNotifierProvider(create: (_) => AdminProvider()..loadData()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
         ChangeNotifierProvider(
-          create: (context) =>
-              POSProvider(context.read<AdminProvider>())..loadProducts(),
+          create: (context) => POSProvider(context.read<AdminProvider>()),
         ),
       ],
       child: Consumer<LanguageProvider>(
@@ -206,7 +214,7 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp> {
             routes: {
               '/alarm_alert': (_) => const AlarmAlertScreen(),
             },
-            home: const SplashScreen(),
+            home: const DbLocationGateScreen(),
           );
         },
       ),

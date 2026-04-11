@@ -1,10 +1,23 @@
-import 'package:sqflite/sqflite.dart';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
+
+import 'db_location_service.dart';
+import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../models/sale_record.dart';
 import '../models/stock_batch.dart';
 import '../models/alarm_slot.dart';
 import 'package:flutter/material.dart';
+
+/// Thrown when the user has not chosen a database folder yet.
+class DatabaseLocationNotConfigured implements Exception {
+  @override
+  String toString() => 'DatabaseLocationNotConfigured';
+}
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -12,6 +25,45 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   static Database? _database;
+  static const MethodChannel _dbStorageChannel = MethodChannel(
+    'pharmacy_pos/db_storage',
+  );
+  String? _resolvedDbPath;
+  final DbLocationService _dbLocation = DbLocationService();
+
+  /// Opens SQLite after [DbLocationService] has a saved folder (or throws [DatabaseLocationNotConfigured]).
+  Future<void> ensureDatabaseReady() async {
+    await database;
+  }
+
+  /// Copies the runtime DB file back to the user-chosen folder (Android SAF tree).
+  Future<void> syncRuntimeToAuthoritative() async {
+    if (!Platform.isAndroid) return;
+    final tree = await _dbLocation.getAndroidTreeUri();
+    if (tree == null || tree.isEmpty) return;
+    try {
+      final path = await _resolveCanonicalDatabasePath();
+      if (!await File(path).exists()) return;
+      await _dbStorageChannel.invokeMethod('syncRuntimeToTree', {
+        'treeUri': tree,
+        'runtimePath': path,
+      });
+    } on PlatformException {
+      // ignore
+    } on DatabaseLocationNotConfigured {
+      // No folder chosen yet.
+    }
+  }
+
+  /// Android SAF folder picker; returns persisted tree `content://` URI or null if cancelled.
+  Future<String?> pickAndroidDocumentTree() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _dbStorageChannel.invokeMethod<String>('pickDocumentTree');
+    } on PlatformException {
+      return null;
+    }
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -58,21 +110,116 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = '${dir.path}/pharmacy.db';
+    final path = await _resolveCanonicalDatabasePath();
 
-    return await openDatabase(
+    final db = await openDatabase(
       path,
       version: 16,
       onUpgrade: _onUpgrade,
       onCreate: _onCreate,
     );
+    await syncRuntimeToAuthoritative();
+    return db;
   }
 
   /// Gets the absolute path to the active database file.
   Future<String?> getDatabasePath() async {
+    return _resolveCanonicalDatabasePath();
+  }
+
+  Future<String> _resolveCanonicalDatabasePath() async {
+    if (_resolvedDbPath != null) return _resolvedDbPath!;
+
     final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/pharmacy.db';
+
+    if (Platform.isAndroid) {
+      final tree = await _dbLocation.getAndroidTreeUri();
+      if (tree == null || tree.isEmpty) {
+        throw DatabaseLocationNotConfigured();
+      }
+      final runtimePath = p.join(dir.path, 'pharmacy_runtime.db');
+      final legacyPath = p.join(dir.path, 'pharmacy.db');
+      try {
+        await _dbStorageChannel.invokeMethod<Map<Object?, Object?>>(
+          'prepareDbFromTree',
+          {
+            'treeUri': tree,
+            'runtimePath': runtimePath,
+            'legacyPath': legacyPath,
+          },
+        );
+        _resolvedDbPath = runtimePath;
+      } on PlatformException catch (e) {
+        throw Exception('Failed to prepare database folder: ${e.message}');
+      }
+      return _resolvedDbPath!;
+    }
+
+    final folder = await _dbLocation.getDesktopFolderPath();
+    if (folder == null || folder.isEmpty) {
+      throw DatabaseLocationNotConfigured();
+    }
+    _resolvedDbPath = p.join(folder, 'pharmacy.db');
+    return _resolvedDbPath!;
+  }
+
+  Future<Uint8List> readCanonicalDatabaseBytes() async {
+    if (Platform.isAndroid) {
+      final tree = await _dbLocation.getAndroidTreeUri();
+      if (tree != null && tree.isNotEmpty) {
+        try {
+          final bytes = await _dbStorageChannel.invokeMethod<Uint8List>(
+            'readTreeDbBytes',
+            {'treeUri': tree},
+          );
+          if (bytes != null && bytes.isNotEmpty) {
+            return bytes;
+          }
+        } on PlatformException {
+          // Fall through to runtime file.
+        }
+      }
+    }
+
+    final path = await _resolveCanonicalDatabasePath();
+    final file = File(path);
+    if (!await file.exists()) {
+      return Uint8List(0);
+    }
+    return file.readAsBytes();
+  }
+
+  Future<void> writeCanonicalDatabaseBytes(Uint8List bytes) async {
+    final path = await _resolveCanonicalDatabasePath();
+    final file = File(path);
+    if (file.parent.existsSync() == false) {
+      file.parent.createSync(recursive: true);
+    }
+    await file.writeAsBytes(bytes, flush: true);
+
+    if (Platform.isAndroid) {
+      final tree = await _dbLocation.getAndroidTreeUri();
+      if (tree != null && tree.isNotEmpty) {
+        try {
+          await _dbStorageChannel.invokeMethod('writeTreeDbBytes', {
+            'treeUri': tree,
+            'bytes': bytes,
+          });
+        } on PlatformException {
+          // Runtime file is authoritative for this session.
+        }
+      }
+    }
+  }
+
+  /// Closes the active DB handle and clears cached connection.
+  /// Useful before replacing the underlying database file.
+  Future<void> resetConnection() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+    _resolvedDbPath = null;
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -719,10 +866,165 @@ class DatabaseHelper {
     );
   }
 
+  /// Replaces an existing invoice with a new sale built from [cart] in one
+  /// transaction:
+  /// 1) restore stock for the old invoice's active (non-returned) quantities,
+  /// 2) hard-delete old invoice rows,
+  /// 3) create a fresh invoice and deduct stock for current cart items.
+  Future<String> completeReplacementSale({
+    required List<CartItem> cart,
+    required String sourceInvoiceNumber,
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+
+    return await db.transaction((txn) async {
+      // 1) Restore stock from old invoice active quantities.
+      final oldMaps = await txn.query(
+        'sales',
+        where: 'invoiceNumber = ?',
+        whereArgs: [sourceInvoiceNumber],
+      );
+      for (final map in oldMaps) {
+        final sale = SaleRecord.fromMap(map);
+        final restoreQty = sale.effectiveQuantity;
+        if (restoreQty <= 0) continue;
+        if (sale.batchNumber == null ||
+            sale.batchNumber!.isEmpty ||
+            sale.batchNumber == 'OVERSOLD') {
+          continue;
+        }
+        final batchMaps = await txn.query(
+          'product_batches',
+          where: 'batchNumber = ?',
+          whereArgs: [sale.batchNumber],
+          limit: 1,
+        );
+        if (batchMaps.isEmpty) continue;
+        final batch = batchMaps.first;
+        final remaining = (batch['remainingPieces'] as int?) ?? 0;
+        await txn.update(
+          'product_batches',
+          {'remainingPieces': remaining + restoreQty},
+          where: 'id = ?',
+          whereArgs: [batch['id']],
+        );
+      }
+
+      // 2) Hard-delete all old invoice rows.
+      await txn.delete(
+        'sales',
+        where: 'invoiceNumber = ?',
+        whereArgs: [sourceInvoiceNumber],
+      );
+
+      // 3) Generate next invoice number inside same transaction.
+      final counterResult = await txn.query(
+        'invoice_counter',
+        where: 'date = ?',
+        whereArgs: [dateStr],
+      );
+      var nextCount = 1;
+      if (counterResult.isEmpty) {
+        await txn.insert('invoice_counter', {'date': dateStr, 'counter': 1});
+      } else {
+        nextCount = ((counterResult.first['counter'] as int?) ?? 0) + 1;
+        await txn.update(
+          'invoice_counter',
+          {'counter': nextCount},
+          where: 'date = ?',
+          whereArgs: [dateStr],
+        );
+      }
+      final newInvoice = 'INV-$dateStr-${nextCount.toString().padLeft(3, '0')}';
+
+      // 4) Insert replacement sale rows and deduct stock from available batches.
+      for (final item in cart) {
+        var totalPiecesToDeduct =
+            (item.stripQuantity * item.product.pcsPerStrip) + item.pcQuantity;
+        if (totalPiecesToDeduct <= 0) continue;
+
+        final totalItemAmount = item.total;
+        final originalTotalPieces = totalPiecesToDeduct;
+
+        final batches = await txn.query(
+          'product_batches',
+          where: 'productId = ? AND remainingPieces > 0',
+          whereArgs: [item.product.id],
+          orderBy: 'expiryDate ASC',
+        );
+
+        for (final batch in batches) {
+          if (totalPiecesToDeduct <= 0) break;
+          final remaining = (batch['remainingPieces'] as int?) ?? 0;
+          final deductAmount = remaining < totalPiecesToDeduct
+              ? remaining
+              : totalPiecesToDeduct;
+          if (deductAmount <= 0) continue;
+
+          final batchAmount = (deductAmount / originalTotalPieces) * totalItemAmount;
+          await txn.insert(
+            'sales',
+            SaleRecord(
+              id:
+                  'ORD-${DateTime.now().millisecondsSinceEpoch}-${item.product.id}-${batch['id']}',
+              productName: item.product.name,
+              quantity: deductAmount,
+              amount: batchAmount,
+              date: DateTime.now(),
+              invoiceNumber: newInvoice,
+              batchNumber: batch['batchNumber'] as String?,
+              medType: item.product.medType,
+              power: item.product.power,
+              costPricePerPc: (batch['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
+            ).toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+
+          await txn.update(
+            'product_batches',
+            {'remainingPieces': remaining - deductAmount},
+            where: 'id = ?',
+            whereArgs: [batch['id']],
+          );
+
+          totalPiecesToDeduct -= deductAmount;
+        }
+
+        // Preserve old behavior for oversold remainder.
+        if (totalPiecesToDeduct > 0) {
+          final oversoldAmount =
+              (totalPiecesToDeduct / originalTotalPieces) * totalItemAmount;
+          await txn.insert(
+            'sales',
+            SaleRecord(
+              id:
+                  'ORD-${DateTime.now().millisecondsSinceEpoch}-${item.product.id}-OVERSOLD',
+              productName: item.product.name,
+              quantity: totalPiecesToDeduct,
+              amount: oversoldAmount,
+              date: DateTime.now(),
+              invoiceNumber: newInvoice,
+              batchNumber: 'OVERSOLD',
+              medType: item.product.medType,
+              power: item.product.power,
+              costPricePerPc: 0.0,
+            ).toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+
+      return newInvoice;
+    });
+  }
+
   Future<List<SaleRecord>> getSalesByInvoice(String invoiceQuery) async {
     final db = await database;
     if (invoiceQuery.isEmpty) {
-      final maps = await db.query('sales', orderBy: 'date DESC', limit: 50);
+      final maps = await db.query('sales', orderBy: 'date DESC');
       return maps.map((m) => SaleRecord.fromMap(m)).toList();
     }
     // Use LIKE for partial matching to be more forgiving with typos
@@ -731,7 +1033,6 @@ class DatabaseHelper {
       where: 'invoiceNumber LIKE ? OR productName LIKE ?',
       whereArgs: ['%$invoiceQuery%', '%$invoiceQuery%'],
       orderBy: 'date DESC',
-      limit: 50,
     );
     return maps.map((m) => SaleRecord.fromMap(m)).toList();
   }

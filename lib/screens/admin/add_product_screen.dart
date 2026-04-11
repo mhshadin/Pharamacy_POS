@@ -1043,6 +1043,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                             onPressed: () async {
                                               await MobileScannerBridge
                                                   .beforePushOverlayScanner();
+                                              if (!context.mounted) return;
                                               String? scannedCode;
                                               try {
                                                 scannedCode =

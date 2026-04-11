@@ -323,6 +323,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                           child: ElevatedButton.icon(
                             onPressed: () async {
                               await MobileScannerBridge.beforePushOverlayScanner();
+                              if (!context.mounted) return;
                               String? scannedCode;
                               try {
                                 scannedCode = await Navigator.push<String>(
