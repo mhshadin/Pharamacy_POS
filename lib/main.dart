@@ -9,7 +9,7 @@ import 'dart:developer' as developer;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'utils/colors.dart';
 import 'utils/text_scale_config.dart';
-import 'screens/db_location_gate_screen.dart';
+import 'screens/splash_screen.dart';
 import 'providers/pos_provider.dart';
 import 'providers/admin_provider.dart';
 import 'services/database_helper.dart';
@@ -45,7 +45,7 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  // Database opens after user picks a folder ([DbLocationGateScreen]).
+  // Database opens from [SplashScreen] (or [DbLocationGateScreen] if init fails).
 
   // Warm up speech engine / request mic access at startup.
   // - On Android/iOS this will show the OS permission dialog once.
@@ -214,7 +214,7 @@ class _PharmacyPOSAppState extends State<PharmacyPOSApp>
             routes: {
               '/alarm_alert': (_) => const AlarmAlertScreen(),
             },
-            home: const DbLocationGateScreen(),
+            home: const SplashScreen(),
           );
         },
       ),

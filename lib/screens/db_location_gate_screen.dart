@@ -23,18 +23,6 @@ class _DbLocationGateScreenState extends State<DbLocationGateScreen> {
   bool _busy = false;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tryEnterIfConfigured());
-  }
-
-  Future<void> _tryEnterIfConfigured() async {
-    if (!mounted || _busy) return;
-    if (!await DbLocationService().isConfigured()) return;
-    await _openDatabaseAndGo();
-  }
-
   Future<void> _openDatabaseAndGo() async {
     setState(() {
       _busy = true;
@@ -51,8 +39,6 @@ class _DbLocationGateScreenState extends State<DbLocationGateScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const SplashScreen()),
       );
-    } on DatabaseLocationNotConfigured {
-      if (mounted) setState(() => _busy = false);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -120,7 +106,7 @@ class _DbLocationGateScreenState extends State<DbLocationGateScreen> {
               Text(
                 Platform.isAndroid
                     ? 'Choose a folder on this device. The app will store pharmacy.db there. '
-                        'After reinstall, use the system folder picker and select the same folder to load your data.'
+                        'After reinstall, open the folder picker and select the same folder to load your data.'
                     : 'Choose a folder where pharmacy.db will be stored.',
                 style: const TextStyle(color: AppColors.textPrimary, height: 1.4),
               ),

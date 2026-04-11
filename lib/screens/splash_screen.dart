@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../utils/colors.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/time_service.dart';
+import '../services/database_helper.dart';
+import '../providers/admin_provider.dart';
+import '../providers/pos_provider.dart';
+import 'db_location_gate_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'subscription_screen.dart';
@@ -27,6 +32,24 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _bootstrap() async {
+    try {
+      await DatabaseHelper().ensureDatabaseReady();
+      if (!mounted) return;
+      final admin = context.read<AdminProvider>();
+      final pos = context.read<POSProvider>();
+      await admin.loadData();
+      await pos.loadProducts();
+    } catch (e, st) {
+      debugPrint('SplashScreen: database init failed: $e\n$st');
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => const DbLocationGateScreen(),
+        ),
+      );
+      return;
+    }
+
     // Small delay so the splash is visible and storage can initialize.
     await Future.delayed(const Duration(milliseconds: 600));
 
