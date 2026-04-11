@@ -94,6 +94,10 @@ class _HomeScreenState extends State<HomeScreen>
   /// as routes, etc.); keeps the barcode camera released when not visible.
   bool _homeRouteOnTop = true;
 
+  /// OCR / native camera picker: [showDialog] routes would otherwise call
+  /// [didPopNext] and restart the barcode scanner before this flow finishes.
+  int _blockingBarcodeCameraWorkflowDepth = 0;
+
   /// Provider-driven replacement (Returns flow) or legacy widget argument.
   String? _replacementInvoiceForFlow(POSProvider pos) {
     final p = pos.replacementSourceInvoiceNumber?.trim();
@@ -107,6 +111,12 @@ class _HomeScreenState extends State<HomeScreen>
   /// visibility, app lifecycle, user toggle, and scanner expanded state.
   void _syncHomeScannerVisibility() {
     if (!mounted || Platform.isWindows) return;
+    if (_blockingBarcodeCameraWorkflowDepth > 0) {
+      if (_cameraController.value.isRunning) {
+        unawaited(_cameraController.stop());
+      }
+      return;
+    }
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     final inForeground = lifecycle == null ||
         lifecycle == AppLifecycleState.resumed;
@@ -832,6 +842,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleOcrScan() async {
+    _blockingBarcodeCameraWorkflowDepth++;
     final l10n = context.read<LanguageProvider>().strings;
     final bool canStop = _isCameraActive && _isScannerExpanded;
     if (canStop) _cameraController.stop();
@@ -847,7 +858,6 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       if (file == null) {
-        if (mounted) _syncHomeScannerVisibility();
         return;
       }
 
@@ -896,7 +906,6 @@ class _HomeScreenState extends State<HomeScreen>
             backgroundColor: AppColors.warningOrange,
           ),
         );
-        if (mounted) _syncHomeScannerVisibility();
         return;
       }
 
@@ -924,6 +933,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
+      _blockingBarcodeCameraWorkflowDepth--;
       if (mounted) _syncHomeScannerVisibility();
     }
   }
