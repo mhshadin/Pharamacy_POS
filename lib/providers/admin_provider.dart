@@ -736,11 +736,17 @@ class AdminProvider extends ChangeNotifier {
         notifyListeners();
         return null;
       }
+      final dbBytes = await _db.readCanonicalDatabaseBytes();
+      if (dbBytes.isEmpty) {
+        _syncError = "Could not read database bytes";
+        notifyListeners();
+        return null;
+      }
 
       // Always persist a local backup first so users still have recoverable data
       // even if Drive auth/network is unavailable.
       final localExportPath = await _performLocalExport(
-        dbPath,
+        dbBytes,
         exportDirectoryPath: exportDirectoryPath,
       );
 
@@ -806,16 +812,14 @@ class AdminProvider extends ChangeNotifier {
   }
 
   Future<String?> _performLocalExport(
-    String dbPath, {
+    Uint8List dbBytes, {
     String? exportDirectoryPath,
   }) async {
     try {
-      final File dbFile = File(dbPath);
-      if (!await dbFile.exists()) {
+      if (dbBytes.isEmpty) {
         return null;
       }
 
-      final Uint8List bytes = await dbFile.readAsBytes();
       if (exportDirectoryPath != null && exportDirectoryPath.trim().isNotEmpty) {
         try {
           final selectedDir = Directory(exportDirectoryPath);
@@ -835,7 +839,7 @@ class AdminProvider extends ChangeNotifier {
             backupDir.path,
             'pharmacy_backup_$timestamp.db',
           );
-          await File(customPath).writeAsBytes(bytes, flush: true);
+          await File(customPath).writeAsBytes(dbBytes, flush: true);
           return customPath;
         } catch (e, stack) {
           developer.log(
@@ -851,7 +855,7 @@ class AdminProvider extends ChangeNotifier {
       // Save using FileSaver to the public Downloads folder on Android
       final savedPath = await FileSaver.instance.saveFile(
         name: fileName,
-        bytes: bytes,
+        bytes: dbBytes,
         fileExtension: 'db',
         mimeType: MimeType.other,
       );
@@ -956,16 +960,16 @@ class AdminProvider extends ChangeNotifier {
   /// Manually imports a database file and replaces the current one.
   Future<void> importDatabaseLocally(String filePath) async {
     try {
-      final currentDbPath = await _db.getDatabasePath();
-      if (currentDbPath == null) {
-        throw Exception("Could not find current DB path");
-      }
-
       // Safety check - verify it's a valid sqlite file if possible or just proceed
       final importFile = File(filePath);
       if (!await importFile.exists()) throw Exception("Import file not found");
+      final importBytes = await importFile.readAsBytes();
 
-      await importFile.copy(currentDbPath);
+      // Release any active sqlite handle before replacing the file.
+      await _db.resetConnection();
+      await _db.writeCanonicalDatabaseBytes(importBytes);
+      // Ensure future queries reopen from the newly imported DB file.
+      await _db.resetConnection();
 
       // Reload everything
       await loadData();
@@ -1019,25 +1023,24 @@ class AdminProvider extends ChangeNotifier {
           await saveSetting('googleDriveFileId', fileId);
 
           // 3. Download the file
-          final dbPath = await _db.getDatabasePath();
-          if (dbPath != null) {
-            final downloadUri = Uri.parse(
-              'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
-            );
-            final downloadResponse = await http.get(
-              downloadUri,
-              headers: {'Authorization': 'Bearer $googleToken'},
-            );
+          final downloadUri = Uri.parse(
+            'https://www.googleapis.com/drive/v3/files/$fileId?alt=media',
+          );
+          final downloadResponse = await http.get(
+            downloadUri,
+            headers: {'Authorization': 'Bearer $googleToken'},
+          );
 
-            if (downloadResponse.statusCode == 200) {
-              await File(dbPath).writeAsBytes(downloadResponse.bodyBytes);
-              await loadData();
-              restored = true;
-            } else {
-              developer.log(
-                "Download failed with status ${downloadResponse.statusCode}",
-              );
-            }
+          if (downloadResponse.statusCode == 200) {
+            await _db.resetConnection();
+            await _db.writeCanonicalDatabaseBytes(downloadResponse.bodyBytes);
+            await _db.resetConnection();
+            await loadData();
+            restored = true;
+          } else {
+            developer.log(
+              "Download failed with status ${downloadResponse.statusCode}",
+            );
           }
         }
       }
@@ -1451,7 +1454,7 @@ class AdminProvider extends ChangeNotifier {
     required DateTime start,
     required DateTime end,
   }) {
-    String _generateVariantKey(String name, String? medType, String? power) {
+    String generateVariantKey(String name, String? medType, String? power) {
       final n = name.trim().toLowerCase();
       final t = (medType ?? '').trim().toLowerCase();
       final p = (power ?? '').trim().toLowerCase();
@@ -1467,7 +1470,7 @@ class AdminProvider extends ChangeNotifier {
     );
 
     for (final s in filtered) {
-      final key = _generateVariantKey(s.productName, s.medType, s.power);
+      final key = generateVariantKey(s.productName, s.medType, s.power);
       if (!map.containsKey(key)) {
         map[key] = _TopSellingAcc(
           productName: s.productName,
@@ -1482,14 +1485,14 @@ class AdminProvider extends ChangeNotifier {
     // Optimization: Create a hash map for O(1) product lookups instead of O(N) linear searches
     final Map<String, Product> productLookup = {
       for (var p in _products)
-        _generateVariantKey(p.name, p.medType, p.power): p,
+        generateVariantKey(p.name, p.medType, p.power): p,
     };
 
     return map.entries
         .map((e) {
           final acc = e.value;
           final product =
-              productLookup[_generateVariantKey(acc.productName, acc.medType, acc.power)];
+              productLookup[generateVariantKey(acc.productName, acc.medType, acc.power)];
 
           return TopSellingProduct(
             name: acc.productName,

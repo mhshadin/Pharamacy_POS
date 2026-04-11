@@ -101,9 +101,12 @@ class POSProvider extends ChangeNotifier {
     return _cart.fold(0, (total, item) => total + item.total);
   }
 
-  void setSearchQuery(String query) {
+  void setSearchQuery(String query, {bool notify = true}) {
+    if (_searchQuery == query) return;
     _searchQuery = query;
-    notifyListeners();
+    if (notify) {
+      notifyListeners();
+    }
   }
 
   void setSelectedMedType(String? type) {
@@ -316,6 +319,19 @@ class POSProvider extends ChangeNotifier {
     _admin.scheduleSync();
 
     return invoiceNumber; // Return it so UI can display it
+  }
+
+  /// Completes a replacement sale for an existing invoice.
+  /// Old invoice rows are deleted only if this checkout succeeds.
+  Future<String> completeReplacementSale(String sourceInvoiceNumber) async {
+    final invoiceNumber = await _db.completeReplacementSale(
+      cart: List<CartItem>.from(_cart),
+      sourceInvoiceNumber: sourceInvoiceNumber,
+    );
+    _cart.clear();
+    await loadProducts();
+    _admin.scheduleSync();
+    return invoiceNumber;
   }
 
   // --- HAPTICS & SOUND ---
