@@ -13,6 +13,7 @@ import 'package:pharmacy_pos/providers/admin_provider.dart';
 import 'package:pharmacy_pos/providers/language_provider.dart';
 import 'package:pharmacy_pos/screens/admin/bulk_import_edit_form.dart';
 import 'package:pharmacy_pos/services/export_service.dart';
+import 'package:pharmacy_pos/utils/export_save_directory.dart';
 
 class BulkImportScreen extends StatefulWidget {
   const BulkImportScreen({super.key});
@@ -880,11 +881,35 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () async {
+                    final pick = await pickExportSaveDirectory(
+                      dialogTitle: l10n.exportSelectFolder,
+                    );
+                    if (pick.outcome == ExportSaveDirectoryOutcome.failed) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.exportFolderPickFailed),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      return;
+                    }
+                    if (pick.outcome == ExportSaveDirectoryOutcome.canceled) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.exportFolderPickCanceled),
+                          backgroundColor: AppColors.secondaryAccent,
+                        ),
+                      );
+                      return;
+                    }
                     final path =
                         await ExportService.exportBulkImportTemplateCsv(
                       _expectedHeaders,
                       [_sampleRow],
                       title: 'bulk_import_template',
+                      saveDirectoryPath: pick.saveDirectoryPath,
                     );
                     if (!mounted) return;
                     if (path != null) {
@@ -927,11 +952,35 @@ class _BulkImportScreenState extends State<BulkImportScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () async {
+                    final pick = await pickExportSaveDirectory(
+                      dialogTitle: l10n.exportSelectFolder,
+                    );
+                    if (pick.outcome == ExportSaveDirectoryOutcome.failed) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.exportFolderPickFailed),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      return;
+                    }
+                    if (pick.outcome == ExportSaveDirectoryOutcome.canceled) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.exportFolderPickCanceled),
+                          backgroundColor: AppColors.secondaryAccent,
+                        ),
+                      );
+                      return;
+                    }
                     final path =
                         await ExportService.exportBulkImportTemplateExcel(
                       _expectedHeaders,
                       [_sampleRow],
                       title: 'bulk_import_template',
+                      saveDirectoryPath: pick.saveDirectoryPath,
                     );
                     if (!mounted) return;
                     if (path != null) {

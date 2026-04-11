@@ -8,6 +8,7 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/sale_record.dart';
 import '../../services/export_service.dart';
+import '../../utils/export_save_directory.dart';
 import '../../widgets/taka_symbol.dart';
 import '../../providers/language_provider.dart';
 import '../../l10n/app_strings.dart';
@@ -51,19 +52,19 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  String _saleProductDisplay(SaleRecord sale) {
-    final type = sale.medType?.trim();
-    final power = sale.power?.trim();
+  String _saleProductDisplay(SaleRecord p) {
+    final type = p.medType?.trim();
+    final power = p.power?.trim();
+    if (power != null && power.isNotEmpty && type != null && type.isNotEmpty) {
+      return '${p.productName} ($type • $power)';
+    }
     if (power != null && power.isNotEmpty) {
-      if (type != null && type.isNotEmpty) {
-        return '${sale.productName} (${type} • ${power})';
-      }
-      return '${sale.productName} (${power})';
+      return '${p.productName} ($power)';
     }
     if (type != null && type.isNotEmpty) {
-      return '${sale.productName} (${type})';
+      return '${p.productName} ($type)';
     }
-    return sale.productName;
+    return p.productName;
   }
 
   @override
@@ -278,6 +279,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       0,
       (sum, s) => sum + s.effectiveQuantity,
     );
+    final todaysProfit = admin.totalProfitToday;
 
     final barData = _getBarData(admin.allSales);
     final barMaxY = _getBarMaxY(barData);
@@ -291,7 +293,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final cardWidth = isTablet
-                  ? (constraints.maxWidth - 24) / 3
+                  ? (constraints.maxWidth - 36) / 4
                   : (constraints.maxWidth - 12) / 2;
               return Wrap(
                 spacing: 12,
@@ -322,6 +324,15 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                       value: periodTotal.toStringAsFixed(0),
                       icon: LucideIcons.trendingUp,
                       color: AppColors.primaryDark,
+                    ),
+                  ),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _SummaryCard(
+                      title: '${l10n.today} ${l10n.profitReport}',
+                      value: todaysProfit.toStringAsFixed(2),
+                      icon: LucideIcons.lineChart,
+                      color: AppColors.warningOrange,
                     ),
                   ),
                 ],
@@ -420,16 +431,42 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                             context,
                           );
 
+                          final pick = await pickExportSaveDirectory(
+                            dialogTitle: l10n.exportSelectFolder,
+                          );
+                          if (pick.outcome ==
+                              ExportSaveDirectoryOutcome.failed) {
+                            scaffoldMessenger.showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.exportFolderPickFailed),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+                          if (pick.outcome ==
+                              ExportSaveDirectoryOutcome.canceled) {
+                            scaffoldMessenger.showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.exportFolderPickCanceled),
+                                backgroundColor: AppColors.secondaryAccent,
+                              ),
+                            );
+                            return;
+                          }
+
                           try {
                             if (value == 'csv') {
                               savedPath = await ExportService.exportToCsv(
                                 filteredSales,
                                 title,
+                                saveDirectoryPath: pick.saveDirectoryPath,
                               );
                             } else if (value == 'pdf') {
                               savedPath = await ExportService.exportToPdf(
                                 sales: filteredSales,
                                 title: title,
+                                saveDirectoryPath: pick.saveDirectoryPath,
                               );
                             }
 

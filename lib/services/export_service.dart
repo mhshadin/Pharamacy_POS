@@ -4,14 +4,15 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:file_saver/file_saver.dart';
 import 'package:excel/excel.dart';
+import 'package:file_saver/file_saver.dart';
 
 import 'package:intl/intl.dart';
 import '../models/sale_record.dart';
 import '../models/product.dart';
 import '../l10n/app_strings.dart';
 import '../utils/med_type_units.dart';
+import 'export_save_helper.dart';
 
 class ExportService {
   /// Exact bytes for asset [ByteData] — avoids reading past the file in a pooled buffer.
@@ -20,23 +21,20 @@ class ExportService {
 
   static Future<String?> exportToCsv(
     List<SaleRecord> sales,
-    String title,
-  ) async {
+    String title, {
+    String? saveDirectoryPath,
+  }) async {
     // Offload heavy string building to a background thread
     final bytes = await compute(_generateCsvBytes, sales);
 
-    try {
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_sales_report',
-        bytes: bytes,
-        fileExtension: 'csv',
-        mimeType: MimeType.csv,
-      );
-      return path;
-    } catch (e) {
-      debugPrint('Error during FileSaver CSV export: $e');
-      return null;
-    }
+    final baseName = '${title.replaceAll(' ', '_')}_sales_report';
+    return ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'csv',
+      mimeType: MimeType.csv,
+      saveDirectoryPath: saveDirectoryPath,
+    );
   }
 
   static Future<Uint8List> _generateCsvBytes(List<SaleRecord> sales) async {
@@ -90,6 +88,7 @@ class ExportService {
     required List<SaleRecord> sales,
     required String title,
     String currencySymbol = '৳',
+    String? saveDirectoryPath,
   }) async {
     // Load fonts locally on the main thread to prevent network timeouts
     final regularFontData = await rootBundle.load(
@@ -108,20 +107,17 @@ class ExportService {
     // Offload PDF generation to a background thread
     final bytes = await compute(_generatePdfBytes, args);
 
-    try {
-      debugPrint('Starting FileSaver for PDF export...');
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_sales_report',
-        bytes: bytes,
-        fileExtension: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-      debugPrint('FileSaver finished! Saved to: $path');
-      return path;
-    } catch (e) {
-      debugPrint('Error during FileSaver PDF export: $e');
-      return null;
-    }
+    debugPrint('Starting PDF export save...');
+    final baseName = '${title.replaceAll(' ', '_')}_sales_report';
+    final path = await ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'pdf',
+      mimeType: MimeType.pdf,
+      saveDirectoryPath: saveDirectoryPath,
+    );
+    if (path != null) debugPrint('PDF export saved to: $path');
+    return path;
   }
 
   static Future<Uint8List> _generatePdfBytes(Map<String, dynamic> args) async {
@@ -231,20 +227,18 @@ class ExportService {
 
   static Future<String?> exportProductsToCsv(
     List<Product> products,
-    String title,
-  ) async {
+    String title, {
+    String? saveDirectoryPath,
+  }) async {
     final bytes = await compute(_generateProductCsvBytes, products);
-    try {
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_report',
-        bytes: bytes,
-        fileExtension: 'csv',
-        mimeType: MimeType.csv,
-      );
-      return path;
-    } catch (e) {
-      return null;
-    }
+    final baseName = '${title.replaceAll(' ', '_')}_report';
+    return ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'csv',
+      mimeType: MimeType.csv,
+      saveDirectoryPath: saveDirectoryPath,
+    );
   }
 
   static Future<Uint8List> _generateProductCsvBytes(
@@ -290,6 +284,7 @@ class ExportService {
     required List<Product> products,
     required String title,
     required AppStrings l10n,
+    String? saveDirectoryPath,
   }) async {
     final regularFontData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -305,17 +300,14 @@ class ExportService {
     };
 
     final bytes = await compute(_generateProductPdfBytes, args);
-    try {
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_report',
-        bytes: bytes,
-        fileExtension: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-      return path;
-    } catch (e) {
-      return null;
-    }
+    final baseName = '${title.replaceAll(' ', '_')}_report';
+    return ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'pdf',
+      mimeType: MimeType.pdf,
+      saveDirectoryPath: saveDirectoryPath,
+    );
   }
 
   static Future<Uint8List> _generateProductPdfBytes(
@@ -411,22 +403,19 @@ class ExportService {
   static Future<String?> exportOrderListToCsv(
     List<Product> products,
     Map<String, int> orderQtys,
-    String title,
-  ) async {
+    String title, {
+    String? saveDirectoryPath,
+  }) async {
     final args = {'products': products, 'orderQtys': orderQtys};
     final bytes = await compute(_generateOrderListCsvBytes, args);
-    try {
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_order_list',
-        bytes: bytes,
-        fileExtension: 'csv',
-        mimeType: MimeType.csv,
-      );
-      return path;
-    } catch (e) {
-      debugPrint('Error during order list CSV export: $e');
-      return null;
-    }
+    final baseName = '${title.replaceAll(' ', '_')}_order_list';
+    return ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'csv',
+      mimeType: MimeType.csv,
+      saveDirectoryPath: saveDirectoryPath,
+    );
   }
 
   static Future<Uint8List> _generateOrderListCsvBytes(
@@ -466,6 +455,7 @@ class ExportService {
     required Map<String, int> orderQtys,
     required String title,
     required AppStrings l10n,
+    String? saveDirectoryPath,
   }) async {
     final regularFontData = await rootBundle.load(
       'assets/fonts/Roboto-Regular.ttf',
@@ -482,18 +472,14 @@ class ExportService {
     };
 
     final bytes = await compute(_generateOrderListPdfBytes, args);
-    try {
-      final path = await FileSaver.instance.saveFile(
-        name: '${title.replaceAll(' ', '_')}_order_list',
-        bytes: bytes,
-        fileExtension: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-      return path;
-    } catch (e) {
-      debugPrint('Error during order list PDF export: $e');
-      return null;
-    }
+    final baseName = '${title.replaceAll(' ', '_')}_order_list';
+    return ExportSaveHelper.save(
+      bytes: bytes,
+      baseName: baseName,
+      fileExtension: 'pdf',
+      mimeType: MimeType.pdf,
+      saveDirectoryPath: saveDirectoryPath,
+    );
   }
 
   static Future<Uint8List> _generateOrderListPdfBytes(
@@ -587,6 +573,7 @@ class ExportService {
     List<String> headers,
     List<List<dynamic>> rows, {
     String title = 'bulk_import_template',
+    String? saveDirectoryPath,
   }) async {
     try {
       final allRows = <List<dynamic>>[
@@ -601,15 +588,14 @@ class ExportService {
           .join('\n');
 
       final bytes = Uint8List.fromList(utf8.encode(csvData));
-
-      final path = await FileSaver.instance.saveFile(
-        name: title.replaceAll(' ', '_'),
+      final baseName = title.replaceAll(' ', '_');
+      return ExportSaveHelper.save(
         bytes: bytes,
+        baseName: baseName,
         fileExtension: 'csv',
         mimeType: MimeType.csv,
+        saveDirectoryPath: saveDirectoryPath,
       );
-
-      return path;
     } catch (e) {
       debugPrint('Error during bulk import CSV template export: $e');
       return null;
@@ -620,6 +606,7 @@ class ExportService {
     List<String> headers,
     List<List<dynamic>> rows, {
     String title = 'bulk_import_template',
+    String? saveDirectoryPath,
   }) async {
     try {
       final excel = Excel.createExcel();
@@ -649,19 +636,20 @@ class ExportService {
         }
       }
 
-      final bytes = excel.encode();
-      if (bytes == null) {
+      final encoded = excel.encode();
+      if (encoded == null) {
         throw Exception('Failed to encode Excel template');
       }
 
-      final path = await FileSaver.instance.saveFile(
-        name: title.replaceAll(' ', '_'),
-        bytes: Uint8List.fromList(bytes),
+      final bytes = Uint8List.fromList(encoded);
+      final baseName = title.replaceAll(' ', '_');
+      return ExportSaveHelper.save(
+        bytes: bytes,
+        baseName: baseName,
         fileExtension: 'xlsx',
         mimeType: MimeType.other,
+        saveDirectoryPath: saveDirectoryPath,
       );
-
-      return path;
     } catch (e) {
       debugPrint('Error during bulk import Excel template export: $e');
       return null;

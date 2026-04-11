@@ -10,6 +10,7 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
+import '../../utils/export_save_directory.dart';
 import 'restock_screen.dart';
 import '../../utils/med_type_icons.dart';
 import '../../providers/language_provider.dart';
@@ -536,6 +537,31 @@ class _LowStockScreenState extends State<LowStockScreen> {
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.read<LanguageProvider>().strings;
+
+    final pick = await pickExportSaveDirectory(
+      dialogTitle: l10n.exportSelectFolder,
+    );
+    if (pick.outcome == ExportSaveDirectoryOutcome.failed) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.exportFolderPickFailed),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (pick.outcome == ExportSaveDirectoryOutcome.canceled) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.exportFolderPickCanceled),
+          backgroundColor: AppColors.secondaryAccent,
+        ),
+      );
+      return;
+    }
+
     String? path;
     try {
       if (isPdf) {
@@ -544,12 +570,14 @@ class _LowStockScreenState extends State<LowStockScreen> {
           orderQtys: orderQtys,
           title: 'Low Stock',
           l10n: l10n,
+          saveDirectoryPath: pick.saveDirectoryPath,
         );
       } else {
         path = await ExportService.exportOrderListToCsv(
           products,
           orderQtys,
           l10n.lowStockTitle,
+          saveDirectoryPath: pick.saveDirectoryPath,
         );
       }
     } catch (e) {

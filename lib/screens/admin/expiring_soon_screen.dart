@@ -13,6 +13,7 @@ import '../../utils/responsive_helper.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/product.dart';
 import '../../services/export_service.dart';
+import '../../utils/export_save_directory.dart';
 import '../../widgets/shared/empty_state_widget.dart';
 import '../../widgets/shared/right_filter_panel.dart';
 import '../../l10n/app_strings.dart';
@@ -729,6 +730,31 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.read<LanguageProvider>().strings;
+
+    final pick = await pickExportSaveDirectory(
+      dialogTitle: l10n.exportSelectFolder,
+    );
+    if (pick.outcome == ExportSaveDirectoryOutcome.failed) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.exportFolderPickFailed),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (pick.outcome == ExportSaveDirectoryOutcome.canceled) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.exportFolderPickCanceled),
+          backgroundColor: AppColors.secondaryAccent,
+        ),
+      );
+      return;
+    }
+
     String? path;
     try {
       if (isPdf) {
@@ -737,12 +763,14 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
           orderQtys: orderQtys,
           title: l10n.expiringSoonTitle,
           l10n: l10n,
+          saveDirectoryPath: pick.saveDirectoryPath,
         );
       } else {
         path = await ExportService.exportOrderListToCsv(
           products,
           orderQtys,
           l10n.expiringSoonTitle,
+          saveDirectoryPath: pick.saveDirectoryPath,
         );
       }
     } catch (e) {
