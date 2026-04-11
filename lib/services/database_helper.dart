@@ -264,11 +264,7 @@ class DatabaseHelper {
     _resolvedDbPath = null;
   }
 
-  /// Migrates [bytes] to a new storage location, updates [DbLocationService] prefs,
-  /// then reopens SQLite. Call after [syncRuntimeToAuthoritative] and reading the
-  /// current runtime file into [bytes]. On Android, [androidTreeUri] null means
-  /// MediaStore Downloads default; on desktop, [desktopFolderPath] null means app
-  /// documents (not a custom folder).
+  /// Persists a new DB folder (or clears to default), writes [bytes] there, and resets the connection.
   Future<void> applyNewDatabaseLocation({
     required Uint8List bytes,
     String? androidTreeUri,
@@ -277,32 +273,18 @@ class DatabaseHelper {
     await resetConnection();
     if (Platform.isAndroid) {
       if (androidTreeUri != null && androidTreeUri.isNotEmpty) {
-        await _dbStorageChannel.invokeMethod('writeTreeDbBytes', {
-          'treeUri': androidTreeUri,
-          'bytes': bytes,
-        });
         await _dbLocation.setAndroidTreeUri(androidTreeUri);
       } else {
-        await _dbStorageChannel.invokeMethod('writePublicDbBytes', {
-          'bytes': bytes,
-        });
         await _dbLocation.clearAndroidTreeUri();
       }
     } else {
-      final dir = await getApplicationDocumentsDirectory();
       if (desktopFolderPath != null && desktopFolderPath.isNotEmpty) {
-        final file = File(p.join(desktopFolderPath, 'pharmacy.db'));
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes(bytes, flush: true);
         await _dbLocation.setDesktopFolderPath(desktopFolderPath);
       } else {
-        final file = File(p.join(dir.path, 'pharmacy.db'));
-        await file.parent.create(recursive: true);
-        await file.writeAsBytes(bytes, flush: true);
         await _dbLocation.clearDesktopFolderPath();
       }
     }
-    await database;
+    await writeCanonicalDatabaseBytes(bytes);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
