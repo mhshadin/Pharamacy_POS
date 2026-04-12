@@ -189,7 +189,11 @@ class MainActivity : FlutterFragmentActivity() {
         return null
     }
 
-    /** Returns an existing MediaStore entry or creates a new (empty) one. */
+    /**
+     * Returns an existing MediaStore entry or inserts a new one.
+     * The new entry is left with IS_PENDING = 1 so the caller can open an
+     * output stream immediately; the write helpers clear IS_PENDING after writing.
+     */
     private fun getOrCreatePublicDbUri(): Uri {
         findPublicDbUri()?.let { return it }
 
@@ -205,14 +209,17 @@ class MainActivity : FlutterFragmentActivity() {
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
         }
-        val uri = contentResolver.insert(contentUri, values)
+        return contentResolver.insert(contentUri, values)
             ?: throw IllegalStateException("Unable to create MediaStore DB entry")
+    }
+
+    /** Marks the MediaStore entry as finalised (IS_PENDING = 0). No-op below Android Q. */
+    private fun clearPending(uri: Uri) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             contentResolver.update(uri, ContentValues().apply {
                 put(MediaStore.Downloads.IS_PENDING, 0)
             }, null, null)
         }
-        return uri
     }
 
     /**
@@ -231,18 +238,32 @@ class MainActivity : FlutterFragmentActivity() {
     private fun readUriBytes(uri: Uri): ByteArray = safeReadUriBytes(uri)
 
     private fun writeBytesToUri(bytes: ByteArray, uri: Uri) {
-        contentResolver.openOutputStream(uri, "wt")?.use { output ->
+        // Keep IS_PENDING=1 while the stream is open so Android lets us write,
+        // then finalize to 0 on success.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            contentResolver.update(uri, ContentValues().apply {
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }, null, null)
+        }
+        contentResolver.openOutputStream(uri, "w")?.use { output ->
             output.write(bytes)
             output.flush()
+            clearPending(uri)
             return
         }
         throw IllegalStateException("Unable to open MediaStore output stream")
     }
 
     private fun writeFileToUri(file: File, uri: Uri) {
-        contentResolver.openOutputStream(uri, "wt")?.use { output ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            contentResolver.update(uri, ContentValues().apply {
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }, null, null)
+        }
+        contentResolver.openOutputStream(uri, "w")?.use { output ->
             FileInputStream(file).use { input -> input.copyTo(output) }
             output.flush()
+            clearPending(uri)
             return
         }
         throw IllegalStateException("Unable to open MediaStore output stream")
@@ -251,9 +272,15 @@ class MainActivity : FlutterFragmentActivity() {
     /** Returns true on success, false if the output stream cannot be opened (stale entry). */
     private fun tryWriteFileToUri(file: File, uri: Uri): Boolean {
         return try {
-            contentResolver.openOutputStream(uri, "wt")?.use { output ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver.update(uri, ContentValues().apply {
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }, null, null)
+            }
+            contentResolver.openOutputStream(uri, "w")?.use { output ->
                 FileInputStream(file).use { input -> input.copyTo(output) }
                 output.flush()
+                clearPending(uri)
             } ?: return false
             true
         } catch (_: Exception) {
