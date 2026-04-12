@@ -13,7 +13,6 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileNotFoundException
 import java.io.FileOutputStream
 
 class MainActivity : FlutterFragmentActivity() {
@@ -47,10 +46,15 @@ class MainActivity : FlutterFragmentActivity() {
                         "syncRuntimeToPublicDb" -> {
                             val runtimePath = call.argument<String>("runtimePath")
                                 ?: throw IllegalArgumentException("Missing runtimePath")
-                            val publicUri = getOrCreatePublicDbUri()
                             val runtimeFile = File(runtimePath)
                             if (runtimeFile.exists()) {
-                                writeFileToUri(runtimeFile, publicUri)
+                                var publicUri = getOrCreatePublicDbUri()
+                                if (!tryWriteFileToUri(runtimeFile, publicUri)) {
+                                    // Stale entry not writable — recreate and retry.
+                                    contentResolver.delete(publicUri, null, null)
+                                    publicUri = getOrCreatePublicDbUri()
+                                    writeFileToUri(runtimeFile, publicUri)
+                                }
                             }
                             result.success(true)
                         }
@@ -137,42 +141,27 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun prepareDatabasePath(runtimePath: String, legacyPath: String?): Map<String, Any> {
         val runtimeFile = File(runtimePath)
-        val runtimeParent = runtimeFile.parentFile
-        if (runtimeParent != null && !runtimeParent.exists()) {
-            runtimeParent.mkdirs()
-        }
+        runtimeFile.parentFile?.mkdirs()
 
-        var publicUri = getOrCreatePublicDbUri()
-        val publicBytes: ByteArray = try {
-            readUriBytes(publicUri)
-        } catch (_: FileNotFoundException) {
-            // Stale MediaStore row — the file was deleted externally. Delete the
-            // orphan entry and create a fresh one so the next open succeeds.
-            contentResolver.delete(publicUri, null, null)
-            publicUri = getOrCreatePublicDbUri()
-            ByteArray(0)
-        }
-        val publicExists = publicBytes.isNotEmpty()
+        // Look for an existing MediaStore entry without creating one yet.
+        val existingUri = findPublicDbUri()
+        val publicBytes: ByteArray = if (existingUri != null) safeReadUriBytes(existingUri) else ByteArray(0)
 
-        if (publicExists) {
+        if (publicBytes.isNotEmpty()) {
+            // Restore the authoritative DB to the runtime working location.
             writeBytesToFile(publicBytes, runtimeFile)
         } else {
-            val migratedFromLegacy = if (!legacyPath.isNullOrBlank()) {
-                val legacyFile = File(legacyPath)
-                if (legacyFile.exists()) {
-                    writeFileToUri(legacyFile, publicUri)
-                    writeFileToFile(legacyFile, runtimeFile)
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+            // Entry is missing, stale, or empty (fresh install). Clean up any
+            // orphan row so syncRuntimeToAuthoritative can write to a fresh one.
+            if (existingUri != null) contentResolver.delete(existingUri, null, null)
 
-            if (!migratedFromLegacy && runtimeFile.exists()) {
-                writeFileToUri(runtimeFile, publicUri)
+            // Legacy migration: pre-MediaStore builds stored the DB at legacyPath.
+            if (!legacyPath.isNullOrBlank()) {
+                val legacyFile = File(legacyPath)
+                if (legacyFile.exists()) writeFileToFile(legacyFile, runtimeFile)
             }
+            // syncRuntimeToAuthoritative() will create and populate the public
+            // entry once SQLite has finished initialising (see _initDatabase).
         }
 
         return mapOf(
@@ -181,7 +170,8 @@ class MainActivity : FlutterFragmentActivity() {
         )
     }
 
-    private fun getOrCreatePublicDbUri(): Uri {
+    /** Queries MediaStore for the DB entry without creating one. Returns null if absent. */
+    private fun findPublicDbUri(): Uri? {
         val contentUri = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Downloads._ID)
         val selection =
@@ -190,14 +180,20 @@ class MainActivity : FlutterFragmentActivity() {
             "${Environment.DIRECTORY_DOWNLOADS}/$dbFolderName/",
             dbFileName
         )
-
         contentResolver.query(contentUri, projection, selection, selectionArgs, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID))
                 return Uri.withAppendedPath(contentUri, id.toString())
             }
         }
+        return null
+    }
 
+    /** Returns an existing MediaStore entry or creates a new (empty) one. */
+    private fun getOrCreatePublicDbUri(): Uri {
+        findPublicDbUri()?.let { return it }
+
+        val contentUri = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, dbFileName)
             put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
@@ -209,26 +205,30 @@ class MainActivity : FlutterFragmentActivity() {
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
         }
-
         val uri = contentResolver.insert(contentUri, values)
             ?: throw IllegalStateException("Unable to create MediaStore DB entry")
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val readyValues = ContentValues().apply {
+            contentResolver.update(uri, ContentValues().apply {
                 put(MediaStore.Downloads.IS_PENDING, 0)
-            }
-            contentResolver.update(uri, readyValues, null, null)
+            }, null, null)
         }
-
         return uri
     }
 
-    private fun readUriBytes(uri: Uri): ByteArray {
-        // openInputStream can throw FileNotFoundException when a MediaStore row
-        // exists but the backing file has been deleted externally.
-        val stream = contentResolver.openInputStream(uri) ?: return ByteArray(0)
-        return stream.use { it.readBytes() }
+    /**
+     * Reads all bytes from a content URI.
+     * Returns an empty array if the URI cannot be opened (stale entry, file deleted, etc.)
+     * rather than throwing, so callers treat it as "no existing data".
+     */
+    private fun safeReadUriBytes(uri: Uri): ByteArray {
+        return try {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+        } catch (_: Exception) {
+            ByteArray(0)
+        }
     }
+
+    private fun readUriBytes(uri: Uri): ByteArray = safeReadUriBytes(uri)
 
     private fun writeBytesToUri(bytes: ByteArray, uri: Uri) {
         contentResolver.openOutputStream(uri, "wt")?.use { output ->
@@ -241,13 +241,24 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun writeFileToUri(file: File, uri: Uri) {
         contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            FileInputStream(file).use { input ->
-                input.copyTo(output)
-            }
+            FileInputStream(file).use { input -> input.copyTo(output) }
             output.flush()
             return
         }
         throw IllegalStateException("Unable to open MediaStore output stream")
+    }
+
+    /** Returns true on success, false if the output stream cannot be opened (stale entry). */
+    private fun tryWriteFileToUri(file: File, uri: Uri): Boolean {
+        return try {
+            contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                FileInputStream(file).use { input -> input.copyTo(output) }
+                output.flush()
+            } ?: return false
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun writeBytesToFile(bytes: ByteArray, file: File) {
