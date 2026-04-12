@@ -1,5 +1,6 @@
 <?php
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 error_reporting(E_ALL);
 header('Content-Type: application/json');
 
@@ -169,8 +170,8 @@ try {
     ]);
 
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log("Registration Error: " . $e->getMessage());
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    error_log("Registration Error [" . get_class($e) . "]: " . $e->getMessage() . " | File: " . $e->getFile() . ":" . $e->getLine());
     http_response_code(500);
     echo json_encode(['error' => 'Server error while creating the account.']);
 }
