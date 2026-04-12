@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../utils/colors.dart';
@@ -8,6 +9,7 @@ import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/time_service.dart';
 import '../services/database_helper.dart';
+import '../services/storage_permission_helper.dart';
 import '../providers/admin_provider.dart';
 import '../providers/pos_provider.dart';
 import 'home_screen.dart';
@@ -36,6 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _bootstrap() async {
     try {
+      await requestStorageAccessBeforeDatabaseOpen();
       await DatabaseHelper().ensureDatabaseReady();
       if (!mounted) return;
       final admin = context.read<AdminProvider>();
@@ -205,7 +208,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Could not open the database. Check storage access and try again.',
+                        'Could not open the database. Allow file access when the system asks, or enable permissions in app settings, then tap Retry.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                               color: AppColors.white,
@@ -231,6 +234,16 @@ class _SplashScreenState extends State<SplashScreen> {
                           minimumSize: const Size.fromHeight(48),
                         ),
                         child: const Text('Retry'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () async {
+                          await openAppSettings();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.secondaryAccent,
+                        ),
+                        child: const Text('Open app settings'),
                       ),
                     ],
                   )
