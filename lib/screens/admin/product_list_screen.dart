@@ -1120,10 +1120,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 4,
-                                      runSpacing: 4,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
                                         Text(
                                           '$stockPercent%',
@@ -1133,47 +1131,59 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             color: Colors.grey.shade600,
                                           ),
                                         ),
-                                        if (product.medType != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: medColor.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(MedTypeIcons.getIcon(product.medType), size: 8, color: medColor),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  product.medType!,
-                                                  style: TextStyle(fontSize: 8, color: medColor, fontWeight: FontWeight.w600),
+                                        if (product.medType != null ||
+                                            (product.power != null && product.power!.trim().isNotEmpty))
+                                          const SizedBox(height: 3),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (product.medType != null)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: medColor.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(MedTypeIcons.getIcon(product.medType), size: 8, color: medColor),
+                                                    const SizedBox(width: 3),
+                                                    Text(
+                                                      product.medType!,
+                                                      style: TextStyle(fontSize: 8, color: medColor, fontWeight: FontWeight.w600),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            if (product.medType != null &&
+                                                product.power != null &&
+                                                product.power!.trim().isNotEmpty)
+                                              const SizedBox(width: 4),
+                                            if (product.power != null &&
+                                                product.power!.trim().isNotEmpty)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.deepPurple.withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: Colors.deepPurple.withValues(alpha: 0.25),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  product.power!,
+                                                  style: const TextStyle(
+                                                    fontSize: 8,
+                                                    color: Colors.deepPurple,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
-                                              ],
-                                            ),
-                                          ),
-                                        if (product.power != null &&
-                                            product.power!.trim().isNotEmpty)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.deepPurple.withValues(alpha: 0.08),
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(
-                                                color: Colors.deepPurple.withValues(alpha: 0.25),
                                               ),
-                                            ),
-                                            child: Text(
-                                              product.power!,
-                                              style: const TextStyle(
-                                                fontSize: 8,
-                                                color: Colors.deepPurple,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
+                                          ],
+                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 4),
