@@ -50,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
       setState(() {
         _dbInitFailed = true;
-        _dbInitErrorDetail = kDebugMode ? e.toString() : null;
+        _dbInitErrorDetail = e.toString();
       });
       return;
     }
