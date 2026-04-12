@@ -46,7 +46,7 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
   }
 
-  // Database opens from [SplashScreen] (or [DbLocationGateScreen] if init fails).
+  // Database opens from [SplashScreen]; failures show retry on the splash screen.
 
   // Warm up speech engine / request mic access at startup.
   // - On Android/iOS this will show the OS permission dialog once.

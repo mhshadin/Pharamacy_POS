@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,7 +10,6 @@ import '../services/time_service.dart';
 import '../services/database_helper.dart';
 import '../providers/admin_provider.dart';
 import '../providers/pos_provider.dart';
-import 'db_location_gate_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'subscription_screen.dart';
@@ -24,6 +24,9 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   final _authStorage = const AuthStorage();
   final _authApi = const AuthService();
+
+  bool _dbInitFailed = false;
+  String? _dbInitErrorDetail;
 
   @override
   void initState() {
@@ -42,11 +45,10 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e, st) {
       debugPrint('SplashScreen: database init failed: $e\n$st');
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => const DbLocationGateScreen(),
-        ),
-      );
+      setState(() {
+        _dbInitFailed = true;
+        _dbInitErrorDetail = kDebugMode ? e.toString() : null;
+      });
       return;
     }
 
@@ -176,35 +178,88 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
+  void _retryAfterDbFailure() {
+    setState(() {
+      _dbInitFailed = false;
+      _dbInitErrorDetail = null;
+    });
+    _bootstrap();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryDark,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text(
-              'Pharmacy POS',
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            SizedBox(height: 16),
-            SizedBox(
-              height: 24,
-              width: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.secondaryAccent,
-                ),
-              ),
-            ),
-          ],
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _dbInitFailed
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppColors.white,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Could not open the database. Check storage access and try again.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: AppColors.white,
+                              height: 1.4,
+                            ),
+                      ),
+                      if (_dbInitErrorDetail != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _dbInitErrorDetail!,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.white.withValues(alpha: 0.75),
+                              ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: _retryAfterDbFailure,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.secondaryAccent,
+                          foregroundColor: AppColors.primaryDark,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  )
+                : const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Pharmacy POS',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.secondaryAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
