@@ -1,0 +1,4 @@
+Name,Generic,CompanyName,Barcode,PriceBox,BuyingPriceBox,StripsPerBox,PcsPerStrip,StockBoxes,MinStock,BatchNo,ExpiryDate,SupplierName,SupplierPhone,MedType,Power
+Paracetamol 500mg,Paracetamol,ACME Pharma,1234567890123,20,15,10,10,5,2,BATCH001,2026-12-31,Best Pharma Supplier,+8801710000001,Tablet,500mg
+Amoxicillin 250mg Capsule,Amoxicillin,Generic Labs,5901234123457,180,120,15,8,3,1,BATCH-AMX-02,2027-06-15,City Wholesaler,+8801812000000,Capsule,250mg
+ORS Sachet,Oral Rehydration Salts,HealthCo,8801234567890,45,30,20,1,10,5,ORS-2025-A,2026-03-01,Local Supplier,,Powder,
