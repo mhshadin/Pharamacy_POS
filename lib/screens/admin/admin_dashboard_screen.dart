@@ -466,8 +466,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final infoBodyFontSize = (12 * widthScale).clamp(11.0, 14.0);
     const overviewRows = 3.0; // 6 cards, 2 columns on phone
     final phoneOverviewHeightBudget = screenHeight * 0.4;
-    final phoneMinCardHeight = (96 * widthScale).clamp(88.0, 112.0);
-    final phoneMaxCardHeight = (140 * widthScale).clamp(120.0, 156.0);
+    final phoneMinCardHeight = (104 * widthScale).clamp(100.0, 116.0);
+    final phoneMaxCardHeight = (144 * widthScale).clamp(128.0, 160.0);
     final phoneCardHeight =
         ((phoneOverviewHeightBudget - (overviewCardRunSpacing * (overviewRows - 1))) /
                 overviewRows)

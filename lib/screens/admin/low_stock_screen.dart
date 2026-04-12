@@ -1088,6 +1088,8 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                   fontSize: isNarrow ? 14 : 16,
                                   color: AppColors.primaryDark,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               Text(
                                 product.companyName != null && product.companyName!.isNotEmpty
@@ -1098,6 +1100,8 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           );
@@ -1220,6 +1224,8 @@ class _LowStockScreenState extends State<LowStockScreen> {
                               fontSize: 11,
                               color: AppColors.secondaryAccent,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           );
 
                           return GestureDetector(
@@ -1281,14 +1287,17 @@ class _LowStockScreenState extends State<LowStockScreen> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          statRow,
-                                          const SizedBox(height: 8),
-                                          extraInfo,
-                                        ],
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            statRow,
+                                            const SizedBox(height: 8),
+                                            extraInfo,
+                                          ],
+                                        ),
                                       ),
+                                      const SizedBox(width: 8),
                                       SizedBox(
                                         width: isNarrow ? 80 : 120,
                                         child: Column(
