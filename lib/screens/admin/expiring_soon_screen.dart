@@ -104,17 +104,17 @@ class _ExpiringSoonScreenState extends State<ExpiringSoonScreen> {
   List<Product> _applyFilters(List<Product> source, AdminProvider admin) {
     var list = List<Product>.from(source);
 
-    // Search (exact match on name, generic, company, or barcode)
+    // Search (partial match for text fields, exact match for barcode)
     if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
+      final q = _searchQuery.trim().toLowerCase();
       list = list.where((p) {
         final name = p.name.trim().toLowerCase();
         final generic = p.generic.trim().toLowerCase();
         final company = p.companyName?.trim().toLowerCase() ?? '';
         final barcode = p.barcode?.trim().toLowerCase() ?? '';
-        return name == q ||
-            generic == q ||
-            company == q ||
+        return name.contains(q) ||
+            generic.contains(q) ||
+            company.contains(q) ||
             barcode == q;
       }).toList();
     }

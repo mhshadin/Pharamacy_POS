@@ -162,7 +162,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }) {
     var list = List<Product>.from(source);
 
-    // Search (exact match on name, generic, company, or barcode)
+    // Search (partial match for text fields, exact match for barcode)
     final q = _searchController.text.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list.where((p) {
@@ -170,9 +170,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
         final generic = p.generic.trim().toLowerCase();
         final company = p.companyName?.trim().toLowerCase() ?? '';
         final barcode = p.barcode?.trim().toLowerCase() ?? '';
-        return name == q ||
-            generic == q ||
-            company == q ||
+        return name.contains(q) ||
+            generic.contains(q) ||
+            company.contains(q) ||
             barcode == q;
       }).toList();
     }
