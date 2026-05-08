@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../providers/pos_provider.dart';
+import '../services/database_helper.dart';
 import '../services/ocr_service.dart';
 import '../utils/colors.dart';
 import '../providers/language_provider.dart';
@@ -27,18 +32,29 @@ class OcrScanResultScreen extends StatefulWidget {
 }
 
 class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
+  static const double _displayThreshold = 0.60;
+  static const int _ocrMaxImageWidth = 1280;
+  static const int _ocrJpegQuality = 75;
+  static const String _ocrTempDirName = 'ocr_temp';
   late List<OcrMatchResult> _results;
   late File _image;
+  late bool _ownsCurrentImage;
   bool _isRetaking = false;
+
+  List<OcrMatchResult> _keepHighConfidenceOnly(List<OcrMatchResult> results) {
+    return results
+        .where((r) => r.matchScore >= _displayThreshold)
+        .toList();
+  }
 
   String _productDisplayName(Product p) {
     final type = p.medType?.trim();
     final power = p.power?.trim();
     if (power != null && power.isNotEmpty && type != null && type.isNotEmpty) {
-      return '${p.name} (${type} • ${power})';
+      return '${p.name} ($type • $power)';
     }
     if (type != null && type.isNotEmpty) {
-      if (power != null && power.isNotEmpty) return '${p.name} (${type} • $power)';
+      if (power != null && power.isNotEmpty) return '${p.name} ($type • $power)';
       return '${p.name} ($type)';
     }
     if (power != null && power.isNotEmpty) return '${p.name} ($power)';
@@ -48,8 +64,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   @override
   void initState() {
     super.initState();
-    _results = widget.results;
+    _results = _keepHighConfidenceOnly(widget.results);
     _image = widget.capturedImage;
+    _ownsCurrentImage = _isInOcrTempFolder(_image);
     // Auto-accept exact matches on load.
     for (final r in _results) {
       if (r.matchType == OcrMatchType.exact) {
@@ -81,16 +98,20 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
         setState(() => _isRetaking = false);
         return;
       }
-      final imageFile = File(file.path);
+      final imageFile = await _preprocessImageForOcr(File(file.path));
 
       if (!mounted) return;
       final newResults = await OcrService.process(
         imageFile,
         widget.allProducts,
+        fetchCandidatesForOcr: (t) => DatabaseHelper().getCandidatesForOcr(t),
       );
+      final highConfidenceResults = _keepHighConfidenceOnly(newResults);
 
       if (!mounted) return;
-      if (newResults.isEmpty) {
+      if (highConfidenceResults.isEmpty) {
+        await _deleteIfOwned(imageFile);
+        if (!mounted) return;
         setState(() => _isRetaking = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -106,9 +127,12 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
         return;
       }
 
+      final previousImage = _image;
+      final hadOwnedImage = _ownsCurrentImage;
       setState(() {
         _image = imageFile;
-        _results = newResults;
+        _ownsCurrentImage = _isInOcrTempFolder(imageFile);
+        _results = highConfidenceResults;
         for (final r in _results) {
           if (r.matchType == OcrMatchType.exact) {
             r.status = OcrStatus.accepted;
@@ -116,6 +140,9 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
         }
         _isRetaking = false;
       });
+      if (hadOwnedImage) {
+        await _deleteIfOwned(previousImage);
+      }
     } catch (e) {
       setState(() => _isRetaking = false);
       if (mounted) {
@@ -128,6 +155,70 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
           ),
         );
       }
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsCurrentImage) {
+      unawaited(_deleteIfOwned(_image));
+    }
+    super.dispose();
+  }
+
+  bool _isInOcrTempFolder(File file) {
+    return p.basename(p.dirname(file.path)) == _ocrTempDirName;
+  }
+
+  Future<File> _preprocessImageForOcr(File sourceFile) async {
+    try {
+      final bytes = await sourceFile.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return sourceFile;
+
+      final resized = decoded.width > _ocrMaxImageWidth
+          ? img.copyResize(decoded, width: _ocrMaxImageWidth)
+          : decoded;
+      final jpgBytes = img.encodeJpg(resized, quality: _ocrJpegQuality);
+
+      final tempDir = await getTemporaryDirectory();
+      final ocrTempDir = Directory(p.join(tempDir.path, _ocrTempDirName));
+      if (!await ocrTempDir.exists()) {
+        await ocrTempDir.create(recursive: true);
+      }
+      final outputPath = p.join(
+        ocrTempDir.path,
+        'ocr_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      );
+      final outputFile = File(outputPath);
+      await outputFile.writeAsBytes(jpgBytes, flush: true);
+      return outputFile;
+    } catch (_) {
+      return sourceFile;
+    }
+  }
+
+  Future<void> _deleteIfOwned(File file) async {
+    if (!await _isAppManagedOcrFile(file)) return;
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> _isAppManagedOcrFile(File file) async {
+    final filePath = p.normalize(file.absolute.path);
+    if (p.basename(p.dirname(filePath)) != _ocrTempDirName) return false;
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final docsDir = await getApplicationDocumentsDirectory();
+      final tempOcrRoot = p.normalize(p.join(tempDir.path, _ocrTempDirName));
+      final docsOcrRoot = p.normalize(p.join(docsDir.path, _ocrTempDirName));
+      return p.isWithin(tempOcrRoot, filePath) || p.isWithin(docsOcrRoot, filePath);
+    } catch (_) {
+      return false;
     }
   }
 

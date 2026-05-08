@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../models/product.dart';
 
+typedef OcrCandidateFetcher = Future<List<Product>> Function(String ocrRegionText);
+
 enum OcrMatchType { exact, partial }
 
 enum OcrStatus { pending, accepted, rejected }
@@ -52,10 +54,100 @@ class OcrMatchResult {
   );
 }
 
+class OcrDebugRegion {
+  final String text;
+  final Rect? boundingBox;
+  final bool removedByCleanup;
+  final String? cleanupReason;
+  final bool matched;
+  final int? clusterId;
+  final bool selectedInCluster;
+  final bool suppressedInCluster;
+  final double? sizeScore;
+  final double? textScore;
+  final double? hybridScore;
+  final String? topProductName;
+  final List<String> topOptions;
+
+  const OcrDebugRegion({
+    required this.text,
+    required this.boundingBox,
+    required this.removedByCleanup,
+    this.cleanupReason,
+    required this.matched,
+    this.clusterId,
+    required this.selectedInCluster,
+    required this.suppressedInCluster,
+    this.sizeScore,
+    this.textScore,
+    this.hybridScore,
+    this.topProductName,
+    this.topOptions = const [],
+  });
+}
+
+class OcrDebugSummary {
+  final int totalRawRegions;
+  final int keptAfterCleanup;
+  final int removedByCleanup;
+  final int matchedRegions;
+  final int exactCount;
+  final int partialCount;
+  final bool usedStripGrouping;
+  final bool groupingReliable;
+  final int clusterCount;
+  final int suppressedInClusters;
+
+  const OcrDebugSummary({
+    required this.totalRawRegions,
+    required this.keptAfterCleanup,
+    required this.removedByCleanup,
+    required this.matchedRegions,
+    required this.exactCount,
+    required this.partialCount,
+    required this.usedStripGrouping,
+    required this.groupingReliable,
+    required this.clusterCount,
+    required this.suppressedInClusters,
+  });
+}
+
+class OcrDebugSnapshot {
+  final Size? imageSize;
+  final List<OcrDebugRegion> regions;
+  final OcrDebugSummary summary;
+
+  const OcrDebugSnapshot({
+    required this.imageSize,
+    required this.regions,
+    required this.summary,
+  });
+}
+
+class OcrProcessDebugResult {
+  final List<OcrMatchResult> results;
+  final OcrDebugSnapshot debug;
+
+  const OcrProcessDebugResult({
+    required this.results,
+    required this.debug,
+  });
+}
+
 class OcrService {
   static final _textRecognizer = TextRecognizer(
     script: TextRecognitionScript.latin,
   );
+  static const double _discardThreshold = 0.55;
+  static const double _exactThreshold = 0.83;
+  static const double _nameWeight = 1.0;
+  static const double _genericWeight = 0.75;
+  static const double _sizeWeight = 0.28;
+  static const double _textWeight = 0.72;
+  static const int _maxPartialOptions = 3;
+  static const double _stripExpandXFactor = 0.35;
+  static const double _stripExpandYFactor = 0.60;
+  static const double _weakGroupingRatioThreshold = 0.30;
 
   /// Extracts text regions (text + bounding box) from the image using ML Kit.
   static Future<List<OcrTextRegion>> extractText(File imageFile) async {
@@ -88,13 +180,117 @@ class OcrService {
   /// Main pipeline: extract → clean → match → crop each matched region.
   static Future<List<OcrMatchResult>> process(
     File imageFile,
-    List<Product> products,
-  ) async {
+    List<Product> products, {
+    OcrCandidateFetcher? fetchCandidatesForOcr,
+  }) async {
     final regions = await extractText(imageFile);
     final cleaned = _cleanRegions(regions);
-    final matched = matchAgainstDb(cleaned, products);
+    final matched = fetchCandidatesForOcr != null
+        ? await _matchAgainstDbInternalAsync(
+            cleaned,
+            products,
+            fetchCandidatesForOcr,
+          )
+        : _matchAgainstDbInternal(
+            cleaned,
+            (_) => products,
+            debugAccumulator: null,
+            fullRescoreIfNarrowedMiss: null,
+          );
+    return _attachCrops(imageFile, cleaned, matched);
+  }
 
-    // Crop image regions in parallel for performance.
+  static Future<OcrProcessDebugResult> processWithDebug(
+    File imageFile,
+    List<Product> products, {
+    OcrCandidateFetcher? fetchCandidatesForOcr,
+  }) async {
+    final regions = await extractText(imageFile);
+    final cleanedInfo = _cleanRegionsDetailed(regions);
+    final debugAccumulator = _DebugAccumulator();
+    final matched = fetchCandidatesForOcr != null
+        ? await _matchAgainstDbInternalAsync(
+            cleanedInfo.kept,
+            products,
+            fetchCandidatesForOcr,
+            debugAccumulator: debugAccumulator,
+          )
+        : _matchAgainstDbInternal(
+            cleanedInfo.kept,
+            (_) => products,
+            debugAccumulator: debugAccumulator,
+            fullRescoreIfNarrowedMiss: null,
+          );
+    final withCrops = await _attachCrops(imageFile, cleanedInfo.kept, matched);
+
+    final regionDebugByText = <String, _RegionDebug>{};
+    for (final entry in debugAccumulator.regionByText.entries) {
+      regionDebugByText[entry.key] = entry.value;
+    }
+
+    final debugRegions = <OcrDebugRegion>[];
+    for (final kept in cleanedInfo.kept) {
+      final info = regionDebugByText[kept.text];
+      debugRegions.add(
+        OcrDebugRegion(
+          text: kept.text,
+          boundingBox: kept.boundingBox,
+          removedByCleanup: false,
+          matched: info != null,
+          clusterId: info?.clusterId,
+          selectedInCluster: info?.selectedInCluster ?? false,
+          suppressedInCluster: info?.suppressedInCluster ?? false,
+          sizeScore: info?.sizeScore,
+          textScore: info?.textScore,
+          hybridScore: info?.hybridScore,
+          topProductName: info?.topProductName,
+          topOptions: info?.topOptions ?? const [],
+        ),
+      );
+    }
+    for (final removed in cleanedInfo.removed) {
+      debugRegions.add(
+        OcrDebugRegion(
+          text: removed.region.text,
+          boundingBox: removed.region.boundingBox,
+          removedByCleanup: true,
+          cleanupReason: removed.reason,
+          matched: false,
+          selectedInCluster: false,
+          suppressedInCluster: false,
+        ),
+      );
+    }
+
+    final summary = OcrDebugSummary(
+      totalRawRegions: regions.length,
+      keptAfterCleanup: cleanedInfo.kept.length,
+      removedByCleanup: cleanedInfo.removed.length,
+      matchedRegions: debugRegions.where((r) => r.matched).length,
+      exactCount: withCrops.where((r) => r.matchType == OcrMatchType.exact).length,
+      partialCount:
+          withCrops.where((r) => r.matchType == OcrMatchType.partial).length,
+      usedStripGrouping: debugAccumulator.usedStripMode,
+      groupingReliable: debugAccumulator.groupingReliable,
+      clusterCount: debugAccumulator.clusterCount,
+      suppressedInClusters: debugRegions.where((r) => r.suppressedInCluster).length,
+    );
+
+    return OcrProcessDebugResult(
+      results: withCrops,
+      debug: OcrDebugSnapshot(
+        imageSize: await _readImageSize(imageFile),
+        regions: debugRegions,
+        summary: summary,
+      ),
+    );
+  }
+
+  static Future<List<OcrMatchResult>> _attachCrops(
+    File imageFile,
+    List<OcrTextRegion> cleaned,
+    List<OcrMatchResult> matched,
+  ) async {
     final futures = matched.map((result) async {
       final region = cleaned.firstWhere(
         (r) => r.text == result.rawText,
@@ -110,6 +306,24 @@ class OcrService {
 
   /// Removes noise tokens — pure numbers, dates, dosage labels, etc.
   static List<OcrTextRegion> _cleanRegions(List<OcrTextRegion> regions) {
+    return _cleanRegionsDetailed(regions).kept;
+  }
+
+  static _CleanedRegions _cleanRegionsDetailed(List<OcrTextRegion> regions) {
+    final kept = <OcrTextRegion>[];
+    final removed = <_RemovedRegion>[];
+    for (final region in regions) {
+      final reason = _cleanupReason(region.text);
+      if (reason == null) {
+        kept.add(region);
+      } else {
+        removed.add(_RemovedRegion(region: region, reason: reason));
+      }
+    }
+    return _CleanedRegions(kept: kept, removed: removed);
+  }
+
+  static String? _cleanupReason(String text) {
     final expiryPattern = RegExp(
       r'^(exp|expiry|mfg|mfd|batch|b\.no|lot|bd|tab|cap|inj|syp|susp|oint|gel|drops?|mg|ml|mcg|iu|%|rs\.?|tk\.?|\d+[\s./]\d+[\s./]?\d*)$',
       caseSensitive: false,
@@ -119,14 +333,12 @@ class OcrService {
       r'^\d{1,2}[/.-]\d{2,4}$|^\d{4}[/.-]\d{1,2}[/.-]\d{1,2}$',
     );
 
-    return regions.where((r) {
-      final t = r.text.trim();
-      if (t.length < 3) return false;
-      if (pureNumber.hasMatch(t)) return false;
-      if (datePattern.hasMatch(t)) return false;
-      if (expiryPattern.hasMatch(t)) return false;
-      return true;
-    }).toList();
+    final t = text.trim();
+    if (t.length < 3) return 'too_short';
+    if (pureNumber.hasMatch(t)) return 'pure_number';
+    if (datePattern.hasMatch(t)) return 'date_pattern';
+    if (expiryPattern.hasMatch(t)) return 'non_name_token';
+    return null;
   }
 
   /// Matches OCR text regions against the product DB.
@@ -138,63 +350,362 @@ class OcrService {
     List<OcrTextRegion> regions,
     List<Product> products,
   ) {
-    final Set<String> matchedProductIds = {};
-    final List<OcrMatchResult> results = [];
+    return _matchAgainstDbInternal(
+      regions,
+      (_) => products,
+      debugAccumulator: null,
+      fullRescoreIfNarrowedMiss: null,
+    );
+  }
 
-    for (final region in regions) {
-      final text = region.text;
-      final scoredProducts = <_ScoredProduct>[];
+  static Future<List<OcrMatchResult>> _matchAgainstDbInternalAsync(
+    List<OcrTextRegion> regions,
+    List<Product> fullCatalog,
+    OcrCandidateFetcher fetchCandidates, {
+    _DebugAccumulator? debugAccumulator,
+  }) async {
+    if (regions.isEmpty || fullCatalog.isEmpty) return const [];
+    final uniqueTexts = <String>{};
+    for (final r in regions) {
+      uniqueTexts.add(r.text);
+    }
+    final cache = <String, List<Product>>{};
+    for (final text in uniqueTexts) {
+      var list = await fetchCandidates(text);
+      if (list.isEmpty) list = fullCatalog;
+      cache[text] = list;
+    }
+    return _matchAgainstDbInternal(
+      regions,
+      (region) => cache[region.text] ?? fullCatalog,
+      debugAccumulator: debugAccumulator,
+      fullRescoreIfNarrowedMiss: fullCatalog,
+    );
+  }
 
-      for (final product in products) {
-        final nameScore = _similarity(text, product.name);
-        // Penalise generic-field matches to prevent duplicate cards when both
-        // brand name and INN appear on the same strip.
-        final genericScore = _similarity(text, product.generic) * 0.75;
-        final bestScore = nameScore > genericScore ? nameScore : genericScore;
-        if (bestScore >= 0.55) {
-          scoredProducts.add(_ScoredProduct(product, bestScore));
-        }
+  static List<OcrMatchResult> _matchAgainstDbInternal(
+    List<OcrTextRegion> regions,
+    List<Product> Function(OcrTextRegion region) productsForRegion, {
+    _DebugAccumulator? debugAccumulator,
+    List<Product>? fullRescoreIfNarrowedMiss,
+  }) {
+    if (regions.isEmpty) return const [];
+    var anyProducts = false;
+    for (final r in regions) {
+      if (productsForRegion(r).isNotEmpty) {
+        anyProducts = true;
+        break;
       }
+    }
+    if (!anyProducts) return const [];
+    final regionCandidates = _buildRegionCandidates(
+      regions,
+      productsForRegion,
+      fullRescoreIfNarrowedMiss,
+    );
+    if (regionCandidates.isEmpty) return const [];
 
-      if (scoredProducts.isEmpty) continue;
-
-      scoredProducts.sort((a, b) => b.score.compareTo(a.score));
-      final top = scoredProducts.first;
-
-      if (matchedProductIds.contains(top.product.id)) continue;
-
-      if (top.score >= 0.80) {
-        matchedProductIds.add(top.product.id);
-        results.add(
-          OcrMatchResult(
-            rawText: text,
-            matchType: OcrMatchType.exact,
-            exactProduct: top.product,
-            matchScore: top.score,
-            status: OcrStatus.accepted,
-          ),
-        );
-      } else {
-        final availableOptions = scoredProducts
-            .take(3)
-            .map((s) => s.product)
-            .where((p) => !matchedProductIds.contains(p.id))
-            .toList();
-        if (availableOptions.isEmpty) continue;
-
-        results.add(
-          OcrMatchResult(
-            rawText: text,
-            matchType: OcrMatchType.partial,
-            partialOptions: availableOptions,
-            matchScore: top.score,
-            status: OcrStatus.pending,
-          ),
-        );
+    final clusters = _buildStripClusters(regions);
+    final useStripMode = _isGroupingReliable(clusters, regionCandidates.length);
+    if (debugAccumulator != null) {
+      debugAccumulator
+        ..groupingReliable = useStripMode
+        ..clusterCount = clusters.length;
+      _populateDebugScores(regionCandidates, debugAccumulator);
+      for (var i = 0; i < clusters.length; i++) {
+        for (final r in clusters[i].regions) {
+          debugAccumulator.regionByText.putIfAbsent(r.text, () => _RegionDebug());
+          debugAccumulator.regionByText[r.text]!.clusterId = i;
+        }
       }
     }
 
+    if (!useStripMode) {
+      if (debugAccumulator != null) debugAccumulator.usedStripMode = false;
+      return _buildGlobalResults(regionCandidates);
+    }
+    if (debugAccumulator != null) debugAccumulator.usedStripMode = true;
+
+    final candidateByText = <String, _RegionCandidate>{
+      for (final c in regionCandidates) c.region.text: c,
+    };
+    final usedProducts = <String>{};
+    final List<OcrMatchResult> results = [];
+
+    for (final cluster in clusters) {
+      _RegionCandidate? best;
+      for (final region in cluster.regions) {
+        final c = candidateByText[region.text];
+        if (c == null) continue;
+        if (best == null || c.hybridScore > best.hybridScore) {
+          best = c;
+        }
+      }
+      if (best == null) continue;
+      if (debugAccumulator != null) {
+        for (final region in cluster.regions) {
+          final info = debugAccumulator.regionByText.putIfAbsent(
+            region.text,
+            () => _RegionDebug(),
+          );
+          if (region.text == best.region.text) {
+            info.selectedInCluster = true;
+          } else if (candidateByText.containsKey(region.text)) {
+            info.suppressedInCluster = true;
+          }
+        }
+      }
+
+      final picked = _buildResultFromCandidate(best, usedProducts);
+      if (picked != null) {
+        results.add(picked);
+      }
+    }
+
+    if (results.isEmpty) {
+      return _buildGlobalResults(regionCandidates);
+    }
+
     return results;
+  }
+
+  static List<_ScoredProduct> _scoreRegionAgainstProducts(
+    OcrTextRegion region,
+    List<Product> products,
+    double maxHeight,
+    double maxArea,
+  ) {
+    final regionScored = <_ScoredProduct>[];
+    for (final product in products) {
+      final nameScore = _similarity(region.text, product.name) * _nameWeight;
+      final genericScore =
+          _similarity(region.text, product.generic) * _genericWeight;
+      final textScore = nameScore > genericScore ? nameScore : genericScore;
+      if (textScore < _discardThreshold) continue;
+
+      final sizeScore = _regionSizeScore(region, maxHeight, maxArea);
+      final hybridScore = ((textScore * _textWeight) + (sizeScore * _sizeWeight))
+          .clamp(0.0, 1.0);
+      regionScored.add(
+        _ScoredProduct(
+          product: product,
+          textScore: textScore,
+          hybridScore: hybridScore,
+        ),
+      );
+    }
+    regionScored.sort((a, b) => b.hybridScore.compareTo(a.hybridScore));
+    return regionScored;
+  }
+
+  static List<_RegionCandidate> _buildRegionCandidates(
+    List<OcrTextRegion> regions,
+    List<Product> Function(OcrTextRegion region) productsForRegion,
+    List<Product>? fullRescoreIfNarrowedMiss,
+  ) {
+    final maxHeight = regions
+        .map((r) => r.boundingBox?.height ?? 0)
+        .fold<double>(0, (prev, v) => v > prev ? v : prev);
+    final maxArea = regions
+        .map((r) => (r.boundingBox?.width ?? 0) * (r.boundingBox?.height ?? 0))
+        .fold<double>(0, (prev, v) => v > prev ? v : prev);
+
+    final out = <_RegionCandidate>[];
+    for (final region in regions) {
+      final narrowed = productsForRegion(region);
+      if (narrowed.isEmpty) continue;
+
+      var regionScored = _scoreRegionAgainstProducts(
+        region,
+        narrowed,
+        maxHeight,
+        maxArea,
+      );
+      if (regionScored.isEmpty &&
+          fullRescoreIfNarrowedMiss != null &&
+          narrowed.length < fullRescoreIfNarrowedMiss.length) {
+        regionScored = _scoreRegionAgainstProducts(
+          region,
+          fullRescoreIfNarrowedMiss,
+          maxHeight,
+          maxArea,
+        );
+      }
+
+      if (regionScored.isEmpty) continue;
+      final top = regionScored.first;
+      out.add(
+        _RegionCandidate(
+          region: region,
+          top: top,
+          scoredProducts: regionScored,
+          sizeScore: _regionSizeScore(region, maxHeight, maxArea),
+        ),
+      );
+    }
+    out.sort((a, b) => b.hybridScore.compareTo(a.hybridScore));
+    return out;
+  }
+
+  static double _regionSizeScore(
+    OcrTextRegion region,
+    double maxHeight,
+    double maxArea,
+  ) {
+    final box = region.boundingBox;
+    if (box == null || maxHeight <= 0 || maxArea <= 0) return 0.0;
+    final hNorm = (box.height / maxHeight).clamp(0.0, 1.0);
+    final aNorm = ((box.width * box.height) / maxArea).clamp(0.0, 1.0);
+    return ((hNorm * 0.65) + (aNorm * 0.35)).clamp(0.0, 1.0);
+  }
+
+  static List<_StripCluster> _buildStripClusters(List<OcrTextRegion> regions) {
+    final clusters = <_StripCluster>[];
+    for (final region in regions) {
+      final box = region.boundingBox;
+      if (box == null) continue;
+      final expanded = _expandRect(box);
+      _StripCluster? hit;
+      for (final cluster in clusters) {
+        if (cluster.expandedBounds.overlaps(expanded)) {
+          hit = cluster;
+          break;
+        }
+      }
+      if (hit == null) {
+        clusters.add(_StripCluster(regions: [region], expandedBounds: expanded));
+      } else {
+        hit.regions.add(region);
+        hit.expandedBounds = hit.expandedBounds.expandToInclude(expanded);
+      }
+    }
+
+    // Merge chains that became adjacent after incremental expansion.
+    var merged = true;
+    while (merged) {
+      merged = false;
+      for (var i = 0; i < clusters.length; i++) {
+        for (var j = i + 1; j < clusters.length; j++) {
+          if (!clusters[i].expandedBounds.overlaps(clusters[j].expandedBounds)) {
+            continue;
+          }
+          clusters[i].regions.addAll(clusters[j].regions);
+          clusters[i].expandedBounds = clusters[i]
+              .expandedBounds
+              .expandToInclude(clusters[j].expandedBounds);
+          clusters.removeAt(j);
+          merged = true;
+          break;
+        }
+        if (merged) break;
+      }
+    }
+
+    return clusters;
+  }
+
+  static Rect _expandRect(Rect rect) {
+    final dx = rect.width * _stripExpandXFactor;
+    final dy = rect.height * _stripExpandYFactor;
+    return Rect.fromLTRB(
+      rect.left - dx,
+      rect.top - dy,
+      rect.right + dx,
+      rect.bottom + dy,
+    );
+  }
+
+  static bool _isGroupingReliable(
+    List<_StripCluster> clusters,
+    int candidateCount,
+  ) {
+    if (clusters.length <= 1) return false;
+    if (candidateCount <= 1) return false;
+    final multiLineClusters = clusters.where((c) => c.regions.length > 1).length;
+    final ratio = multiLineClusters / clusters.length;
+    return ratio >= _weakGroupingRatioThreshold;
+  }
+
+  static List<OcrMatchResult> _buildGlobalResults(
+    List<_RegionCandidate> candidates,
+  ) {
+    final Set<String> matchedProductIds = {};
+    final List<OcrMatchResult> results = [];
+
+    for (final candidate in candidates) {
+      final result = _buildResultFromCandidate(candidate, matchedProductIds);
+      if (result != null) results.add(result);
+    }
+
+    return results;
+  }
+
+  static OcrMatchResult? _buildResultFromCandidate(
+    _RegionCandidate candidate,
+    Set<String> matchedProductIds,
+  ) {
+    if (matchedProductIds.contains(candidate.top.product.id)) return null;
+
+    if (candidate.top.textScore >= _exactThreshold) {
+      matchedProductIds.add(candidate.top.product.id);
+      return OcrMatchResult(
+        rawText: candidate.region.text,
+        matchType: OcrMatchType.exact,
+        exactProduct: candidate.top.product,
+        matchScore: candidate.top.hybridScore,
+        status: OcrStatus.accepted,
+      );
+    }
+
+    final availableOptions = candidate.scoredProducts
+        .take(_maxPartialOptions)
+        .map((s) => s.product)
+        .where((p) => !matchedProductIds.contains(p.id))
+        .toList();
+    if (availableOptions.isEmpty) return null;
+
+    return OcrMatchResult(
+      rawText: candidate.region.text,
+      matchType: OcrMatchType.partial,
+      partialOptions: availableOptions,
+      matchScore: candidate.top.hybridScore,
+      status: OcrStatus.pending,
+    );
+  }
+
+  static void _populateDebugScores(
+    List<_RegionCandidate> regionCandidates,
+    _DebugAccumulator debugAccumulator,
+  ) {
+    for (final candidate in regionCandidates) {
+      final topOptions = candidate.scoredProducts
+          .take(_maxPartialOptions)
+          .map((s) => s.product.name)
+          .toList();
+      debugAccumulator.regionByText[candidate.region.text] = _RegionDebug(
+        textScore: candidate.top.textScore,
+        hybridScore: candidate.top.hybridScore,
+        sizeScore: candidate.sizeScore,
+        topProductName: candidate.top.product.name,
+        topOptions: topOptions,
+      );
+    }
+  }
+
+  static Future<Size?> _readImageSize(File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final size = Size(
+        frame.image.width.toDouble(),
+        frame.image.height.toDouble(),
+      );
+      frame.image.dispose();
+      return size;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Crops a rectangular region from the image file using dart:ui only.
@@ -313,6 +824,78 @@ class OcrService {
 
 class _ScoredProduct {
   final Product product;
-  final double score;
-  _ScoredProduct(this.product, this.score);
+  final double textScore;
+  final double hybridScore;
+  _ScoredProduct({
+    required this.product,
+    required this.textScore,
+    required this.hybridScore,
+  });
+}
+
+class _RegionCandidate {
+  final OcrTextRegion region;
+  final _ScoredProduct top;
+  final List<_ScoredProduct> scoredProducts;
+  final double sizeScore;
+
+  _RegionCandidate({
+    required this.region,
+    required this.top,
+    required this.scoredProducts,
+    required this.sizeScore,
+  });
+
+  double get hybridScore => top.hybridScore;
+}
+
+class _StripCluster {
+  final List<OcrTextRegion> regions;
+  Rect expandedBounds;
+
+  _StripCluster({
+    required this.regions,
+    required this.expandedBounds,
+  });
+}
+
+class _RemovedRegion {
+  final OcrTextRegion region;
+  final String reason;
+
+  _RemovedRegion({required this.region, required this.reason});
+}
+
+class _CleanedRegions {
+  final List<OcrTextRegion> kept;
+  final List<_RemovedRegion> removed;
+
+  _CleanedRegions({required this.kept, required this.removed});
+}
+
+class _DebugAccumulator {
+  final Map<String, _RegionDebug> regionByText = {};
+  bool usedStripMode = false;
+  bool groupingReliable = false;
+  int clusterCount = 0;
+}
+
+class _RegionDebug {
+  int? clusterId;
+  bool selectedInCluster;
+  bool suppressedInCluster;
+  double? sizeScore;
+  double? textScore;
+  double? hybridScore;
+  String? topProductName;
+  List<String> topOptions;
+
+  _RegionDebug({
+    this.sizeScore,
+    this.textScore,
+    this.hybridScore,
+    this.topProductName,
+    this.topOptions = const [],
+  })  : selectedInCluster = false,
+        suppressedInCluster = false;
 }

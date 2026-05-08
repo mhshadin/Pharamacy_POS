@@ -4,8 +4,11 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../utils/colors.dart';
@@ -14,6 +17,7 @@ import '../providers/admin_provider.dart';
 import '../providers/language_provider.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
+import '../services/database_helper.dart';
 import '../services/ocr_service.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
@@ -83,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isSearchVisible = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  bool _isCheckingSubscriptionStatus = false;
   final AuthStorage _authStorage = const AuthStorage();
   final LayerLink _searchLayerLink = LayerLink();
   final GlobalKey _searchFieldKey = GlobalKey();
@@ -90,6 +95,9 @@ class _HomeScreenState extends State<HomeScreen>
   List<Product> _searchSuggestions = [];
   bool _replacementCheckoutCommitted = false;
   int _homeSeenReplacementFlowVersion = 0;
+  static const int _ocrMaxImageWidth = 1280;
+  static const int _ocrJpegQuality = 75;
+  static const String _ocrTempDirName = 'ocr_temp';
 
   /// False while another [PageRoute] sits above Home (drawer pushes, dialogs
   /// as routes, etc.); keeps the barcode camera released when not visible.
@@ -330,6 +338,28 @@ class _HomeScreenState extends State<HomeScreen>
                 onPressed: () => exit(0),
                 child: const Text('Exit'),
               ),
+              TextButton(
+                onPressed: _isCheckingSubscriptionStatus
+                    ? null
+                    : () async {
+                        setState(() => _isCheckingSubscriptionStatus = true);
+                        final isActive = await _refreshSubscriptionStatusFromServer(
+                          showFeedback: true,
+                        );
+                        if (!mounted || !ctx.mounted) return;
+                        setState(() => _isCheckingSubscriptionStatus = false);
+                        if (isActive == true) {
+                          Navigator.of(ctx).pop();
+                        }
+                      },
+                child: _isCheckingSubscriptionStatus
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Check Status'),
+              ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
@@ -360,13 +390,35 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// Calls [check_access.php] when the app returns to foreground.
-  /// If the server reports the subscription as locked (is_active = 0) but the
-  /// local cache still says active, the cache is updated and the block dialog
-  /// is shown. Failures (offline / timeout) are silently ignored so the app
-  /// continues to work offline.
+  /// Server status is written to cache and block UI is re-applied if inactive.
   Future<void> _syncSubscriptionFromServer() async {
+    final isActive = await _refreshSubscriptionStatusFromServer(
+      showFeedback: false,
+    );
+    if (!mounted) return;
+    if (isActive == false) {
+      _enforceSubscriptionBlockIfNeeded();
+    }
+  }
+
+  Future<void> _handleHomeSwipeRefresh() async {
+    try {
+      final admin = context.read<AdminProvider>();
+      await admin.refreshActiveSellerFromServer();
+      await admin.loadPharmacyDevices();
+    } on SessionExpiredException {
+      if (!mounted) return;
+      _redirectToLogin();
+      return;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<bool?> _refreshSubscriptionStatusFromServer({
+    required bool showFeedback,
+  }) async {
     final session = await _authStorage.loadAuth();
-    if (!mounted || session == null || session.licenseToken.isEmpty) return;
+    if (!mounted || session == null || session.licenseToken.isEmpty) return null;
 
     try {
       final response = await http
@@ -376,25 +428,61 @@ class _HomeScreenState extends State<HomeScreen>
           )
           .timeout(const Duration(seconds: 5));
 
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final serverIsActive = (data['is_active'] as int?) == 1;
-        final serverValidUntil = (data['valid_until'] as String?) ?? '';
-
-        if (!serverIsActive && session.isActive) {
-          await _authStorage.updateSubscriptionStatus(
-            isActive: false,
-            validUntil: serverValidUntil.isNotEmpty
-                ? serverValidUntil
-                : session.subscriptionValidUntil,
+      if (response.statusCode != 200) {
+        if (showFeedback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not verify subscription right now.',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: AppColors.error,
+            ),
           );
-          if (mounted) _enforceSubscriptionBlockIfNeeded();
         }
+        return null;
       }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final serverIsActive = (data['is_active'] as int?) == 1;
+      final serverValidUntil = (data['valid_until'] as String?) ?? '';
+
+      await _authStorage.updateSubscriptionStatus(
+        isActive: serverIsActive,
+        validUntil: serverValidUntil.isNotEmpty
+            ? serverValidUntil
+            : session.subscriptionValidUntil,
+      );
+
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              serverIsActive
+                  ? 'Subscription is active now.'
+                  : 'Subscription is still inactive.',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor:
+                serverIsActive ? Colors.green.shade700 : AppColors.error,
+          ),
+        );
+      }
+
+      return serverIsActive;
     } catch (_) {
-      // Offline or server unreachable — cached state is authoritative.
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Network error while checking subscription.',
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return null;
     }
   }
 
@@ -892,34 +980,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
 
-      final imageFile = File(file.path);
-      final products = context.read<POSProvider>().products;
-      final results = await OcrService.process(imageFile, products);
-
-      if (!mounted) return;
-      loadingDialogOpen = false;
-      Navigator.pop(context);
-
-      if (results.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-            content: Text(l10n.noMedicineDetected),
-            backgroundColor: AppColors.warningOrange,
-          ),
-        );
-        return;
-      }
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OcrScanResultScreen(
-            results: results,
-            capturedImage: imageFile,
-            allProducts: products,
-          ),
-        ),
-      );
+      final imageFile = await _preprocessImageForOcr(File(file.path));
+      await _handleOcrImageFile(imageFile);
     } catch (e) {
       if (mounted) {
         if (loadingDialogOpen) {
@@ -936,6 +998,92 @@ class _HomeScreenState extends State<HomeScreen>
     } finally {
       _blockingBarcodeCameraWorkflowDepth--;
       if (mounted) _syncHomeScannerVisibility();
+    }
+  }
+
+  Future<void> _handleOcrScanFromGallery() async {
+    _blockingBarcodeCameraWorkflowDepth++;
+    final bool canStop = _isCameraActive && _isScannerExpanded;
+    if (canStop) _cameraController.stop();
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 95,
+      );
+      if (file == null) return;
+      final imageFile = await _preprocessImageForOcr(File(file.path));
+      await _handleOcrImageFile(imageFile);
+    } catch (e) {
+      if (!mounted) return;
+      final l10n = context.read<LanguageProvider>().strings;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.ocrError(e.toString())),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      _blockingBarcodeCameraWorkflowDepth--;
+      if (mounted) _syncHomeScannerVisibility();
+    }
+  }
+
+  Future<void> _handleOcrImageFile(File imageFile) async {
+    final l10n = context.read<LanguageProvider>().strings;
+    final products = context.read<POSProvider>().products;
+    final results = await OcrService.process(
+      imageFile,
+      products,
+      fetchCandidatesForOcr: (t) => DatabaseHelper().getCandidatesForOcr(t),
+    );
+    if (!mounted) return;
+    if (results.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.noMedicineDetected),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OcrScanResultScreen(
+          results: results,
+          capturedImage: imageFile,
+          allProducts: products,
+        ),
+      ),
+    );
+  }
+
+  Future<File> _preprocessImageForOcr(File sourceFile) async {
+    try {
+      final bytes = await sourceFile.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return sourceFile;
+
+      final resized = decoded.width > _ocrMaxImageWidth
+          ? img.copyResize(decoded, width: _ocrMaxImageWidth)
+          : decoded;
+      final jpgBytes = img.encodeJpg(resized, quality: _ocrJpegQuality);
+
+      final tempDir = await getTemporaryDirectory();
+      final ocrTempDir = Directory(p.join(tempDir.path, _ocrTempDirName));
+      if (!await ocrTempDir.exists()) {
+        await ocrTempDir.create(recursive: true);
+      }
+      final outputPath = p.join(
+        ocrTempDir.path,
+        'ocr_${DateTime.now().microsecondsSinceEpoch}.jpg',
+      );
+      final outputFile = File(outputPath);
+      await outputFile.writeAsBytes(jpgBytes, flush: true);
+      return outputFile;
+    } catch (_) {
+      return sourceFile;
     }
   }
 
@@ -996,6 +1144,7 @@ class _HomeScreenState extends State<HomeScreen>
       },
       onManualAdd: _handleManualAdd,
       onOcrScan: _handleOcrScan,
+      onOcrScanLongPress: _handleOcrScanFromGallery,
       onVoiceTap: () {
         if (_isVoiceSearchActive) {
           _stopHomeVoiceSearch();
@@ -1199,7 +1348,12 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               voiceSearchBar,
               // ── Cart list (always visible) ─────────────────────────────────
-              Expanded(child: cartList),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _handleHomeSwipeRefresh,
+                  child: cartList,
+                ),
+              ),
               // ── Checkout footer (always visible) ──────────────────────────
               checkoutFooter,
             ],

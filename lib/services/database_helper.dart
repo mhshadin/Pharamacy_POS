@@ -125,7 +125,7 @@ class DatabaseHelper {
 
     final db = await openDatabase(
       path,
-      version: 16,
+      version: 17,
       onUpgrade: _onUpgrade,
       onCreate: _onCreate,
     );
@@ -255,13 +255,31 @@ class DatabaseHelper {
   }
 
   /// Closes the active DB handle and clears cached connection.
-  /// Useful before replacing the underlying database file.
+  /// Also deletes any WAL / SHM sidecar files so that a freshly written
+  /// database file is never corrupted by stale journal data.
   Future<void> resetConnection() async {
+    String? pathBeforeReset = _resolvedDbPath;
     if (_database != null) {
       await _database!.close();
       _database = null;
     }
     _resolvedDbPath = null;
+
+    // Delete stale WAL/SHM files that belong to the just-closed database.
+    // If left on disk they are replayed on the next openDatabase() call and
+    // can silently overwrite a freshly imported file with old data.
+    if (pathBeforeReset != null) {
+      for (final suffix in ['-wal', '-shm']) {
+        final sidecar = File('$pathBeforeReset$suffix');
+        if (await sidecar.exists()) {
+          try {
+            await sidecar.delete();
+          } catch (_) {
+            // Best-effort: ignore if the OS refuses (e.g. another handle open).
+          }
+        }
+      }
+    }
   }
 
   /// Persists a new DB folder (or clears to default), writes [bytes] there, and resets the connection.
@@ -421,15 +439,7 @@ class DatabaseHelper {
       } catch (_) {}
     }
 
-    if (oldVersion < 11) {
-      // Ensure columns exist just in case version 10 was skipped or failed
-      try {
-        await db.execute('ALTER TABLE products ADD COLUMN medType TEXT');
-      } catch (_) {}
-      try {
-        await db.execute('ALTER TABLE sales ADD COLUMN medType TEXT');
-      } catch (_) {}
-    }
+
 
     if (oldVersion < 12) {
       // Add per-batch cost price tracking
@@ -446,19 +456,7 @@ class DatabaseHelper {
       } catch (_) {}
     }
 
-    if (oldVersion < 13) {
-      // Robust check for missing cost tracking columns
-      try {
-        await db.execute(
-          'ALTER TABLE product_batches ADD COLUMN costPricePerPc REAL DEFAULT 0',
-        );
-      } catch (_) {}
-      try {
-        await db.execute(
-          'ALTER TABLE sales ADD COLUMN costPricePerPc REAL DEFAULT 0',
-        );
-      } catch (_) {}
-    }
+
 
     if (oldVersion < 14) {
       await db.execute('''
@@ -489,6 +487,20 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE sales ADD COLUMN power TEXT');
       } catch (_) {}
     }
+
+    if (oldVersion < 17) {
+      await _ensureProductOcrIndexes(db);
+    }
+  }
+
+  /// Case-insensitive prefix seeks for OCR candidate funnel (LIKE 'pre%' COLLATE NOCASE).
+  Future<void> _ensureProductOcrIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_products_generic ON products(generic COLLATE NOCASE)',
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -573,6 +585,7 @@ class DatabaseHelper {
 
     // Seed initial products on first launch
     await _seedProducts(db);
+    await _ensureProductOcrIndexes(db);
   }
 
   Future<void> _seedProducts(Database db) async {
@@ -587,7 +600,7 @@ class DatabaseHelper {
         'pcsPerStrip': 10,
         'stockStrips': 12,
         'stockPcs': 120,
-        'expiryDate': now.add(const Duration(days: 25)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567890',
         'minStockLevel': 20,
       },
@@ -599,7 +612,7 @@ class DatabaseHelper {
         'pricePc': 0.50,
         'stockStrips': 145,
         'stockPcs': 1450,
-        'expiryDate': now.add(const Duration(days: 365)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567891',
         'minStockLevel': 20,
       },
@@ -611,7 +624,7 @@ class DatabaseHelper {
         'pricePc': 0.30,
         'stockStrips': 89,
         'stockPcs': 890,
-        'expiryDate': now.add(const Duration(days: 200)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567892',
         'minStockLevel': 20,
       },
@@ -623,7 +636,7 @@ class DatabaseHelper {
         'pricePc': 0.45,
         'stockStrips': 8,
         'stockPcs': 80,
-        'expiryDate': now.add(const Duration(days: 60)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567893',
         'minStockLevel': 15,
       },
@@ -635,7 +648,7 @@ class DatabaseHelper {
         'pricePc': 0.35,
         'stockStrips': 200,
         'stockPcs': 2000,
-        'expiryDate': now.add(const Duration(days: 400)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567894',
         'minStockLevel': 20,
       },
@@ -647,7 +660,7 @@ class DatabaseHelper {
         'pricePc': 2.00,
         'stockStrips': 5,
         'stockPcs': 30,
-        'expiryDate': now.add(const Duration(days: 15)).toIso8601String(),
+        'expiryDate': now.add(const Duration(days: 365 * 2)).toIso8601String(),
         'barcode': '8901234567895',
         'minStockLevel': 10,
       },
@@ -818,24 +831,117 @@ class DatabaseHelper {
     return await _populateProductStock(Product.fromMap(maps.first), db);
   }
 
-  Future<Product?> getProductByName(String name) async {
-    final db = await database;
-    final maps = await db.query(
-      'products',
-      where: 'LOWER(name) = LOWER(?)',
-      whereArgs: [name],
-      limit: 1,
-    );
-    if (maps.isEmpty) return null;
-    return await _populateProductStock(Product.fromMap(maps.first), db);
+  /// Lowercases, trims, and collapses whitespace for OCR funnel matching.
+  static String normalizeOcrTextForCandidates(String raw) {
+    var s = raw.toLowerCase().trim();
+    if (s.isEmpty) return '';
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    return s;
   }
 
-  Future<Product> _populateProductStock(Product product, Database db) async {
-    final batchMaps = await db.query(
-      'product_batches',
-      where: 'productId = ?',
-      whereArgs: [product.id],
+  /// Strips characters that break or widen LIKE patterns unintentionally.
+  static String _sanitizeLikePrefix(String s) {
+    return s.replaceAll(RegExp(r'[%_\\]'), '');
+  }
+
+  /// Prefix + optional token-contains fallback; deduped by product id, capped at [limit].
+  /// Uses indexed `LIKE 'prefix%' COLLATE NOCASE` first; if too few hits, adds `%token%` OR rows (capped).
+  Future<List<Product>> getCandidatesForOcr(String ocrText, {int limit = 40}) async {
+    final norm = normalizeOcrTextForCandidates(ocrText);
+    if (norm.isEmpty) return [];
+
+    final parts = norm.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final firstWord = parts.isNotEmpty ? parts.first : norm;
+    final sanitized = _sanitizeLikePrefix(firstWord);
+    if (sanitized.isEmpty) return [];
+
+    final prefixLen = sanitized.length >= 4 ? 4 : sanitized.length;
+    final prefix = sanitized.substring(0, prefixLen);
+
+    final db = await database;
+    final orderedIds = <String>[];
+    final byId = <String, Map<String, dynamic>>{};
+
+    void ingestRows(List<Map<String, dynamic>> rows) {
+      for (final m in rows) {
+        final id = m['id'] as String;
+        if (byId.containsKey(id)) continue;
+        byId[id] = m;
+        orderedIds.add(id);
+      }
+    }
+
+    final prefixPattern = '$prefix%';
+    final prefixRows = await db.rawQuery(
+      '''
+      SELECT * FROM products
+      WHERE name LIKE ? COLLATE NOCASE OR generic LIKE ? COLLATE NOCASE
+      LIMIT ?
+      ''',
+      [prefixPattern, prefixPattern, limit],
     );
+    ingestRows(prefixRows);
+
+    const minPrefixHits = 10;
+    if (byId.length < minPrefixHits && byId.length < limit) {
+      final tokens = norm
+          .split(RegExp(r'[^a-z0-9]+'))
+          .where((t) => t.length >= 3)
+          .toList()
+        ..sort((a, b) => b.length.compareTo(a.length));
+      final useTokens = tokens.take(3).toList();
+      if (useTokens.isNotEmpty) {
+        final clauses = <String>[];
+        final wideArgs = <Object>[];
+        for (final tok in useTokens) {
+          final t = _sanitizeLikePrefix(tok);
+          if (t.isEmpty) continue;
+          final pat = '%$t%';
+          clauses.add(
+            '(name LIKE ? COLLATE NOCASE OR generic LIKE ? COLLATE NOCASE)',
+          );
+          wideArgs.add(pat);
+          wideArgs.add(pat);
+        }
+        if (clauses.isNotEmpty) {
+          wideArgs.add(limit);
+          final wideRows = await db.rawQuery(
+            'SELECT * FROM products WHERE ${clauses.join(' OR ')} LIMIT ?',
+            wideArgs,
+          );
+          ingestRows(wideRows);
+        }
+      }
+    }
+
+    final products = orderedIds.map((id) => Product.fromMap(byId[id]!)).toList();
+    if (products.length > limit) {
+      products.removeRange(limit, products.length);
+    }
+    await _populateProductsStockBatch(products, db);
+    return products;
+  }
+
+  Future<void> _populateProductsStockBatch(List<Product> products, Database db) async {
+    if (products.isEmpty) return;
+    final ids = products.map((p) => p.id).toList();
+    final placeholders = List.filled(ids.length, '?').join(',');
+    final allMaps = await db.query(
+      'product_batches',
+      where: 'productId IN ($placeholders)',
+      whereArgs: ids,
+    );
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final m in allMaps) {
+      final pid = m['productId'] as String;
+      grouped.putIfAbsent(pid, () => []).add(m);
+    }
+    for (final p in products) {
+      _applyBatchesToProduct(p, grouped[p.id] ?? const []);
+    }
+  }
+
+  void _applyBatchesToProduct(Product product, List<Map<String, dynamic>> batchMaps) {
     int totalPcs = 0;
     DateTime? nearestExpiry;
 
@@ -860,7 +966,27 @@ class DatabaseHelper {
     if (nearestExpiry != null) {
       product.expiryDate = nearestExpiry;
     }
+  }
 
+  Future<Product?> getProductByName(String name) async {
+    final db = await database;
+    final maps = await db.query(
+      'products',
+      where: 'LOWER(name) = LOWER(?)',
+      whereArgs: [name],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return await _populateProductStock(Product.fromMap(maps.first), db);
+  }
+
+  Future<Product> _populateProductStock(Product product, Database db) async {
+    final batchMaps = await db.query(
+      'product_batches',
+      where: 'productId = ?',
+      whereArgs: [product.id],
+    );
+    _applyBatchesToProduct(product, batchMaps);
     return product;
   }
 
@@ -931,6 +1057,117 @@ class DatabaseHelper {
     );
   }
 
+  /// Completes a new sale built from [cart] in one transaction:
+  /// 1) Generates a single invoice number for this transaction
+  /// 2) Deducts stock from available batches
+  /// 3) Inserts sale records
+  Future<String> completeSale(List<CartItem> cart) async {
+    final db = await database;
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+
+    return await db.transaction((txn) async {
+      // 1) Generate next invoice number inside transaction.
+      final counterResult = await txn.query(
+        'invoice_counter',
+        where: 'date = ?',
+        whereArgs: [dateStr],
+      );
+      var nextCount = 1;
+      if (counterResult.isEmpty) {
+        await txn.insert('invoice_counter', {'date': dateStr, 'counter': 1});
+      } else {
+        nextCount = ((counterResult.first['counter'] as int?) ?? 0) + 1;
+        await txn.update(
+          'invoice_counter',
+          {'counter': nextCount},
+          where: 'date = ?',
+          whereArgs: [dateStr],
+        );
+      }
+      final newInvoice = 'INV-$dateStr-${nextCount.toString().padLeft(3, '0')}';
+
+      // 2) Insert sale rows and deduct stock
+      for (final item in cart) {
+        var totalPiecesToDeduct =
+            (item.stripQuantity * item.product.pcsPerStrip) + item.pcQuantity;
+        if (totalPiecesToDeduct <= 0) continue;
+
+        final totalItemAmount = item.total;
+        final originalTotalPieces = totalPiecesToDeduct;
+
+        final batches = await txn.query(
+          'product_batches',
+          where: 'productId = ? AND remainingPieces > 0',
+          whereArgs: [item.product.id],
+          orderBy: 'expiryDate ASC',
+        );
+
+        for (final batch in batches) {
+          if (totalPiecesToDeduct <= 0) break;
+          final remaining = (batch['remainingPieces'] as int?) ?? 0;
+          final deductAmount = remaining < totalPiecesToDeduct
+              ? remaining
+              : totalPiecesToDeduct;
+          if (deductAmount <= 0) continue;
+
+          final batchAmount = (deductAmount / originalTotalPieces) * totalItemAmount;
+          await txn.insert(
+            'sales',
+            SaleRecord(
+              id:
+                  'ORD-${DateTime.now().millisecondsSinceEpoch}-${item.product.id}-${batch['id']}',
+              productName: item.product.name,
+              quantity: deductAmount,
+              amount: batchAmount,
+              date: DateTime.now(),
+              invoiceNumber: newInvoice,
+              batchNumber: batch['batchNumber'] as String?,
+              medType: item.product.medType,
+              power: item.product.power,
+              costPricePerPc: (batch['costPricePerPc'] as num?)?.toDouble() ?? 0.0,
+            ).toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+
+          await txn.update(
+            'product_batches',
+            {'remainingPieces': remaining - deductAmount},
+            where: 'id = ?',
+            whereArgs: [batch['id']],
+          );
+
+          totalPiecesToDeduct -= deductAmount;
+        }
+
+        // Preserve old behavior for oversold remainder.
+        if (totalPiecesToDeduct > 0) {
+          final oversoldAmount =
+              (totalPiecesToDeduct / originalTotalPieces) * totalItemAmount;
+          await txn.insert(
+            'sales',
+            SaleRecord(
+              id:
+                  'ORD-${DateTime.now().millisecondsSinceEpoch}-${item.product.id}-OVERSOLD',
+              productName: item.product.name,
+              quantity: totalPiecesToDeduct,
+              amount: oversoldAmount,
+              date: DateTime.now(),
+              invoiceNumber: newInvoice,
+              batchNumber: 'OVERSOLD',
+              medType: item.product.medType,
+              power: item.product.power,
+              costPricePerPc: 0.0,
+            ).toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+
+      return newInvoice;
+    });
+  }
   /// Replaces an existing invoice with a new sale built from [cart] in one
   /// transaction:
   /// 1) restore stock for the old invoice's active (non-returned) quantities,
@@ -1108,37 +1345,42 @@ class DatabaseHelper {
     final newReturnedQty = sale.returnedQuantity + returnQty;
     final isFullyReturned = newReturnedQty >= sale.quantity;
 
-    // 1. Mark as returned
-    await db.update(
-      'sales',
-      {
-        'isReturned': isFullyReturned ? 1 : 0,
-        'returnedQuantity': newReturnedQty,
-      },
-      where: 'id = ?',
-      whereArgs: [sale.id],
-    );
-
-    // 2. Find batch and add stock back
-    if (sale.batchNumber != null &&
-        sale.batchNumber!.isNotEmpty &&
-        sale.batchNumber != 'OVERSOLD') {
-      final batchMaps = await db.query(
-        'product_batches',
-        where: 'batchNumber = ?',
-        whereArgs: [sale.batchNumber],
+    // Both the sale-flag update and the stock restore run inside one
+    // transaction so the DB is never left in a half-returned state if
+    // the app is killed between the two writes.
+    await db.transaction((txn) async {
+      // 1. Mark sale as returned.
+      await txn.update(
+        'sales',
+        {
+          'isReturned': isFullyReturned ? 1 : 0,
+          'returnedQuantity': newReturnedQty,
+        },
+        where: 'id = ?',
+        whereArgs: [sale.id],
       );
-      if (batchMaps.isNotEmpty) {
-        final batch = batchMaps.first;
-        final int remaining = batch['remainingPieces'] as int;
-        await db.update(
+
+      // 2. Restore stock to the originating batch.
+      if (sale.batchNumber != null &&
+          sale.batchNumber!.isNotEmpty &&
+          sale.batchNumber != 'OVERSOLD') {
+        final batchMaps = await txn.query(
           'product_batches',
-          {'remainingPieces': remaining + returnQty},
-          where: 'id = ?',
-          whereArgs: [batch['id']],
+          where: 'batchNumber = ?',
+          whereArgs: [sale.batchNumber],
         );
+        if (batchMaps.isNotEmpty) {
+          final batch = batchMaps.first;
+          final int remaining = batch['remainingPieces'] as int;
+          await txn.update(
+            'product_batches',
+            {'remainingPieces': remaining + returnQty},
+            where: 'id = ?',
+            whereArgs: [batch['id']],
+          );
+        }
       }
-    }
+    });
   }
 
   /// Voids an entire invoice by fully returning every sale record in [sales].
@@ -1190,12 +1432,14 @@ class DatabaseHelper {
 
   Future<List<SaleRecord>> getSalesInRange(DateTime start, DateTime end) async {
     final db = await database;
+    // Ensure 'end' captures the entire day without bleeding into the next 24 hours.
+    final endOfDay = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
     final maps = await db.query(
       'sales',
       where: 'date >= ? AND date <= ?',
       whereArgs: [
         start.toIso8601String(),
-        end.add(const Duration(days: 1)).toIso8601String(),
+        endOfDay.toIso8601String(),
       ],
       orderBy: 'date DESC',
     );
