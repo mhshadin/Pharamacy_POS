@@ -994,13 +994,17 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('[OCR] camera flow: handleOcrImageFile finished');
     } catch (e, st) {
       debugPrint('[OCR] camera flow ERROR: $e\n$st');
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(l10n.ocrError(e.toString())),
-            backgroundColor: AppColors.error,
-          ),
-        );
+      if (!context.mounted) {
+        // Skip snackbar — Provider/context unsafe after camera lifecycle.
+      } else {
+        try {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(l10n.ocrError(e.toString())),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        } catch (_) {}
       }
     } finally {
       if (loadingDialogOpen && context.mounted) {
@@ -1029,15 +1033,18 @@ class _HomeScreenState extends State<HomeScreen>
       if (file == null) return;
       final imageFile = await _preprocessImageForOcr(File(file.path));
       await _handleOcrImageFile(imageFile);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[OCR] gallery flow ERROR: $e\n$st');
       if (!context.mounted) return;
-      final l10n = context.read<LanguageProvider>().strings;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(l10n.ocrError(e.toString())),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      try {
+        final l10n = context.read<LanguageProvider>().strings;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(l10n.ocrError(e.toString())),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      } catch (_) {}
     } finally {
       _blockingBarcodeCameraWorkflowDepth--;
       if (context.mounted) _syncHomeScannerVisibility();
@@ -1067,12 +1074,14 @@ class _HomeScreenState extends State<HomeScreen>
     if (results.isEmpty) {
       await _deleteIfAppManagedOcrFile(imageFile);
       if (!context.mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(l10n.noMedicineDetected),
-          backgroundColor: AppColors.warningOrange,
-        ),
-      );
+      try {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(l10n.noMedicineDetected),
+            backgroundColor: AppColors.warningOrange,
+          ),
+        );
+      } catch (_) {}
       return;
     }
     if (!context.mounted) return;

@@ -318,7 +318,7 @@ class OcrService {
       regions = await _enhanceRegionsWithStripAi(imageFile, regions);
       debugPrint('[OCR] process: after strip AI regions=${regions.length}');
     }
-    final cleaned = _cleanRegions(regions);
+    final cleaned = _cleanRegionsWithNoiseFallback(regions);
     debugPrint('[OCR] process: cleaned=${cleaned.length} matching…');
     final swMatch = Stopwatch()..start();
     final matched = fetchCandidatesForOcr != null
@@ -452,6 +452,28 @@ class OcrService {
   /// Removes noise tokens — pure numbers, dates, dosage labels, etc.
   static List<OcrTextRegion> _cleanRegions(List<OcrTextRegion> regions) {
     return _cleanRegionsDetailed(regions).kept;
+  }
+
+  /// Same as [_cleanRegions], but if **every** line is classified as noise yet
+  /// some lines are non-empty (e.g. short strip-AI tokens), keep trimmed raw
+  /// lines so DB matching can still run.
+  static List<OcrTextRegion> _cleanRegionsWithNoiseFallback(
+    List<OcrTextRegion> regions,
+  ) {
+    final cleaned = _cleanRegions(regions);
+    if (cleaned.isNotEmpty || regions.isEmpty) return cleaned;
+    final fallback = <OcrTextRegion>[];
+    for (final r in regions) {
+      final t = r.text.trim();
+      if (t.isEmpty) continue;
+      fallback.add(OcrTextRegion(t, r.boundingBox));
+    }
+    if (fallback.isEmpty) return cleaned;
+    debugPrint(
+      '[OCR] cleanup dropped all ${regions.length} regions; '
+      'fallback match on ${fallback.length} raw line(s)',
+    );
+    return fallback;
   }
 
   static _CleanedRegions _cleanRegionsDetailed(List<OcrTextRegion> regions) {
