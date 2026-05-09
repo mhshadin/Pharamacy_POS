@@ -953,7 +953,7 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
 
-      if (!mounted) return;
+      if (!context.mounted) return;
 
       loadingDialogOpen = true;
       debugPrint('[OCR] camera flow: showing loading dialog');
@@ -994,8 +994,8 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('[OCR] camera flow: handleOcrImageFile finished');
     } catch (e, st) {
       debugPrint('[OCR] camera flow ERROR: $e\n$st');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(l10n.ocrError(e.toString())),
             backgroundColor: AppColors.error,
@@ -1003,13 +1003,16 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
-      if (mounted && loadingDialogOpen) {
-        debugPrint('[OCR] camera flow: dismissing loading dialog');
-        Navigator.of(context).pop();
+      if (loadingDialogOpen && context.mounted) {
+        final nav = Navigator.maybeOf(context);
+        if (nav != null && nav.canPop()) {
+          debugPrint('[OCR] camera flow: dismissing loading dialog');
+          nav.pop();
+        }
         loadingDialogOpen = false;
       }
       _blockingBarcodeCameraWorkflowDepth--;
-      if (mounted) _syncHomeScannerVisibility();
+      if (context.mounted) _syncHomeScannerVisibility();
     }
   }
 
@@ -1027,9 +1030,9 @@ class _HomeScreenState extends State<HomeScreen>
       final imageFile = await _preprocessImageForOcr(File(file.path));
       await _handleOcrImageFile(imageFile);
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       final l10n = context.read<LanguageProvider>().strings;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: Text(l10n.ocrError(e.toString())),
           backgroundColor: AppColors.error,
@@ -1037,14 +1040,16 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } finally {
       _blockingBarcodeCameraWorkflowDepth--;
-      if (mounted) _syncHomeScannerVisibility();
+      if (context.mounted) _syncHomeScannerVisibility();
     }
   }
 
   Future<void> _handleOcrImageFile(File imageFile) async {
+    if (!context.mounted) return;
     final l10n = context.read<LanguageProvider>().strings;
     final products = context.read<POSProvider>().products;
     final useStripAi = await StripAiModelStore.instance.isInstalled();
+    if (!context.mounted) return;
     debugPrint(
       '[OCR] process start path=${imageFile.path} stripAi=$useStripAi products=${products.length}',
     );
@@ -1058,11 +1063,11 @@ class _HomeScreenState extends State<HomeScreen>
     debugPrint(
       '[OCR] process done in ${sw.elapsedMilliseconds}ms results=${results.length}',
     );
-    if (!mounted) return;
+    if (!context.mounted) return;
     if (results.isEmpty) {
       await _deleteIfAppManagedOcrFile(imageFile);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: Text(l10n.noMedicineDetected),
           backgroundColor: AppColors.warningOrange,
@@ -1070,6 +1075,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
       return;
     }
+    if (!context.mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
