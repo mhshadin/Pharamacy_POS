@@ -33,7 +33,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceStripCtrl = TextEditingController();
   final _buyingPriceBoxCtrl = TextEditingController();
   final _buyingPriceStripCtrl = TextEditingController();
-  final _stripsPerBoxCtrl = TextEditingController(text: '10');
+  final _stripsPerBoxCtrl = TextEditingController();
   final _pcsPerStripCtrl = TextEditingController(text: '10');
   final _stockBoxesCtrl = TextEditingController();
   final _stockStripsCtrl = TextEditingController();
@@ -54,6 +54,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         final admin = context.read<AdminProvider>();
         setState(() {
           _lowStockWarningCtrl.text = admin.lowStockThreshold.toString();
+          _stripsPerBoxCtrl.text = admin.defaultStripsPerBox.toString();
         });
       }
     });
@@ -322,7 +323,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _priceStripCtrl.clear();
     _buyingPriceBoxCtrl.clear();
     _buyingPriceStripCtrl.clear();
-    _stripsPerBoxCtrl.text = '1';
+
+    if (!mounted) return;
+    
+    _stripsPerBoxCtrl.text = context
+        .read<AdminProvider>()
+        .defaultStripsPerBox
+        .toString();
     _pcsPerStripCtrl.text = '10';
     _stockBoxesCtrl.clear();
     _stockStripsCtrl.clear();
@@ -1072,7 +1079,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                                     .allProducts
                                                     .where(
                                                       (p) =>
-                                                          p.barcode == code,
+                                                          p.barcode != null &&
+                                                          p.barcode!
+                                                              .toLowerCase() ==
+                                                              code
+                                                                  .toLowerCase(),
                                                     )
                                                     .firstOrNull;
                                                 if (existing != null) {

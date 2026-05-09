@@ -805,7 +805,10 @@ class DatabaseHelper {
 
   Future<List<Product>> getAllProducts() async {
     final db = await database;
-    final maps = await db.query('products', orderBy: 'name ASC');
+    final maps = await db.query(
+      'products',
+      orderBy: 'name COLLATE NOCASE ASC',
+    );
     final products = maps.map((m) => Product.fromMap(m)).toList();
     for (var p in products) {
       await _populateProductStock(p, db);
@@ -824,7 +827,7 @@ class DatabaseHelper {
     final db = await database;
     final maps = await db.query(
       'products',
-      where: 'barcode = ?',
+      where: 'barcode IS NOT NULL AND LOWER(barcode) = LOWER(?)',
       whereArgs: [barcode],
     );
     if (maps.isEmpty) return null;
@@ -1186,7 +1189,7 @@ class DatabaseHelper {
       // 1) Restore stock from old invoice active quantities.
       final oldMaps = await txn.query(
         'sales',
-        where: 'invoiceNumber = ?',
+        where: 'LOWER(invoiceNumber) = LOWER(?)',
         whereArgs: [sourceInvoiceNumber],
       );
       for (final map in oldMaps) {
@@ -1200,7 +1203,8 @@ class DatabaseHelper {
         }
         final batchMaps = await txn.query(
           'product_batches',
-          where: 'batchNumber = ?',
+          where:
+              'batchNumber IS NOT NULL AND LOWER(batchNumber) = LOWER(?)',
           whereArgs: [sale.batchNumber],
           limit: 1,
         );
@@ -1218,7 +1222,7 @@ class DatabaseHelper {
       // 2) Hard-delete all old invoice rows.
       await txn.delete(
         'sales',
-        where: 'invoiceNumber = ?',
+        where: 'LOWER(invoiceNumber) = LOWER(?)',
         whereArgs: [sourceInvoiceNumber],
       );
 
@@ -1329,12 +1333,14 @@ class DatabaseHelper {
       final maps = await db.query('sales', orderBy: 'date DESC');
       return maps.map((m) => SaleRecord.fromMap(m)).toList();
     }
-    // Use LIKE for partial matching to be more forgiving with typos
-    final maps = await db.query(
-      'sales',
-      where: 'invoiceNumber LIKE ? OR productName LIKE ?',
-      whereArgs: ['%$invoiceQuery%', '%$invoiceQuery%'],
-      orderBy: 'date DESC',
+    // LIKE + COLLATE NOCASE: explicit case-insensitive match on invoice / line name
+    final maps = await db.rawQuery(
+      '''
+      SELECT * FROM sales
+      WHERE invoiceNumber LIKE ? COLLATE NOCASE OR productName LIKE ? COLLATE NOCASE
+      ORDER BY date DESC
+      ''',
+      ['%$invoiceQuery%', '%$invoiceQuery%'],
     );
     return maps.map((m) => SaleRecord.fromMap(m)).toList();
   }
@@ -1366,7 +1372,8 @@ class DatabaseHelper {
           sale.batchNumber != 'OVERSOLD') {
         final batchMaps = await txn.query(
           'product_batches',
-          where: 'batchNumber = ?',
+          where:
+              'batchNumber IS NOT NULL AND LOWER(batchNumber) = LOWER(?)',
           whereArgs: [sale.batchNumber],
         );
         if (batchMaps.isNotEmpty) {
@@ -1407,7 +1414,8 @@ class DatabaseHelper {
           sale.batchNumber != 'OVERSOLD') {
         final batchMaps = await db.query(
           'product_batches',
-          where: 'batchNumber = ?',
+          where:
+              'batchNumber IS NOT NULL AND LOWER(batchNumber) = LOWER(?)',
           whereArgs: [sale.batchNumber],
         );
         if (batchMaps.isNotEmpty) {
