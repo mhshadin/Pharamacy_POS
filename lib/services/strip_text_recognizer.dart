@@ -8,6 +8,23 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 
 import 'strip_ai_model_store.dart';
 
+void _logAiStripDecode(
+  int index,
+  int total,
+  Rect box,
+  int elapsedMs,
+  String? decodedText,
+) {
+  final oneLine = decodedText == null
+      ? '(null)'
+      : '"${decodedText.replaceAll(RegExp(r'[\r\n]+'), ' ').replaceAll('"', "'")}"';
+  debugPrint(
+    '[StripAI] modelOut [$index/$total] ${elapsedMs}ms '
+    'rect=${box.left.toInt()},${box.top.toInt()},'
+    '${box.width.toInt()}x${box.height.toInt()} decoded=$oneLine',
+  );
+}
+
 /// On-device strip-crop text recognition: **OpenCV CRNN ONNX** (default) or CRNN-style TFLite.
 class StripTextRecognizer {
   StripTextRecognizer._();
@@ -199,14 +216,11 @@ class StripTextRecognizer {
         results.add(null);
       }
       final ms = t0.elapsedMilliseconds;
-      if (boxes.length <= 20 || i == 0 || i == boxes.length - 1 || ms > 500) {
-        debugPrint(
-          '[StripAI] strip $i/${boxes.length} infer ${ms}ms out=${results.last}',
-        );
-      }
+      _logAiStripDecode(i, boxes.length, box, ms, results.last);
     }
     debugPrint(
-      '[StripAI] readStrips total infer ${swInfer.elapsedMilliseconds}ms',
+      '[StripAI] readStrips total infer ${swInfer.elapsedMilliseconds}ms '
+      'modelOutputs=${results.map((e) => e ?? '(null)').join(' | ')}',
     );
     return results;
   }

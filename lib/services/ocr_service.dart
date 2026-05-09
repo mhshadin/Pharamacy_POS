@@ -221,11 +221,20 @@ class OcrService {
       debugPrint('[StripAI] enhance: readStrips cluster mode complete');
       final out = <OcrTextRegion>[];
       for (var i = 0; i < boxes.length; i++) {
-        var text = texts[i];
-        if (text == null || text.trim().isEmpty) {
+        final rawModel = texts[i];
+        final usedMlKitFallback =
+            rawModel == null || rawModel.trim().isEmpty;
+        final String text;
+        if (usedMlKitFallback) {
           text = _fallbackMlKitText(clusterRefs[i].regions);
+        } else {
+          text = rawModel;
         }
         final trimmed = text.trim();
+        debugPrint(
+          '[StripAI] cluster[$i] modelRaw=${rawModel ?? '(null)'} '
+          'final="$trimmed" mlKitFallback=$usedMlKitFallback',
+        );
         if (trimmed.isEmpty) continue;
         out.add(OcrTextRegion(trimmed, boxes[i]));
       }
@@ -247,9 +256,21 @@ class OcrService {
     final out = List<OcrTextRegion>.from(mlkitRegions);
     for (var j = 0; j < indices.length; j++) {
       final i = indices[j];
-      var t = texts[j];
-      if (t == null || t.trim().isEmpty) t = mlkitRegions[i].text;
-      out[i] = OcrTextRegion(t.trim(), mlkitRegions[i].boundingBox);
+      final rawModel = texts[j];
+      final usedMlKitFallback =
+          rawModel == null || rawModel.trim().isEmpty;
+      final String t;
+      if (usedMlKitFallback) {
+        t = mlkitRegions[i].text;
+      } else {
+        t = rawModel;
+      }
+      final trimmed = t.trim();
+      debugPrint(
+        '[StripAI] line[mlkit#$i] modelRaw=${rawModel ?? '(null)'} '
+        'final="$trimmed" mlKitFallback=$usedMlKitFallback',
+      );
+      out[i] = OcrTextRegion(trimmed, mlkitRegions[i].boundingBox);
     }
     return out;
   }
