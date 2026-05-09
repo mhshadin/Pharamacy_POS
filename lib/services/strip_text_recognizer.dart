@@ -3,18 +3,26 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:onnxruntime/onnxruntime.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import 'strip_ai_model_store.dart';
 
-/// On-device TFLite text recognition for strip crops (CRNN-style: [B,H,W,C] → [B,T,C]).
+/// On-device strip-crop text recognition: **OpenCV CRNN ONNX** (default) or CRNN-style TFLite.
 class StripTextRecognizer {
   StripTextRecognizer._();
   static final StripTextRecognizer instance = StripTextRecognizer._();
 
   static const _charsetAsset = 'assets/strip_ai/ocr_charset.txt';
 
+  /// OpenCV `blobFromImage` layout: NCHW [1, 1, 32, 100], float32, `(gray - 127.5) / 127.5`.
+  static const List<int> _openCvEnInputShape = [1, 1, 32, 100];
+
   Interpreter? _interpreter;
+  OrtSession? _ortSession;
+  OrtSessionOptions? _ortSessionOptions;
+  String? _ortInputName;
+
   List<String> _charset = [];
   String? _loadedPath;
   int _loadedMtimeMs = 0;
@@ -26,9 +34,20 @@ class StripTextRecognizer {
       _interpreter?.close();
     } catch (_) {}
     _interpreter = null;
+    try {
+      _ortSession?.release();
+    } catch (_) {}
+    _ortSession = null;
+    try {
+      _ortSessionOptions?.release();
+    } catch (_) {}
+    _ortSessionOptions = null;
+    _ortInputName = null;
     _loadedPath = null;
     _loadedMtimeMs = 0;
   }
+
+  bool get _hasBackend => _interpreter != null || _ortSession != null;
 
   Future<List<String>> _loadCharset() async {
     final raw = await rootBundle.loadString(_charsetAsset);
@@ -57,7 +76,7 @@ class StripTextRecognizer {
       return false;
     }
 
-    if (_interpreter != null &&
+    if (_hasBackend &&
         _loadedPath == file.path &&
         _loadedMtimeMs == mtimeMs) {
       return true;
@@ -68,37 +87,11 @@ class StripTextRecognizer {
       _charset = await _loadCharset();
       if (_charset.isEmpty) return false;
 
-      final interpreter = Interpreter.fromFile(file);
-      final inT = interpreter.getInputTensors().first;
-      final outT = interpreter.getOutputTensors().first;
-      final ishape = inT.shape;
-      final oshape = outT.shape;
-
-      if (ishape.length != 4) {
-        interpreter.close();
-        return false;
+      final lower = file.path.toLowerCase();
+      if (lower.endsWith('.onnx')) {
+        return _loadOnnx(file, mtimeMs);
       }
-      final int numClasses;
-      if (oshape.length == 3) {
-        numClasses = oshape[2];
-      } else if (oshape.length == 2) {
-        numClasses = oshape[1];
-      } else {
-        interpreter.close();
-        return false;
-      }
-      if (numClasses != _charset.length + 1) {
-        debugPrint(
-          'StripTextRecognizer: output classes $numClasses != charset+1 ${_charset.length + 1}',
-        );
-        interpreter.close();
-        return false;
-      }
-
-      _interpreter = interpreter;
-      _loadedPath = file.path;
-      _loadedMtimeMs = mtimeMs;
-      return true;
+      return _loadTflite(file, mtimeMs);
     } catch (e, st) {
       debugPrint('StripTextRecognizer load failed: $e\n$st');
       unload();
@@ -106,12 +99,70 @@ class StripTextRecognizer {
     }
   }
 
+  bool _loadOnnx(File file, int mtimeMs) {
+    final options = OrtSessionOptions();
+    options.setIntraOpNumThreads(2);
+    options.setSessionGraphOptimizationLevel(GraphOptimizationLevel.ortEnableAll);
+    late OrtSession session;
+    try {
+      session = OrtSession.fromFile(file, options);
+    } catch (_) {
+      options.release();
+      rethrow;
+    }
+    if (session.inputNames.isEmpty) {
+      session.release();
+      options.release();
+      return false;
+    }
+    _ortSession = session;
+    _ortSessionOptions = options;
+    _ortInputName = session.inputNames.first;
+    _loadedPath = file.path;
+    _loadedMtimeMs = mtimeMs;
+    return true;
+  }
+
+  bool _loadTflite(File file, int mtimeMs) {
+    final interpreter = Interpreter.fromFile(file);
+    final inT = interpreter.getInputTensors().first;
+    final outT = interpreter.getOutputTensors().first;
+    final ishape = inT.shape;
+    final oshape = outT.shape;
+
+    if (ishape.length != 4) {
+      interpreter.close();
+      return false;
+    }
+    final int numClasses;
+    if (oshape.length == 3) {
+      numClasses = oshape[2];
+    } else if (oshape.length == 2) {
+      numClasses = oshape[1];
+    } else {
+      interpreter.close();
+      return false;
+    }
+    if (numClasses != _charset.length + 1) {
+      debugPrint(
+        'StripTextRecognizer: TFLite classes $numClasses != charset+1 ${_charset.length + 1}',
+      );
+      interpreter.close();
+      return false;
+    }
+
+    _interpreter = interpreter;
+    _loadedPath = file.path;
+    _loadedMtimeMs = mtimeMs;
+    return true;
+  }
+
   /// Runs recognition on each [boxes] crop; returns `null` entries when inference fails.
   Future<List<String?>> readStripsFromFile(
     File imageFile,
     List<Rect> boxes,
   ) async {
-    if (!await ensureLoaded() || _interpreter == null || boxes.isEmpty) {
+    if (!await ensureLoaded() || !_hasBackend || boxes.isEmpty) {
       return List<String?>.filled(boxes.length, null);
     }
 
@@ -122,7 +173,11 @@ class StripTextRecognizer {
     final results = <String?>[];
     for (final box in boxes) {
       try {
-        results.add(_runOnCrop(decoded, box));
+        if (_ortSession != null) {
+          results.add(_runOnnxCrop(decoded, box));
+        } else {
+          results.add(_runTfliteCrop(decoded, box));
+        }
       } catch (_) {
         results.add(null);
       }
@@ -130,7 +185,112 @@ class StripTextRecognizer {
     return results;
   }
 
-  String? _runOnCrop(img.Image full, Rect box) {
+  String? _runOnnxCrop(img.Image full, Rect box) {
+    final session = _ortSession!;
+    final inputName = _ortInputName!;
+
+    final left = (box.left - 8).floor().clamp(0, full.width - 1);
+    final top = (box.top - 4).floor().clamp(0, full.height - 1);
+    final right = (box.right + 8).ceil().clamp(1, full.width);
+    final bottom = (box.bottom + 4).ceil().clamp(1, full.height);
+    final cw = (right - left).clamp(1, full.width);
+    final chh = (bottom - top).clamp(1, full.height);
+
+    var crop = img.copyCrop(full, x: left, y: top, width: cw, height: chh);
+    crop = img.copyResize(crop, width: 100, height: 32);
+
+    final buf = Float32List(1 * 1 * 32 * 100);
+    var idx = 0;
+    for (var y = 0; y < 32; y++) {
+      for (var x = 0; x < 100; x++) {
+        final p = crop.getPixel(x, y);
+        final g = p.luminance.toDouble();
+        buf[idx++] = (g - 127.5) / 127.5;
+      }
+    }
+
+    final inputTensor = OrtValueTensor.createTensorWithDataList(
+      buf,
+      _openCvEnInputShape,
+    );
+    final runOptions = OrtRunOptions();
+    final List<OrtValue?> outputs;
+    try {
+      outputs = session.run(runOptions, {inputName: inputTensor});
+    } finally {
+      inputTensor.release();
+      runOptions.release();
+    }
+
+    if (outputs.isEmpty) {
+      for (final o in outputs) {
+        o?.release();
+      }
+      return null;
+    }
+
+    try {
+      final scores = _scoresFromOnnxOutput(outputs.first?.value);
+      if (scores == null) return null;
+      if (scores.isEmpty) return null;
+      final classes = scores.first.length;
+      if (classes != _charset.length + 1) {
+        debugPrint(
+          'StripTextRecognizer: ONNX row C=$classes != charset+1 ${_charset.length + 1}',
+        );
+        return null;
+      }
+
+      final bestPath = List<int>.generate(scores.length, (t) {
+        var best = 0;
+        var bestV = double.negativeInfinity;
+        final row = scores[t];
+        for (var c = 0; c < classes; c++) {
+          final v = row[c];
+          if (v > bestV) {
+            bestV = v;
+            best = c;
+          }
+        }
+        return best;
+      });
+
+      final text = _ctcGreedy(bestPath);
+      final trimmed = text.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    } finally {
+      for (final o in outputs) {
+        o?.release();
+      }
+    }
+  }
+
+  List<List<double>>? _scoresFromOnnxOutput(dynamic raw) {
+    if (raw is List && raw.length == 1 && raw[0] is List) {
+      return _scoresFromOnnxOutput(raw[0]);
+    }
+    if (raw is! List || raw.isEmpty) return null;
+    final head = raw[0];
+    if (head is List &&
+        head.isNotEmpty &&
+        head[0] is List &&
+        (head[0] as List).isNotEmpty &&
+        (head[0] as List)[0] is num) {
+      final t = raw.length;
+      return List.generate(t, (i) {
+        final mid = (raw[i] as List)[0] as List;
+        return mid.map((e) => (e as num).toDouble()).toList();
+      });
+    }
+    if (head is List && head.isNotEmpty && head[0] is num) {
+      return raw.map((row) {
+        return (row as List).map((e) => (e as num).toDouble()).toList();
+      }).toList();
+    }
+    return null;
+  }
+
+  String? _runTfliteCrop(img.Image full, Rect box) {
     final interpreter = _interpreter!;
     final inTensor = interpreter.getInputTensors().first;
     final outTensor = interpreter.getOutputTensors().first;
@@ -154,9 +314,9 @@ class StripTextRecognizer {
     final inputType = inTensor.type;
     Object input;
     if (inputType == TensorType.float32) {
-      input = _buildFloatInput(crop, th, tw, ch);
+      input = _buildTfliteFloatInput(crop, th, tw, ch);
     } else if (inputType == TensorType.uint8) {
-      input = _buildUint8Input(crop, th, tw, ch);
+      input = _buildTfliteUint8Input(crop, th, tw, ch);
     } else {
       return null;
     }
@@ -206,7 +366,7 @@ class StripTextRecognizer {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  List<List<List<List<double>>>> _buildFloatInput(
+  List<List<List<List<double>>>> _buildTfliteFloatInput(
     img.Image crop,
     int th,
     int tw,
@@ -237,7 +397,7 @@ class StripTextRecognizer {
     return out;
   }
 
-  List<List<List<List<int>>>> _buildUint8Input(
+  List<List<List<List<int>>>> _buildTfliteUint8Input(
     img.Image crop,
     int th,
     int tw,

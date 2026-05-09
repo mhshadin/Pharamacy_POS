@@ -14,7 +14,7 @@ class StripAiDownloadException implements Exception {
   String toString() => message;
 }
 
-/// Persists optional TFLite strip reader under application support storage.
+/// Persists optional ONNX/TFLite strip reader under application support storage.
 class StripAiModelStore {
   StripAiModelStore._();
   static final StripAiModelStore instance = StripAiModelStore._();

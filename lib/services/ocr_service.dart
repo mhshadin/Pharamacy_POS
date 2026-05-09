@@ -179,7 +179,7 @@ class OcrService {
     return results;
   }
 
-  /// ML Kit layout + optional per-crop TFLite text; falls back to ML Kit strings.
+  /// ML Kit layout + optional per-crop ONNX/TFLite text; falls back to ML Kit strings.
   static Future<List<OcrTextRegion>> _enhanceRegionsWithStripAi(
     File imageFile,
     List<OcrTextRegion> mlkitRegions,

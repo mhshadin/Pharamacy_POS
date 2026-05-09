@@ -1,23 +1,26 @@
-/// Configuration for optional on-device strip text model (TFLite).
+/// Configuration for optional on-device strip text model (ONNX or TFLite).
 ///
-/// Replace [modelDownloadUrl] with a direct HTTPS URL to your converted
-/// `.tflite` file (for example a Hugging Face `resolve/main/...` raw link).
+/// Default ships the OpenCV Zoo **English CRNN** ONNX from Hugging Face
+/// (`text_recognition_CRNN_EN_2022oct_int8.onnx`). You may replace the URL
+/// with another direct artifact link; `.onnx` and `.tflite` are detected by extension.
 class StripAiConfig {
   StripAiConfig._();
 
   static const String subdirName = 'strip_ai';
-  static const String modelFileName = 'strip_text.tflite';
 
-  /// Shown in Settings — opens in browser (model card / docs).
+  /// Downloaded model filename (must match [modelDownloadUrl] extension).
+  static const String modelFileName = 'strip_text.onnx';
+
+  /// Model card / docs (OpenCV CRNN on Hugging Face).
   static const String modelCardUrl =
-      'https://huggingface.co/microsoft/trocr-base-printed';
+      'https://huggingface.co/opencv/text_recognition_crnn';
 
-  /// Direct download URL for the mobile `.tflite` artifact.
-  /// Leave empty until you host a converted model; the app will show a message.
-  static const String modelDownloadUrl = '';
+  /// Direct HTTPS URL to the weight file (ONNX or TFLite).
+  static const String modelDownloadUrl =
+      'https://huggingface.co/opencv/text_recognition_crnn/resolve/main/text_recognition_CRNN_EN_2022oct_int8.onnx';
 
   /// Displayed in Settings when a file is installed.
-  static const String modelVersionLabel = '1';
+  static const String modelVersionLabel = 'opencv-crnn-en-int8-2022oct';
 
   /// Optional integrity check after download (lowercase hex, no spaces).
   static const String? expectedSha256 = null;

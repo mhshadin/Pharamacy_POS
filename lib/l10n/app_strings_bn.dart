@@ -490,7 +490,7 @@ class AppStringsBn implements AppStrings {
   String get stripAiTitle => 'স্ট্রিপ টেক্সট মডেল (ঐচ্ছিক)';
   @override
   String get stripAiSubtitle =>
-      'অন-ডিভাইসে স্ট্রিপ ক্রপ পড়তে রূপান্তরিত .tflite মডেল ডাউনলোড করুন। ছাড়া Google ML Kit OCR ব্যবহার হবে। অতিরিক্ত স্টোরেজ লাগে।';
+      'অন-ডিভাইসে স্ট্রিপ ক্রপ পড়তে ONNX বা TFLite CRNN ডাউনলোড করুন (ডিফল্ট: Hugging Face OpenCV ইংরেজি CRNN)। ছাড়া ML Kit OCR। অতিরিক্ত স্টোরেজ।';
   @override
   String get stripAiModelCardLink => 'মডেল তথ্য (Hugging Face)';
   @override
@@ -500,7 +500,7 @@ class AppStringsBn implements AppStrings {
   @override
   String get stripAiUsingMlKit => 'স্ট্রিপ রিডার: ML Kit (ডিফল্ট)';
   @override
-  String get stripAiUsingDownloaded => 'স্ট্রিপ রিডার: ডাউনলোড করা TFLite';
+  String get stripAiUsingDownloaded => 'স্ট্রিপ রিডার: ডাউনলোড করা মডেল';
   @override
   String stripAiVersion(String v) => 'ইনস্টল ভার্সন লেবেল: $v';
   @override
@@ -514,7 +514,7 @@ class AppStringsBn implements AppStrings {
   String get stripAiRemoveDone => 'মডেল সরানো হয়েছে। ML Kit OCR ব্যবহার হচ্ছে।';
   @override
   String get stripAiUrlNotConfigured =>
-      'অ্যাপে ডাউনলোড URL সেট নেই। strip_ai_config.dart এ সরাসরি .tflite লিংক যোগ করুন।';
+      'ডাউনলোড URL সেট নেই। strip_ai_config.dart এ সরাসরি .onnx বা .tflite লিংক দিন।';
   @override
   String get saveSettings => 'সেটিংস সংরক্ষণ করুন';
   @override

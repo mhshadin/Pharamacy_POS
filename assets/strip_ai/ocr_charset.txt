@@ -1,5 +1,5 @@
-# CTC: class 0 is blank. Each non-comment line = one symbol (class index = line order + 1).
-# Replace or extend to match your `.tflite` model output depth (last dim = lines below + 1).
+# OpenCV CRNN EN: class 0 = CTC blank. Lines below = CHARSET_EN_36 (0-9, a-z).
+# Source: opencv/text_recognition_crnn crnn.py — matches text_recognition_CRNN_EN_*.onnx
 #
 0
 1
@@ -11,32 +11,6 @@
 7
 8
 9
-A
-B
-C
-D
-E
-F
-G
-H
-I
-J
-K
-L
-M
-N
-O
-P
-Q
-R
-S
-T
-U
-V
-W
-X
-Y
-Z
 a
 b
 c
@@ -63,18 +37,3 @@ w
 x
 y
 z
- 
-.
-,
--
-_
-/
-+
-(
-)
-[
-]
-%
-&
-:
-*

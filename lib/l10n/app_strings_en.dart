@@ -483,7 +483,7 @@ class AppStringsEn implements AppStrings {
   String get stripAiTitle => 'Strip text model (optional)';
   @override
   String get stripAiSubtitle =>
-      'Download a converted .tflite model to read strip crops on-device. Without it, Google ML Kit OCR is used. Uses extra storage.';
+      'Download an ONNX or TFLite CRNN model (default URL: OpenCV English CRNN on Hugging Face). Without it, Google ML Kit OCR is used. Uses extra storage.';
   @override
   String get stripAiModelCardLink => 'Model info (Hugging Face)';
   @override
@@ -493,7 +493,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get stripAiUsingMlKit => 'Strip reader: ML Kit (default)';
   @override
-  String get stripAiUsingDownloaded => 'Strip reader: downloaded TFLite';
+  String get stripAiUsingDownloaded => 'Strip reader: downloaded model';
   @override
   String stripAiVersion(String v) => 'Installed version label: $v';
   @override
@@ -506,7 +506,7 @@ class AppStringsEn implements AppStrings {
   String get stripAiRemoveDone => 'Model removed. Using ML Kit OCR.';
   @override
   String get stripAiUrlNotConfigured =>
-      'No download URL is set in the app. Add a direct .tflite link in strip_ai_config.dart (modelDownloadUrl).';
+      'No download URL is set in the app. Set modelDownloadUrl in strip_ai_config.dart to a direct .onnx or .tflite link.';
   @override
   String get saveSettings => 'Save Settings';
   @override
