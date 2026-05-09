@@ -940,6 +940,7 @@ class _HomeScreenState extends State<HomeScreen>
     bool loadingDialogOpen = false;
 
     try {
+      debugPrint('[OCR] camera flow: opening picker');
       final picker = ImagePicker();
       final XFile? file = await picker.pickImage(
         source: ImageSource.camera,
@@ -948,12 +949,14 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       if (file == null) {
+        debugPrint('[OCR] camera flow: user cancelled picker');
         return;
       }
 
       if (!mounted) return;
 
       loadingDialogOpen = true;
+      debugPrint('[OCR] camera flow: showing loading dialog');
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -981,14 +984,17 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
 
+      debugPrint('[OCR] camera flow: preprocessing ${file.path}');
+      final sw = Stopwatch()..start();
       final imageFile = await _preprocessImageForOcr(File(file.path));
+      debugPrint(
+        '[OCR] camera flow: preprocess done in ${sw.elapsedMilliseconds}ms → ${imageFile.path}',
+      );
       await _handleOcrImageFile(imageFile);
-    } catch (e) {
+      debugPrint('[OCR] camera flow: handleOcrImageFile finished');
+    } catch (e, st) {
+      debugPrint('[OCR] camera flow ERROR: $e\n$st');
       if (mounted) {
-        if (loadingDialogOpen) {
-          loadingDialogOpen = false;
-          Navigator.pop(context);
-        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.ocrError(e.toString())),
@@ -997,6 +1003,11 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     } finally {
+      if (mounted && loadingDialogOpen) {
+        debugPrint('[OCR] camera flow: dismissing loading dialog');
+        Navigator.of(context).pop();
+        loadingDialogOpen = false;
+      }
       _blockingBarcodeCameraWorkflowDepth--;
       if (mounted) _syncHomeScannerVisibility();
     }
@@ -1034,11 +1045,18 @@ class _HomeScreenState extends State<HomeScreen>
     final l10n = context.read<LanguageProvider>().strings;
     final products = context.read<POSProvider>().products;
     final useStripAi = await StripAiModelStore.instance.isInstalled();
+    debugPrint(
+      '[OCR] process start path=${imageFile.path} stripAi=$useStripAi products=${products.length}',
+    );
+    final sw = Stopwatch()..start();
     final results = await OcrService.process(
       imageFile,
       products,
       fetchCandidatesForOcr: (t) => DatabaseHelper().getCandidatesForOcr(t),
       useStripAiModel: useStripAi,
+    );
+    debugPrint(
+      '[OCR] process done in ${sw.elapsedMilliseconds}ms results=${results.length}',
     );
     if (!mounted) return;
     if (results.isEmpty) {

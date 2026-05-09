@@ -63,6 +63,7 @@ class StripTextRecognizer {
   /// Loads model from [StripAiModelStore] if present and valid.
   Future<bool> ensureLoaded() async {
     final file = await StripAiModelStore.instance.modelFile();
+    debugPrint('[StripAI] ensureLoaded path=${file.path} exists=${await file.exists()}');
     if (!await file.exists()) {
       unload();
       return false;
@@ -79,6 +80,7 @@ class StripTextRecognizer {
     if (_hasBackend &&
         _loadedPath == file.path &&
         _loadedMtimeMs == mtimeMs) {
+      debugPrint('[StripAI] ensureLoaded cache hit');
       return true;
     }
 
@@ -89,9 +91,13 @@ class StripTextRecognizer {
 
       final lower = file.path.toLowerCase();
       if (lower.endsWith('.onnx')) {
-        return _loadOnnx(file, mtimeMs);
+        final ok = _loadOnnx(file, mtimeMs);
+        debugPrint('[StripAI] ONNX session ready=$ok');
+        return ok;
       }
-      return _loadTflite(file, mtimeMs);
+      final ok = _loadTflite(file, mtimeMs);
+      debugPrint('[StripAI] TFLite interpreter ready=$ok');
+      return ok;
     } catch (e, st) {
       debugPrint('StripTextRecognizer load failed: $e\n$st');
       unload();
@@ -163,15 +169,26 @@ class StripTextRecognizer {
     List<Rect> boxes,
   ) async {
     if (!await ensureLoaded() || !_hasBackend || boxes.isEmpty) {
+      debugPrint(
+        '[StripAI] readStrips skip loaded=$_hasBackend boxes=${boxes.length}',
+      );
       return List<String?>.filled(boxes.length, null);
     }
 
+    debugPrint(
+      '[StripAI] readStrips decode ${imageFile.path} boxes=${boxes.length} onnx=${_ortSession != null}',
+    );
+    final swDecode = Stopwatch()..start();
     final bytes = await imageFile.readAsBytes();
     final decoded = img.decodeImage(bytes);
+    debugPrint('[StripAI] readStrips decode ${swDecode.elapsedMilliseconds}ms');
     if (decoded == null) return List<String?>.filled(boxes.length, null);
 
     final results = <String?>[];
-    for (final box in boxes) {
+    final swInfer = Stopwatch()..start();
+    for (var i = 0; i < boxes.length; i++) {
+      final box = boxes[i];
+      final t0 = Stopwatch()..start();
       try {
         if (_ortSession != null) {
           results.add(_runOnnxCrop(decoded, box));
@@ -181,7 +198,16 @@ class StripTextRecognizer {
       } catch (_) {
         results.add(null);
       }
+      final ms = t0.elapsedMilliseconds;
+      if (boxes.length <= 20 || i == 0 || i == boxes.length - 1 || ms > 500) {
+        debugPrint(
+          '[StripAI] strip $i/${boxes.length} infer ${ms}ms out=${results.last}',
+        );
+      }
     }
+    debugPrint(
+      '[StripAI] readStrips total infer ${swInfer.elapsedMilliseconds}ms',
+    );
     return results;
   }
 

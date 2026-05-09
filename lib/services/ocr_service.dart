@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../models/product.dart';
@@ -157,8 +158,13 @@ class OcrService {
       throw UnsupportedError('OCR is only supported on Android and iOS.');
     }
 
+    debugPrint('[OCR] ML Kit processImage start ${imageFile.path}');
+    final sw = Stopwatch()..start();
     final inputImage = InputImage.fromFile(imageFile);
     final recognizedText = await _textRecognizer.processImage(inputImage);
+    debugPrint(
+      '[OCR] ML Kit processImage done ${sw.elapsedMilliseconds}ms blocks=${recognizedText.blocks.length}',
+    );
 
     final List<OcrTextRegion> results = [];
     for (final block in recognizedText.blocks) {
@@ -186,12 +192,18 @@ class OcrService {
   ) async {
     if (mlkitRegions.isEmpty) return mlkitRegions;
     final recognizer = StripTextRecognizer.instance;
-    if (!await recognizer.ensureLoaded()) return mlkitRegions;
+    debugPrint('[StripAI] enhance: mlkit lines=${mlkitRegions.length} ensureLoaded…');
+    final loaded = await recognizer.ensureLoaded();
+    debugPrint('[StripAI] enhance: ensureLoaded=$loaded charset=${recognizer.charset.length}');
+    if (!loaded) return mlkitRegions;
 
     final clusters = _buildStripClusters(mlkitRegions);
     final useStripLayout = _isGroupingReliableForStripAi(
       clusters,
       mlkitRegions.length,
+    );
+    debugPrint(
+      '[StripAI] enhance: clusters=${clusters.length} useStripLayout=$useStripLayout',
     );
 
     if (useStripLayout) {
@@ -204,7 +216,9 @@ class OcrService {
         clusterRefs.add(cluster);
       }
       if (boxes.isEmpty) return mlkitRegions;
+      debugPrint('[StripAI] enhance: cluster mode boxes=${boxes.length}');
       final texts = await recognizer.readStripsFromFile(imageFile, boxes);
+      debugPrint('[StripAI] enhance: readStrips cluster mode complete');
       final out = <OcrTextRegion>[];
       for (var i = 0; i < boxes.length; i++) {
         var text = texts[i];
@@ -227,7 +241,9 @@ class OcrService {
       boxes.add(b);
     }
     if (boxes.isEmpty) return mlkitRegions;
+    debugPrint('[StripAI] enhance: per-line mode boxes=${boxes.length}');
     final texts = await recognizer.readStripsFromFile(imageFile, boxes);
+    debugPrint('[StripAI] enhance: readStrips per-line mode complete');
     final out = List<OcrTextRegion>.from(mlkitRegions);
     for (var j = 0; j < indices.length; j++) {
       final i = indices[j];
@@ -274,11 +290,16 @@ class OcrService {
     OcrCandidateFetcher? fetchCandidatesForOcr,
     bool useStripAiModel = false,
   }) async {
+    debugPrint('[OCR] process: extractText… stripAi=$useStripAiModel');
     var regions = await extractText(imageFile);
+    debugPrint('[OCR] process: raw regions=${regions.length}');
     if (useStripAiModel) {
       regions = await _enhanceRegionsWithStripAi(imageFile, regions);
+      debugPrint('[OCR] process: after strip AI regions=${regions.length}');
     }
     final cleaned = _cleanRegions(regions);
+    debugPrint('[OCR] process: cleaned=${cleaned.length} matching…');
+    final swMatch = Stopwatch()..start();
     final matched = fetchCandidatesForOcr != null
         ? await _matchAgainstDbInternalAsync(
             cleaned,
@@ -291,7 +312,12 @@ class OcrService {
             debugAccumulator: null,
             fullRescoreIfNarrowedMiss: null,
           );
-    return _attachCrops(imageFile, cleaned, matched);
+    debugPrint(
+      '[OCR] process: matched=${matched.length} in ${swMatch.elapsedMilliseconds}ms attachCrops…',
+    );
+    final crops = await _attachCrops(imageFile, cleaned, matched);
+    debugPrint('[OCR] process: attachCrops done');
+    return crops;
   }
 
   static Future<OcrProcessDebugResult> processWithDebug(
