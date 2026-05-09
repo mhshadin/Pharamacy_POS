@@ -16,6 +16,10 @@ import 'package:path/path.dart' as p;
 import '../login_screen.dart';
 import '../../services/database_helper.dart';
 import '../../services/db_location_service.dart';
+import '../../services/strip_ai_config.dart';
+import '../../services/strip_ai_model_store.dart';
+import '../../services/strip_text_recognizer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,11 +38,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _expiryModerateCtrl = TextEditingController();
   final _expiryDelayCtrl = TextEditingController();
   final _defaultOrderBoxesCtrl = TextEditingController();
+  final _defaultStripsPerBoxCtrl = TextEditingController();
 
   bool _isLoading = false;
   bool _dbPathBusy = false;
   bool _usingCustomDbLocation = false;
   String? _dbLocationSummaryLine;
+  bool _stripAiInstalled = false;
+  bool _stripAiBusy = false;
+  double? _stripAiProgress;
 
   @override
   void initState() {
@@ -46,18 +54,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadCurrentSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _refreshDbLocationSummary();
-      if (!mounted) return;
-      final admin = context.read<AdminProvider>();
-      try {
-        await admin.refreshActiveSellerFromServer();
-        await admin.loadPharmacyDevices();
-      } on SessionExpiredException {
-        if (!mounted) return;
-        _redirectToLogin();
-        return;
-      }
+      await _refreshStripAiInstalled();
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _refreshStripAiInstalled() async {
+    final v = await StripAiModelStore.instance.isInstalled();
+    if (!mounted) return;
+    if (_stripAiInstalled != v) {
+      setState(() => _stripAiInstalled = v);
+    }
   }
 
   void _redirectToLogin() {
@@ -81,6 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _expiryModerateCtrl.text = admin.moderateExpiryDays.toString();
     _expiryDelayCtrl.text = admin.expiryDelayMonths.toString();
     _defaultOrderBoxesCtrl.text = admin.defaultOrderBoxes.toString();
+    _defaultStripsPerBoxCtrl.text = admin.defaultStripsPerBox.toString();
   }
 
   @override
@@ -91,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _expiryModerateCtrl.dispose();
     _expiryDelayCtrl.dispose();
     _defaultOrderBoxesCtrl.dispose();
+    _defaultStripsPerBoxCtrl.dispose();
     super.dispose();
   }
 
@@ -105,7 +114,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int expiryMod = int.tryParse(_expiryModerateCtrl.text) ?? 60;
     int expiryDelay = int.tryParse(_expiryDelayCtrl.text) ?? 6;
     int defaultOrderBoxes = int.tryParse(_defaultOrderBoxesCtrl.text) ?? 100;
+    int defaultStripsPerBox = int.tryParse(_defaultStripsPerBoxCtrl.text) ?? 10;
     if (defaultOrderBoxes <= 0) defaultOrderBoxes = 100;
+    if (defaultStripsPerBox <= 0) defaultStripsPerBox = 10;
 
     final l10n = context.read<LanguageProvider>().strings;
     if (expiryCrit > expiryMod || expiryMod > expiryWarn) {
@@ -130,6 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await admin.saveSetting('moderateExpiryDays', expiryMod.toString());
     await admin.saveSetting('expiryDelayMonths', expiryDelay.toString());
     await admin.saveSetting('defaultOrderBoxes', defaultOrderBoxes.toString());
+    await admin.saveSetting('defaultStripsPerBox', defaultStripsPerBox.toString());
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -214,6 +226,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           _buildLanguageSection(context),
           const SizedBox(height: 24),
+          _buildStripAiSection(context),
+          const SizedBox(height: 24),
           _buildSectionCard(
             title: 'Display & Behavior',
             icon: LucideIcons.layout,
@@ -273,6 +287,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: l10n.defaultBoxesToOrder,
                 helperText: l10n.defaultBoxesHelper,
                 icon: LucideIcons.packagePlus,
+              ),
+              const Divider(height: 32, color: AppColors.divider),
+              _buildTextField(
+                controller: _defaultStripsPerBoxCtrl,
+                label: l10n.defaultStripsPerBox,
+                helperText: l10n.defaultStripsPerBoxHelper,
+                icon: LucideIcons.package,
               ),
             ],
           ),
@@ -1719,6 +1740,168 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildStripAiSection(BuildContext context) {
+    final l10n = context.read<LanguageProvider>().strings;
+    return _buildSectionCard(
+      title: l10n.stripAiTitle,
+      icon: LucideIcons.scanLine,
+      children: [
+        Text(
+          l10n.stripAiSubtitle,
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.primaryDark.withValues(alpha: 0.75),
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _stripAiInstalled
+              ? l10n.stripAiUsingDownloaded
+              : l10n.stripAiUsingMlKit,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryDark,
+          ),
+        ),
+        if (_stripAiInstalled) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.stripAiVersion(StripAiConfig.modelVersionLabel),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.primaryDark.withValues(alpha: 0.65),
+            ),
+          ),
+        ],
+        if (_stripAiBusy && _stripAiProgress != null && _stripAiProgress! >= 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(value: _stripAiProgress),
+          )
+        else if (_stripAiBusy)
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(),
+          ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () async {
+              final uri = Uri.parse(StripAiConfig.modelCardUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(LucideIcons.externalLink, size: 18),
+            label: Text(l10n.stripAiModelCardLink),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _stripAiBusy
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        setState(() {
+                          _stripAiBusy = true;
+                          _stripAiProgress = null;
+                        });
+                        try {
+                          await StripAiModelStore.instance.download(
+                            onProgress: (p) {
+                              if (!context.mounted) return;
+                              setState(() {
+                                _stripAiProgress = p < 0 ? null : p;
+                              });
+                            },
+                          );
+                          StripTextRecognizer.instance.unload();
+                          await _refreshStripAiInstalled();
+                          if (!context.mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.stripAiDownloadComplete),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        } on StripAiDownloadException catch (e) {
+                          if (!context.mounted) return;
+                          final msg = switch (e.message) {
+                            'stripAiDownloadUrlNotConfigured' =>
+                              l10n.stripAiUrlNotConfigured,
+                            'stripAiInvalidUrl' => l10n.stripAiDownloadFailed,
+                            _ => l10n.stripAiDownloadFailedMsg(e.message),
+                          };
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(msg),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.stripAiDownloadFailedMsg(
+                                e.toString(),
+                              )),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        } finally {
+                          if (context.mounted) {
+                            setState(() {
+                              _stripAiBusy = false;
+                              _stripAiProgress = null;
+                            });
+                          }
+                        }
+                      },
+                icon: const Icon(LucideIcons.download, size: 18),
+                label: Text(l10n.stripAiDownload),
+              ),
+            ),
+            if (_stripAiInstalled) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _stripAiBusy
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          setState(() => _stripAiBusy = true);
+                          try {
+                            await StripAiModelStore.instance.deleteModel();
+                            StripTextRecognizer.instance.unload();
+                            await _refreshStripAiInstalled();
+                            if (!context.mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(l10n.stripAiRemoveDone),
+                              ),
+                            );
+                          } finally {
+                            if (context.mounted) {
+                              setState(() => _stripAiBusy = false);
+                            }
+                          }
+                        },
+                  icon: const Icon(LucideIcons.trash2, size: 18),
+                  label: Text(l10n.stripAiRemove),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildLanguageSection(BuildContext context) {
     final langProvider = context.watch<LanguageProvider>();
     final l10n = langProvider.strings;
@@ -1969,14 +2152,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (admin.pharmacyDevicesLoadError != null) ...[
           const SizedBox(height: 8),
           Text(
-            l10n.sellingDeviceListError,
+            admin.pharmacyDevicesLoadError!,
             style: const TextStyle(color: AppColors.error, fontSize: 12),
           ),
         ],
         const SizedBox(height: 8),
         if (admin.pharmacyDevices.isEmpty && admin.pharmacyDevicesLoadError != null)
           Text(
-            l10n.sellingDeviceListError,
+            admin.pharmacyDevicesLoadError!,
             style: const TextStyle(
               color: AppColors.secondaryAccent,
               fontSize: 13,

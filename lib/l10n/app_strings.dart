@@ -265,6 +265,8 @@ abstract class AppStrings {
   String get lowStockThresholdHelper;
   String get defaultBoxesToOrder;
   String get defaultBoxesHelper;
+  String get defaultStripsPerBox;
+  String get defaultStripsPerBoxHelper;
   String get expiringSoonWindow;
   String get expiringSoonWindowHelper;
   String get moderateExpiry;
@@ -280,6 +282,19 @@ abstract class AppStrings {
   String get addProductStepperModeToggle;
   String get restockPricingCollapsedByDefault;
   String get restockPricingCollapsedByDefaultHelper;
+  String get stripAiTitle;
+  String get stripAiSubtitle;
+  String get stripAiModelCardLink;
+  String get stripAiDownload;
+  String get stripAiRemove;
+  String get stripAiUsingMlKit;
+  String get stripAiUsingDownloaded;
+  String stripAiVersion(String v);
+  String get stripAiDownloadComplete;
+  String get stripAiDownloadFailed;
+  String stripAiDownloadFailedMsg(String msg);
+  String get stripAiRemoveDone;
+  String get stripAiUrlNotConfigured;
   String get saveSettings;
   String get settingsSaved;
   String get expiryOrderError;
@@ -514,6 +529,7 @@ abstract class AppStrings {
   String get checkoutRequiresActiveDevice;
   String get refreshDeviceList;
   String get sellingDeviceListError;
+  String get deviceNotRegisteredError;
   String get passwordSet;
   String get adminRole;
   String get renew;

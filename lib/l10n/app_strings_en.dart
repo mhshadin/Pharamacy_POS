@@ -436,6 +436,11 @@ class AppStringsEn implements AppStrings {
   String get defaultBoxesHelper =>
       'This is pre-filled when exporting an order list from Low Stock / Expiring Soon.';
   @override
+  String get defaultStripsPerBox => 'Default Strips per Box';
+  @override
+  String get defaultStripsPerBoxHelper =>
+      'This is pre-filled in Add Product when starting a new product entry.';
+  @override
   String get expiringSoonWindow => 'Expiring Soon Window (Days)';
   @override
   String get expiringSoonWindowHelper =>
@@ -474,6 +479,34 @@ class AppStringsEn implements AppStrings {
   @override
   String get restockPricingCollapsedByDefaultHelper =>
       'If enabled, the Pricing section starts collapsed in the Restock screen.';
+  @override
+  String get stripAiTitle => 'Strip text model (optional)';
+  @override
+  String get stripAiSubtitle =>
+      'Download a converted .tflite model to read strip crops on-device. Without it, Google ML Kit OCR is used. Uses extra storage.';
+  @override
+  String get stripAiModelCardLink => 'Model info (Hugging Face)';
+  @override
+  String get stripAiDownload => 'Download model';
+  @override
+  String get stripAiRemove => 'Remove downloaded model';
+  @override
+  String get stripAiUsingMlKit => 'Strip reader: ML Kit (default)';
+  @override
+  String get stripAiUsingDownloaded => 'Strip reader: downloaded TFLite';
+  @override
+  String stripAiVersion(String v) => 'Installed version label: $v';
+  @override
+  String get stripAiDownloadComplete => 'Model saved. AI strip reading is enabled.';
+  @override
+  String get stripAiDownloadFailed => 'Download failed';
+  @override
+  String stripAiDownloadFailedMsg(String msg) => 'Download failed: $msg';
+  @override
+  String get stripAiRemoveDone => 'Model removed. Using ML Kit OCR.';
+  @override
+  String get stripAiUrlNotConfigured =>
+      'No download URL is set in the app. Add a direct .tflite link in strip_ai_config.dart (modelDownloadUrl).';
   @override
   String get saveSettings => 'Save Settings';
   @override
@@ -968,6 +1001,9 @@ class AppStringsEn implements AppStrings {
   String get sellingDeviceListError =>
       'Could not load devices. Try Refresh.';
   @override
+  String get deviceNotRegisteredError =>
+      'Device not recognized. Please logout and login again to register this device.';
+  @override
   String get passwordSet => 'Password set successfully!';
   @override
   String get adminRole => 'Admin';
@@ -1120,7 +1156,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get renewBtn => 'Renew Subscription';
   @override
-  String get ocrScanResult => 'OCR Results';
+  String get ocrScanResult => 'AI Results';
   @override
   String get addAllToCart => 'Add all to cart';
   @override
@@ -1316,7 +1352,7 @@ class AppStringsEn implements AppStrings {
   @override
   String voiceError(String error) => 'Voice error: $error';
   @override
-  String ocrError(String error) => 'OCR error: $error';
+  String ocrError(String error) => 'AI error: $error';
   @override
   String get googleIdTokenError => 'Unable to get Google ID token.';
   @override
@@ -1546,7 +1582,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get manual => 'Manual';
   @override
-  String get ocr => 'OCR';
+  String get ocr => 'AI Scan';
   @override
   String get voice => 'Voice';
   @override

@@ -12,6 +12,7 @@ import '../models/product.dart';
 import '../providers/pos_provider.dart';
 import '../services/database_helper.dart';
 import '../services/ocr_service.dart';
+import '../services/strip_ai_model_store.dart';
 import '../utils/colors.dart';
 import '../providers/language_provider.dart';
 
@@ -32,6 +33,9 @@ class OcrScanResultScreen extends StatefulWidget {
 }
 
 class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
+  // Threshold contract:
+  // - exactThreshold (in OcrService) controls auto-accept.
+  // - displayThreshold here controls what the user can review manually.
   static const double _displayThreshold = 0.60;
   static const int _ocrMaxImageWidth = 1280;
   static const int _ocrJpegQuality = 75;
@@ -41,7 +45,7 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   late bool _ownsCurrentImage;
   bool _isRetaking = false;
 
-  List<OcrMatchResult> _keepHighConfidenceOnly(List<OcrMatchResult> results) {
+  List<OcrMatchResult> _keepDisplayCandidates(List<OcrMatchResult> results) {
     return results
         .where((r) => r.matchScore >= _displayThreshold)
         .toList();
@@ -64,7 +68,7 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
   @override
   void initState() {
     super.initState();
-    _results = _keepHighConfidenceOnly(widget.results);
+    _results = _keepDisplayCandidates(widget.results);
     _image = widget.capturedImage;
     _ownsCurrentImage = _isInOcrTempFolder(_image);
     // Auto-accept exact matches on load.
@@ -101,12 +105,14 @@ class _OcrScanResultScreenState extends State<OcrScanResultScreen> {
       final imageFile = await _preprocessImageForOcr(File(file.path));
 
       if (!mounted) return;
+      final useStripAi = await StripAiModelStore.instance.isInstalled();
       final newResults = await OcrService.process(
         imageFile,
         widget.allProducts,
         fetchCandidatesForOcr: (t) => DatabaseHelper().getCandidatesForOcr(t),
+        useStripAiModel: useStripAi,
       );
-      final highConfidenceResults = _keepHighConfidenceOnly(newResults);
+      final highConfidenceResults = _keepDisplayCandidates(newResults);
 
       if (!mounted) return;
       if (highConfidenceResults.isEmpty) {

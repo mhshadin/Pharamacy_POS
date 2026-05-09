@@ -19,6 +19,7 @@ import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../services/database_helper.dart';
 import '../services/ocr_service.dart';
+import '../services/strip_ai_model_store.dart';
 import '../services/auth_storage.dart';
 import '../services/auth_service.dart';
 import '../services/time_service.dart';
@@ -1032,13 +1033,17 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _handleOcrImageFile(File imageFile) async {
     final l10n = context.read<LanguageProvider>().strings;
     final products = context.read<POSProvider>().products;
+    final useStripAi = await StripAiModelStore.instance.isInstalled();
     final results = await OcrService.process(
       imageFile,
       products,
       fetchCandidatesForOcr: (t) => DatabaseHelper().getCandidatesForOcr(t),
+      useStripAiModel: useStripAi,
     );
     if (!mounted) return;
     if (results.isEmpty) {
+      await _deleteIfAppManagedOcrFile(imageFile);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.noMedicineDetected),
@@ -1057,6 +1062,23 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _deleteIfAppManagedOcrFile(File file) async {
+    final filePath = p.normalize(file.absolute.path);
+    if (p.basename(p.dirname(filePath)) != _ocrTempDirName) return;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final docsDir = await getApplicationDocumentsDirectory();
+      final tempOcrRoot = p.normalize(p.join(tempDir.path, _ocrTempDirName));
+      final docsOcrRoot = p.normalize(p.join(docsDir.path, _ocrTempDirName));
+      final isManaged =
+          p.isWithin(tempOcrRoot, filePath) || p.isWithin(docsOcrRoot, filePath);
+      if (!isManaged) return;
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 
   Future<File> _preprocessImageForOcr(File sourceFile) async {

@@ -1,10 +1,12 @@
 // Added OCR functionality for pharmacy inventory tracking
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../models/product.dart';
+import 'strip_text_recognizer.dart';
 
 typedef OcrCandidateFetcher = Future<List<Product>> Function(String ocrRegionText);
 
@@ -177,13 +179,105 @@ class OcrService {
     return results;
   }
 
+  /// ML Kit layout + optional per-crop TFLite text; falls back to ML Kit strings.
+  static Future<List<OcrTextRegion>> _enhanceRegionsWithStripAi(
+    File imageFile,
+    List<OcrTextRegion> mlkitRegions,
+  ) async {
+    if (mlkitRegions.isEmpty) return mlkitRegions;
+    final recognizer = StripTextRecognizer.instance;
+    if (!await recognizer.ensureLoaded()) return mlkitRegions;
+
+    final clusters = _buildStripClusters(mlkitRegions);
+    final useStripLayout = _isGroupingReliableForStripAi(
+      clusters,
+      mlkitRegions.length,
+    );
+
+    if (useStripLayout) {
+      final boxes = <Rect>[];
+      final clusterRefs = <_StripCluster>[];
+      for (final cluster in clusters) {
+        final u = _unionBounds(cluster.regions);
+        if (u == null) continue;
+        boxes.add(u);
+        clusterRefs.add(cluster);
+      }
+      if (boxes.isEmpty) return mlkitRegions;
+      final texts = await recognizer.readStripsFromFile(imageFile, boxes);
+      final out = <OcrTextRegion>[];
+      for (var i = 0; i < boxes.length; i++) {
+        var text = texts[i];
+        if (text == null || text.trim().isEmpty) {
+          text = _fallbackMlKitText(clusterRefs[i].regions);
+        }
+        final trimmed = text.trim();
+        if (trimmed.isEmpty) continue;
+        out.add(OcrTextRegion(trimmed, boxes[i]));
+      }
+      return out.isEmpty ? mlkitRegions : out;
+    }
+
+    final indices = <int>[];
+    final boxes = <Rect>[];
+    for (var i = 0; i < mlkitRegions.length; i++) {
+      final b = mlkitRegions[i].boundingBox;
+      if (b == null) continue;
+      indices.add(i);
+      boxes.add(b);
+    }
+    if (boxes.isEmpty) return mlkitRegions;
+    final texts = await recognizer.readStripsFromFile(imageFile, boxes);
+    final out = List<OcrTextRegion>.from(mlkitRegions);
+    for (var j = 0; j < indices.length; j++) {
+      final i = indices[j];
+      var t = texts[j];
+      if (t == null || t.trim().isEmpty) t = mlkitRegions[i].text;
+      out[i] = OcrTextRegion(t.trim(), mlkitRegions[i].boundingBox);
+    }
+    return out;
+  }
+
+  static Rect? _unionBounds(List<OcrTextRegion> regions) {
+    Rect? u;
+    for (final r in regions) {
+      final b = r.boundingBox;
+      if (b == null) continue;
+      u = u == null ? b : u.expandToInclude(b);
+    }
+    return u;
+  }
+
+  static String _fallbackMlKitText(List<OcrTextRegion> regions) {
+    return regions
+        .map((e) => e.text)
+        .where((t) => t.trim().isNotEmpty)
+        .join(' ');
+  }
+
+  static bool _isGroupingReliableForStripAi(
+    List<_StripCluster> clusters,
+    int lineCount,
+  ) {
+    if (clusters.length <= 1) return false;
+    if (lineCount <= 1) return false;
+    final multiLineClusters =
+        clusters.where((c) => c.regions.length > 1).length;
+    final ratio = multiLineClusters / clusters.length;
+    return ratio >= _weakGroupingRatioThreshold;
+  }
+
   /// Main pipeline: extract → clean → match → crop each matched region.
   static Future<List<OcrMatchResult>> process(
     File imageFile,
     List<Product> products, {
     OcrCandidateFetcher? fetchCandidatesForOcr,
+    bool useStripAiModel = false,
   }) async {
-    final regions = await extractText(imageFile);
+    var regions = await extractText(imageFile);
+    if (useStripAiModel) {
+      regions = await _enhanceRegionsWithStripAi(imageFile, regions);
+    }
     final cleaned = _cleanRegions(regions);
     final matched = fetchCandidatesForOcr != null
         ? await _matchAgainstDbInternalAsync(
@@ -204,8 +298,12 @@ class OcrService {
     File imageFile,
     List<Product> products, {
     OcrCandidateFetcher? fetchCandidatesForOcr,
+    bool useStripAiModel = false,
   }) async {
-    final regions = await extractText(imageFile);
+    var regions = await extractText(imageFile);
+    if (useStripAiModel) {
+      regions = await _enhanceRegionsWithStripAi(imageFile, regions);
+    }
     final cleanedInfo = _cleanRegionsDetailed(regions);
     final debugAccumulator = _DebugAccumulator();
     final matched = fetchCandidatesForOcr != null
@@ -375,12 +473,184 @@ class OcrService {
       if (list.isEmpty) list = fullCatalog;
       cache[text] = list;
     }
-    return _matchAgainstDbInternal(
+
+    final regionCandidates = await _buildRegionCandidatesAsync(
       regions,
       (region) => cache[region.text] ?? fullCatalog,
-      debugAccumulator: debugAccumulator,
-      fullRescoreIfNarrowedMiss: fullCatalog,
+      fullCatalog,
     );
+    if (regionCandidates.isEmpty) return const [];
+
+    final clusters = _buildStripClusters(regions);
+    final useStripMode = _isGroupingReliable(clusters, regionCandidates.length);
+    if (debugAccumulator != null) {
+      debugAccumulator
+        ..groupingReliable = useStripMode
+        ..clusterCount = clusters.length;
+      _populateDebugScores(regionCandidates, debugAccumulator);
+      for (var i = 0; i < clusters.length; i++) {
+        for (final r in clusters[i].regions) {
+          debugAccumulator.regionByText.putIfAbsent(r.text, () => _RegionDebug());
+          debugAccumulator.regionByText[r.text]!.clusterId = i;
+        }
+      }
+    }
+
+    if (!useStripMode) {
+      if (debugAccumulator != null) debugAccumulator.usedStripMode = false;
+      return _buildGlobalResults(regionCandidates);
+    }
+    if (debugAccumulator != null) debugAccumulator.usedStripMode = true;
+
+    final candidateByText = <String, _RegionCandidate>{
+      for (final c in regionCandidates) c.region.text: c,
+    };
+    final usedProducts = <String>{};
+    final List<OcrMatchResult> results = [];
+
+    for (final cluster in clusters) {
+      _RegionCandidate? best;
+      for (final region in cluster.regions) {
+        final c = candidateByText[region.text];
+        if (c == null) continue;
+        if (best == null || c.hybridScore > best.hybridScore) {
+          best = c;
+        }
+      }
+      if (best == null) continue;
+      if (debugAccumulator != null) {
+        for (final region in cluster.regions) {
+          final info = debugAccumulator.regionByText.putIfAbsent(
+            region.text,
+            () => _RegionDebug(),
+          );
+          if (region.text == best.region.text) {
+            info.selectedInCluster = true;
+          } else if (candidateByText.containsKey(region.text)) {
+            info.suppressedInCluster = true;
+          }
+        }
+      }
+
+      final picked = _buildResultFromCandidate(best, usedProducts);
+      if (picked != null) {
+        results.add(picked);
+      }
+    }
+
+    if (results.isEmpty) {
+      return _buildGlobalResults(regionCandidates);
+    }
+
+    return results;
+  }
+
+  static Future<List<_RegionCandidate>> _buildRegionCandidatesAsync(
+    List<OcrTextRegion> regions,
+    List<Product> Function(OcrTextRegion region) productsForRegion,
+    List<Product> fullCatalog,
+  ) async {
+    final maxHeight = regions
+        .map((r) => r.boundingBox?.height ?? 0)
+        .fold<double>(0, (prev, v) => v > prev ? v : prev);
+    final maxArea = regions
+        .map((r) => (r.boundingBox?.width ?? 0) * (r.boundingBox?.height ?? 0))
+        .fold<double>(0, (prev, v) => v > prev ? v : prev);
+
+    final productById = <String, Product>{for (final p in fullCatalog) p.id: p};
+    final payloadRegions = <Map<String, Object?>>[];
+
+    for (final region in regions) {
+      final narrowed = productsForRegion(region);
+      if (narrowed.isEmpty) continue;
+      for (final p in narrowed) {
+        productById[p.id] = p;
+      }
+
+      payloadRegions.add({
+        'text': region.text,
+        'width': region.boundingBox?.width ?? 0.0,
+        'height': region.boundingBox?.height ?? 0.0,
+        'products': narrowed
+            .map(
+              (p) => {
+                'id': p.id,
+                'name': p.name,
+                'generic': p.generic,
+              },
+            )
+            .toList(),
+      });
+    }
+    if (payloadRegions.isEmpty) return const [];
+
+    final payload = <String, Object?>{
+      'regions': payloadRegions,
+      'maxHeight': maxHeight,
+      'maxArea': maxArea,
+      'discardThreshold': _discardThreshold,
+      'nameWeight': _nameWeight,
+      'genericWeight': _genericWeight,
+      'textWeight': _textWeight,
+      'sizeWeight': _sizeWeight,
+    };
+
+    final scored = await Isolate.run(() => _scoreRegionsInIsolate(payload));
+
+    final out = <_RegionCandidate>[];
+    for (var i = 0; i < payloadRegions.length; i++) {
+      final regionPayload = payloadRegions[i];
+      final regionText = regionPayload['text'] as String;
+      final region = regions.firstWhere((r) => r.text == regionText);
+      final scoredRows = scored[i]['scores'] as List<dynamic>;
+      if (scoredRows.isEmpty) {
+        // Rescue path: only when narrowed set misses completely.
+        final rescued = _scoreRegionAgainstProducts(
+          region,
+          fullCatalog,
+          maxHeight,
+          maxArea,
+        );
+        if (rescued.isEmpty) continue;
+        out.add(
+          _RegionCandidate(
+            region: region,
+            top: rescued.first,
+            scoredProducts: rescued,
+            sizeScore: _regionSizeScore(region, maxHeight, maxArea),
+          ),
+        );
+        continue;
+      }
+
+      final regionScored = <_ScoredProduct>[];
+      for (final row in scoredRows) {
+        final map = row as Map<String, dynamic>;
+        final id = map['id'] as String;
+        final product = productById[id];
+        if (product == null) continue;
+        regionScored.add(
+          _ScoredProduct(
+            product: product,
+            textScore: (map['textScore'] as num).toDouble(),
+            hybridScore: (map['hybridScore'] as num).toDouble(),
+          ),
+        );
+      }
+      if (regionScored.isEmpty) continue;
+      regionScored.sort((a, b) => b.hybridScore.compareTo(a.hybridScore));
+      out.add(
+        _RegionCandidate(
+          region: region,
+          top: regionScored.first,
+          scoredProducts: regionScored,
+          sizeScore: _regionSizeScore(region, maxHeight, maxArea),
+        ),
+      );
+    }
+
+    out.sort((a, b) => b.hybridScore.compareTo(a.hybridScore));
+    return out;
   }
 
   static List<OcrMatchResult> _matchAgainstDbInternal(
@@ -898,4 +1168,120 @@ class _RegionDebug {
     this.topOptions = const [],
   })  : selectedInCluster = false,
         suppressedInCluster = false;
+}
+
+List<Map<String, Object?>> _scoreRegionsInIsolate(Map<String, Object?> payload) {
+  final regions = (payload['regions'] as List).cast<Map<String, Object?>>();
+  final maxHeight = (payload['maxHeight'] as num).toDouble();
+  final maxArea = (payload['maxArea'] as num).toDouble();
+  final discardThreshold = (payload['discardThreshold'] as num).toDouble();
+  final nameWeight = (payload['nameWeight'] as num).toDouble();
+  final genericWeight = (payload['genericWeight'] as num).toDouble();
+  final textWeight = (payload['textWeight'] as num).toDouble();
+  final sizeWeight = (payload['sizeWeight'] as num).toDouble();
+
+  final results = <Map<String, Object?>>[];
+  for (final region in regions) {
+    final text = (region['text'] as String).trim();
+    final width = (region['width'] as num).toDouble();
+    final height = (region['height'] as num).toDouble();
+    final products = (region['products'] as List).cast<Map<String, Object?>>();
+
+    final hNorm = maxHeight <= 0 ? 0.0 : (height / maxHeight).clamp(0.0, 1.0);
+    final area = width * height;
+    final aNorm = maxArea <= 0 ? 0.0 : (area / maxArea).clamp(0.0, 1.0);
+    final sizeScore = ((hNorm * 0.65) + (aNorm * 0.35)).clamp(0.0, 1.0);
+
+    final scores = <Map<String, Object?>>[];
+    for (final p in products) {
+      final id = p['id'] as String;
+      final name = (p['name'] as String?) ?? '';
+      final generic = (p['generic'] as String?) ?? '';
+
+      final nameScore = _similarityIsolate(text, name) * nameWeight;
+      final genericScore = _similarityIsolate(text, generic) * genericWeight;
+      final textScore = nameScore > genericScore ? nameScore : genericScore;
+      if (textScore < discardThreshold) continue;
+
+      final hybridScore = ((textScore * textWeight) + (sizeScore * sizeWeight))
+          .clamp(0.0, 1.0);
+      scores.add({
+        'id': id,
+        'textScore': textScore,
+        'hybridScore': hybridScore,
+      });
+    }
+
+    scores.sort(
+      (a, b) => ((b['hybridScore'] as num).toDouble())
+          .compareTo((a['hybridScore'] as num).toDouble()),
+    );
+    results.add({'text': text, 'scores': scores});
+  }
+  return results;
+}
+
+double _similarityIsolate(String a, String b) {
+  final aClean = a.toLowerCase().trim();
+  final bClean = b.toLowerCase().trim();
+
+  if (aClean == bClean) return 1.0;
+  if (aClean.isEmpty || bClean.isEmpty) return 0.0;
+
+  final aTokens = aClean.split(RegExp(r'[\s\-_/]+'));
+  final bTokens = bClean.split(RegExp(r'[\s\-_/]+'));
+  double bestTokenScore = 0.0;
+  for (final at in aTokens) {
+    if (at.length < 3) continue;
+    for (final bt in bTokens) {
+      if (bt.length < 3) continue;
+      final ts = _levenshteinSimilarityIsolate(at, bt);
+      if (ts > bestTokenScore) bestTokenScore = ts;
+    }
+  }
+
+  final fullScore = _levenshteinSimilarityIsolate(aClean, bClean);
+  double containBonus = 0.0;
+  if (bClean.contains(aClean) || aClean.contains(bClean)) {
+    containBonus = 0.15;
+  }
+
+  return ((bestTokenScore * 0.55) + (fullScore * 0.30) + containBonus).clamp(
+    0.0,
+    1.0,
+  );
+}
+
+double _levenshteinSimilarityIsolate(String a, String b) {
+  if (a == b) return 1.0;
+  final dist = _levenshteinIsolate(a, b);
+  final maxLen = a.length > b.length ? a.length : b.length;
+  return 1.0 - (dist / maxLen);
+}
+
+int _levenshteinIsolate(String a, String b) {
+  final m = a.length;
+  final n = b.length;
+  final dp = List.generate(m + 1, (_) => List.filled(n + 1, 0));
+
+  for (var i = 0; i <= m; i++) {
+    dp[i][0] = i;
+  }
+  for (var j = 0; j <= n; j++) {
+    dp[0][j] = j;
+  }
+
+  for (var i = 1; i <= m; i++) {
+    for (var j = 1; j <= n; j++) {
+      if (a[i - 1] == b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] =
+            1 + [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]].reduce((x, y) {
+                  return x < y ? x : y;
+                });
+      }
+    }
+  }
+  return dp[m][n];
 }

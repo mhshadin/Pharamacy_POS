@@ -51,6 +51,8 @@ dependencies:
   device_info_plus: ^11.2.0
   clarity_flutter: ^1.7.1
   permission_handler: ^12.0.1
+  image: ^4.3.0
+  tflite_flutter: ^0.12.1
 
 
 dependency_overrides:
@@ -70,3 +72,4 @@ flutter:
     - assets/fonts/Roboto-Bold.ttf
     - assets/svg/
     - assets/sounds/
+    - assets/strip_ai/ocr_charset.txt

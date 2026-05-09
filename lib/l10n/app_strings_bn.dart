@@ -443,6 +443,11 @@ class AppStringsBn implements AppStrings {
   String get defaultBoxesHelper =>
       'কম স্টক বা মিয়াদোত্তীর্ণ তালিকা থেকে অর্ডার লিস্ট তৈরির সময় এটি কাজে লাগে।';
   @override
+  String get defaultStripsPerBox => 'ডিফল্ট বক্স প্রতি পাতা';
+  @override
+  String get defaultStripsPerBoxHelper =>
+      'নতুন পণ্য যোগ করার সময় বক্স প্রতি পাতার মান এটি দিয়ে প্রিফিল হবে।';
+  @override
   String get expiringSoonWindow => 'মিয়াদোত্তীর্ণ উইন্ডো (দিন)';
   @override
   String get expiringSoonWindowHelper =>
@@ -481,6 +486,35 @@ class AppStringsBn implements AppStrings {
   @override
   String get restockPricingCollapsedByDefaultHelper =>
       'চালু থাকলে রিস্টক স্ক্রিনে Pricing সেকশন শুরুতে বন্ধ থাকবে।';
+  @override
+  String get stripAiTitle => 'স্ট্রিপ টেক্সট মডেল (ঐচ্ছিক)';
+  @override
+  String get stripAiSubtitle =>
+      'অন-ডিভাইসে স্ট্রিপ ক্রপ পড়তে রূপান্তরিত .tflite মডেল ডাউনলোড করুন। ছাড়া Google ML Kit OCR ব্যবহার হবে। অতিরিক্ত স্টোরেজ লাগে।';
+  @override
+  String get stripAiModelCardLink => 'মডেল তথ্য (Hugging Face)';
+  @override
+  String get stripAiDownload => 'মডেল ডাউনলোড';
+  @override
+  String get stripAiRemove => 'ডাউনলোড করা মডেল মুছুন';
+  @override
+  String get stripAiUsingMlKit => 'স্ট্রিপ রিডার: ML Kit (ডিফল্ট)';
+  @override
+  String get stripAiUsingDownloaded => 'স্ট্রিপ রিডার: ডাউনলোড করা TFLite';
+  @override
+  String stripAiVersion(String v) => 'ইনস্টল ভার্সন লেবেল: $v';
+  @override
+  String get stripAiDownloadComplete =>
+      'মডেল সংরক্ষিত। AI স্ট্রিপ রিডিং চালু।';
+  @override
+  String get stripAiDownloadFailed => 'ডাউনলোড ব্যর্থ';
+  @override
+  String stripAiDownloadFailedMsg(String msg) => 'ডাউনলোড ব্যর্থ: $msg';
+  @override
+  String get stripAiRemoveDone => 'মডেল সরানো হয়েছে। ML Kit OCR ব্যবহার হচ্ছে।';
+  @override
+  String get stripAiUrlNotConfigured =>
+      'অ্যাপে ডাউনলোড URL সেট নেই। strip_ai_config.dart এ সরাসরি .tflite লিংক যোগ করুন।';
   @override
   String get saveSettings => 'সেটিংস সংরক্ষণ করুন';
   @override
@@ -978,6 +1012,9 @@ class AppStringsBn implements AppStrings {
   @override
   String get sellingDeviceListError =>
       'ডিভাইস লোড করা যায়নি। রিফ্রেশ চেষ্টা করুন।';
+  @override
+  String get deviceNotRegisteredError =>
+      'ডিভাইসটি সনাক্ত করা যায়নি। এই ডিভাইসটি নিবন্ধন করতে দয়া করে লগআউট করে পুনরায় লগইন করুন।';
   @override
   String get passwordSet => 'পাসওয়ার্ড সফলভাবে তৈরি হয়েছে!';
   @override
